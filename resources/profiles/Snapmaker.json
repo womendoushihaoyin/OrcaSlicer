@@ -1,6 +1,6 @@
 {
   "name": "Snapmaker",
-  "version": "02.01.01.00",
+  "version": "02.01.03.00",
   "force_update": "0",
   "description": "Snapmaker configurations",
   "machine_model_list": [
@@ -931,6 +931,14 @@
     {
       "name": "Snapmaker Dual TPU High-Flow",
       "sub_path": "filament/Snapmaker Dual TPU High-Flow.json"
+    },
+    {
+      "name": "Snapmaker Breakaway Support @base",
+      "sub_path": "filament/Snapmaker Breakaway Support @base.json"
+    },
+    {
+      "name": "Snapmaker Breakaway Support",
+      "sub_path": "filament/Snapmaker Breakaway Support.json"
     },
     {
       "name": "Snapmaker Dual TPE",
