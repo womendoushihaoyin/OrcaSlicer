@@ -121,6 +121,7 @@ if (WIN32)
     add_library(Snapmaker_Orca SHARED Snapmaker_Orca.cpp Snapmaker_Orca.hpp BaseException.cpp BaseException.h StackWalker.cpp StackWalker.h)
 else ()
     add_executable(Snapmaker_Orca Snapmaker_Orca.cpp Snapmaker_Orca.hpp)
+    
 endif ()
 
 if (MINGW)
@@ -130,12 +131,14 @@ endif (MINGW)
 
 if (NOT WIN32 AND NOT APPLE)
     # Binary name on unix like systems (Linux, Unix)
-    set_target_properties(Snapmaker_Orca PROPERTIES OUTPUT_NAME "snapmaker-slicer")
-    set(SLIC3R_APP_CMD "snapmaker-slicer")
+    set_target_properties(Snapmaker_Orca PROPERTIES OUTPUT_NAME "snapmaker-orca")
+    set(SLIC3R_APP_CMD "snapmaker-orca")
     configure_file(${CMAKE_CURRENT_SOURCE_DIR}/platform/unix/BuildLinuxImage.sh.in ${CMAKE_CURRENT_BINARY_DIR}/BuildLinuxImage.sh @ONLY)
 endif ()
 
+
 target_link_libraries(Snapmaker_Orca libslic3r cereal::cereal)
+
 if (APPLE)
 #    add_compile_options(-stdlib=libc++)
 #    add_definitions(-DBOOST_THREAD_DONT_USE_CHRONO -DBOOST_NO_CXX11_RVALUE_REFERENCES -DBOOST_THREAD_USES_MOVE)
@@ -152,7 +155,8 @@ endif ()
 # Add the Slic3r GUI library, libcurl, OpenGL and GLU libraries.
 if (SLIC3R_GUI)
 #    target_link_libraries(Snapmaker_Orca ws2_32 uxtheme setupapi libslic3r_gui ${wxWidgets_LIBRARIES})
-target_link_libraries(Snapmaker_Orca libslic3r_gui)
+    target_link_libraries(Snapmaker_Orca libslic3r_gui)
+
     if (MSVC)
         # Generate debug symbols even in release mode.
         target_link_options(Snapmaker_Orca PUBLIC "$<$<CONFIG:RELEASE>:/DEBUG>")
@@ -163,6 +167,7 @@ target_link_libraries(Snapmaker_Orca libslic3r_gui)
         target_link_libraries(Snapmaker_Orca "-framework OpenGL")
     else ()
         target_link_libraries(Snapmaker_Orca -ldl)
+       
     endif ()
     #if (WIN32)
     #    find_library(PSAPI_LIB NAMES Psapi)
@@ -184,7 +189,7 @@ if (WIN32)
     endif()
     target_compile_definitions(Snapmaker_Orca_app_gui PRIVATE -DSLIC3R_WRAPPER_NOCONSOLE)
     add_dependencies(Snapmaker_Orca_app_gui Snapmaker_Orca)
-    set_target_properties(Snapmaker_Orca_app_gui PROPERTIES OUTPUT_NAME "snapmaker-slicer")
+    set_target_properties(Snapmaker_Orca_app_gui PROPERTIES OUTPUT_NAME "snapmaker-orca")
     target_link_libraries(Snapmaker_Orca_app_gui PRIVATE boost_headeronly)
 endif ()
 
@@ -232,13 +237,14 @@ else ()
     if (APPLE AND NOT CMAKE_MACOSX_BUNDLE)
         # On OSX, the name of the binary matches the name of the Application.
         add_custom_command(TARGET Snapmaker_Orca POST_BUILD
-            COMMAND ln -sf Snapmaker_Orca snapmaker-slicer
+            COMMAND ln -sf Snapmaker_Orca snapmaker-orca
             WORKING_DIRECTORY "$<TARGET_FILE_DIR:Snapmaker_Orca>"
             VERBATIM)
     else ()
         add_custom_command(TARGET Snapmaker_Orca POST_BUILD
-            WORKING_DIRECTORY "$<TARGET_FILE_DIR:Snapmaker_Orca>"
-            VERBATIM)
+        WORKING_DIRECTORY "$<TARGET_FILE_DIR:Snapmaker_Orca>"
+        VERBATIM)
+        
     endif ()
     if (XCODE)
         # Because of Debug/Release/etc. configurations (similar to MSVC) the slic3r binary is located in an extra level
@@ -252,16 +258,19 @@ else ()
             set(BIN_RESOURCES_DIR "${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/Snapmaker_Orca.app/Contents/Resources")
         else()
             set(BIN_RESOURCES_DIR "${CMAKE_CURRENT_BINARY_DIR}/Snapmaker_Orca.app/Contents/Resources")
+            
         endif()
         set(MACOSX_BUNDLE_ICON_FILE Icon.icns)
         set(MACOSX_BUNDLE_BUNDLE_NAME "Snapmaker_Orca")
         set(MACOSX_BUNDLE_SHORT_VERSION_STRING ${SoftFever_VERSION})
         set(MACOSX_BUNDLE_COPYRIGHT "Copyright(C) 2022-2024 Li Jiang All Rights Reserved")
     endif()
+
     add_custom_command(TARGET Snapmaker_Orca POST_BUILD
-        COMMAND ln -sfn "${SLIC3R_RESOURCES_DIR}" "${BIN_RESOURCES_DIR}"
-        COMMENT "Symlinking the resources directory into the build tree"
-        VERBATIM)
+    COMMAND ln -sfn "${SLIC3R_RESOURCES_DIR}" "${BIN_RESOURCES_DIR}"
+    COMMENT "Symlinking the resources directory into the build tree"
+    VERBATIM)
+    
 endif ()
 
 # Slic3r binary install target. Default build type is release in case no CMAKE_BUILD_TYPE is provided.

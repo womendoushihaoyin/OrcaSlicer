@@ -25,22 +25,23 @@ function check_available_memory_and_disk() {
 }
 
 function usage() {
-    echo "Usage: ./BuildLinux.sh [-1][-b][-c][-d][-i][-r][-s][-u]"
+    echo "Usage: ./BuildLinux.sh [-1][-b][-c][-d][-e][-i][-r][-s][-u]"
     echo "   -1: limit builds to 1 core (where possible)"
     echo "   -b: build in debug mode"
     echo "   -c: force a clean build"
     echo "   -d: build deps (optional)"
+    echo "   -e: build linux orca engine (optional)"
     echo "   -h: this help output"
     echo "   -i: Generate appimage (optional)"
     echo "   -r: skip ram and disk checks (low ram compiling)"
-    echo "   -s: build snapmaker-slicer (optional)"
+    echo "   -s: build snapmaker-orca (optional)"
     echo "   -u: update and build dependencies (optional and need sudo)"
     echo "For a first use, you want to 'sudo ./BuildLinux.sh -u'"
     echo "   and then './BuildLinux.sh -dsi'"
 }
 
 unset name
-while getopts ":1bcdghirsu" opt; do
+while getopts ":1bcdeghirsu" opt; do
   case ${opt} in
     1 )
         export CMAKE_BUILD_PARALLEL_LEVEL=1
@@ -53,6 +54,9 @@ while getopts ":1bcdghirsu" opt; do
         ;;
     d )
         BUILD_DEPS="1"
+        ;;
+    e )
+        BUILD_ENGINE="1"
         ;;
     h ) usage
         exit 0
@@ -151,6 +155,11 @@ then
     then
         BUILD_ARGS="-DSLIC3R_GTK=3"
     fi
+    if [[ -n "${BUILD_ENGINE}" ]]
+    then
+        echo "BUILD_ENGINE=ON"
+        BUILD_ARGS="${BUILD_ARGS} -DSERVER_ENGINE=ON"
+    fi
     if [[ -n "${BUILD_DEBUG}" ]]
     then
         BUILD_ARGS="${BUILD_ARGS} -DCMAKE_BUILD_TYPE=Debug -DBBL_INTERNAL_TESTING=1"
@@ -166,6 +175,7 @@ then
     echo "done"
     echo "Building Snapmaker_Orca ..."
     cmake --build build --target Snapmaker_Orca
+    
     echo "Building Snapmaker_Orca_profile_validator .."
     cmake --build build --target Snapmaker_Orca_profile_validator
     ./run_gettext.sh
@@ -187,3 +197,4 @@ echo "[9/9] Generating Linux app..."
     popd
 echo "done"
 fi
+ 

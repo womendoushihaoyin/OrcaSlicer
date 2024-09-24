@@ -6024,7 +6024,7 @@ void CLI::print_help(bool include_print_options, PrinterTechnology printer_techn
     boost::nowide::cout
         << SLIC3R_APP_KEY <<"-"<< SLIC3R_VERSION << ":"
         << std::endl
-        << "Usage: snapmaker-slicer [ OPTIONS ] [ file.3mf/file.stl ... ]" << std::endl
+        << "Usage: snapmaker-orca [ OPTIONS ] [ file.3mf/file.stl ... ]" << std::endl
         << std::endl
         << "OPTIONS:" << std::endl;
     cli_misc_config_def.print_cli_help(boost::nowide::cout, false);
@@ -6263,9 +6263,11 @@ LONG WINAPI VectoredExceptionHandler(PEXCEPTION_POINTERS pExceptionInfo)
 extern "C" {
     __declspec(dllexport) int __stdcall Snapmaker_Orca_main(int argc, wchar_t **argv)
     {
-        // Convert wchar_t arguments to UTF8.
-        std::vector<std::string> 	argv_narrow;
-        std::vector<char*>			argv_ptrs(argc + 1, nullptr);
+         std::vector<std::string> 	argv_narrow;
+         std::vector<char*>			argv_ptrs(argc + 1, nullptr);
+
+        argv_ptrs.resize(argc + 1, nullptr);
+
         for (size_t i = 0; i < argc; ++ i)
             argv_narrow.emplace_back(boost::nowide::narrow(argv[i]));
         for (size_t i = 0; i < argc; ++ i)

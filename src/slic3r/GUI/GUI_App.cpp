@@ -827,6 +827,11 @@ void GUI_App::post_init()
                 for (auto& file : this->init_params->input_files) {
                     input_files.push_back(wxString::FromUTF8(file));
                 }
+
+                #ifdef SERVER_ENGINE
+                input_files.clear();
+                #endif
+
                 this->plater()->set_project_filename(_L("Untitled"));
                 this->plater()->load_files(input_files);
                 try {
@@ -2083,6 +2088,18 @@ void GUI_App::init_single_instance_checker(const std::string &name, const std::s
 bool GUI_App::OnInit()
 {
     try {
+        
+        #ifdef SERVER_ENGINE
+        std::vector<std::string>            files;
+        for (size_t i = 1; i < this->init_params->argc; ++i) {
+            wxPuts(init_params->argv[i]);
+            wxPuts("\n");
+            files.push_back(this->init_params->argv[i]);
+        }
+        Slic3r::GUI::Snapmaker_Orca_Engine* engine = new Slic3r::GUI::Snapmaker_Orca_Engine(files);
+        engine->init(); 
+        #endif
+
         return on_init_inner();
     } catch (const std::exception&) {
         generic_exception_handle();
@@ -2224,6 +2241,10 @@ bool GUI_App::on_init_inner()
         std::string ssl_cert_store = app_config->get("tls_accepted_cert_store_location");
         bool ssl_accept = app_config->get("tls_cert_store_accepted") == "yes" && ssl_cert_store == Slic3r::Http::tls_system_cert_store();
 
+#ifdef SERVER_ENGINE
+        app_config->set("tls_cert_store_accepted", "yes");
+            app_config->set("tls_accepted_cert_store_location", Slic3r::Http::tls_system_cert_store());
+#else
         if (!msg.empty() && !ssl_accept) {
             RichMessageDialog
                 dlg(nullptr,
@@ -2237,6 +2258,7 @@ bool GUI_App::on_init_inner()
             app_config->set("tls_accepted_cert_store_location",
                 dlg.IsCheckBoxChecked() ? Slic3r::Http::tls_system_cert_store() : "");
         }
+#endif
     }
 
     // !!! Initialization of UI settings as a language, application color mode, fonts... have to be done before first UI action.
@@ -2379,6 +2401,11 @@ bool GUI_App::on_init_inner()
                         skip_this_version = false;
                     }
                 }
+
+                #ifdef SERVER_ENGINE
+                skip_this_version = true;
+                #endif
+
                 if (!skip_this_version
                     || evt.GetInt() != 0) {
                     UpdateVersionDialog dialog(this->mainframe);
