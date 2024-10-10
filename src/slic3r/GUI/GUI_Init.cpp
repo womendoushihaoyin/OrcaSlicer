@@ -66,6 +66,7 @@ int GUI_Run(GUI_InitParams &params)
     } catch (const Slic3r::Exception &ex) {
         BOOST_LOG_TRIVIAL(error) << ex.what() << std::endl;
         wxMessageBox(boost::nowide::widen(ex.what()), _L("Snapmaker Orca GUI initialization failed"), wxICON_STOP);
+        wxMessageBox(boost::nowide::widen(ex.what()), _L("Snapmaker Orca GUI initialization failed"), wxICON_STOP);
     } catch (const std::exception &ex) {
         BOOST_LOG_TRIVIAL(error) << ex.what() << std::endl;
         wxMessageBox(format_wxstr(_L("Fatal error, exception caught: %1%"), ex.what()), _L("Snapmaker Orca GUI initialization failed"), wxICON_STOP);
