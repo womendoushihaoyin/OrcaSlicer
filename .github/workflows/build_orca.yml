@@ -140,8 +140,8 @@ jobs:
         with:
           upload_url: https://uploads.github.com/repos/Snapmaker/OrcaSlicer/releases/169912305/assets{?name,label}
           release_id: 169912305
-          asset_path: ${{ github.workspace }}/OrcaSlicer_Mac_${{inputs.arch}}_${{ env.ver }}.dmg
-          asset_name: OrcaSlicer_Mac_${{inputs.arch}}_${{ env.ver }}.dmg
+          asset_path: ${{ github.workspace }}/Snapmaker_Orca_Mac_${{inputs.arch}}_${{ env.ver }}.dmg
+          asset_name: Snapmaker_Orca_Mac_${{inputs.arch}}_${{ env.ver }}.dmg
           asset_content_type: application/octet-stream
           max_releases: 1 # optional, if there are more releases than this matching the asset_name, the oldest ones are going to be deleted
 
@@ -159,9 +159,6 @@ jobs:
       - name: Build slicer Win
         if: inputs.os == 'windows-latest'
         working-directory: ${{ github.workspace }}
-        env:
-          WindowsSdkDir: 'C:\Program Files (x86)\Windows Kits\10\'
-          WindowsSDKVersion: '10.0.22000.0\'
         run: .\build_release_vs2022.bat slicer
 
       - name: Create installer Win
@@ -209,8 +206,8 @@ jobs:
         with:
           upload_url: https://uploads.github.com/repos/Snapmaker/OrcaSlicer/releases/169912305/assets{?name,label}
           release_id: 169912305
-          asset_path: ${{ github.workspace }}/build/OrcaSlicer_Windows_${{ env.ver }}_portable.zip
-          asset_name: OrcaSlicer_Windows_${{ env.ver }}_portable.zip
+          asset_path: ${{ github.workspace }}/build/Snapmaker_Orca_Windows_${{ env.ver }}_portable.zip
+          asset_name: Snapmaker_Orca_Windows_${{ env.ver }}_portable.zip
           asset_content_type: application/x-zip-compressed
           max_releases: 1
 
@@ -220,8 +217,8 @@ jobs:
         with:
           upload_url: https://uploads.github.com/repos/Snapmaker/OrcaSlicer/releases/169912305/assets{?name,label}
           release_id: 169912305
-          asset_path: ${{ github.workspace }}/build/OrcaSlicer_Windows_Installer_${{ env.ver }}.exe
-          asset_name: OrcaSlicer_Windows_Installer_${{ env.ver }}.exe
+          asset_path: ${{ github.workspace }}/build/Snapmaker_Orca_Windows_Installer_${{ env.ver }}.exe
+          asset_name: Snapmaker_Orca_Windows_Installer_${{ env.ver }}.exe
           asset_content_type: application/x-msdownload
           max_releases: 1
 
@@ -287,8 +284,8 @@ jobs:
         with:
           upload_url: https://uploads.github.com/repos/Snapmaker/OrcaSlicer/releases/169912305/assets{?name,label}
           release_id: 169912305
-          asset_path: ./build/OrcaSlicer_Linux${{ env.ubuntu-ver-str }}_${{ env.ver }}.AppImage
-          asset_name: OrcaSlicer_Linux${{ env.ubuntu-ver-str }}_${{ env.ver }}.AppImage
+          asset_path: ./build/Snapmaker_Orca_Linux${{ env.ubuntu-ver-str }}_${{ env.ver }}.AppImage
+          asset_name: Snapmaker_Orca_Linux${{ env.ubuntu-ver-str }}_${{ env.ver }}.AppImage
           asset_content_type: application/octet-stream
           max_releases: 1 # optional, if there are more releases than this matching the asset_name, the oldest ones are going to be deleted
 
