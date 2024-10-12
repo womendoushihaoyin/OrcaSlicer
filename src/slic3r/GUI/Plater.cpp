@@ -1322,7 +1322,9 @@ void Sidebar::update_all_preset_comboboxes()
         p->combo_printer->update();
 
     // Orca:: show device tab based on vendor type
-    p_mainframe->show_device(preset_bundle.use_bbl_device_tab());
+    
+    // SM Beta temporarily cancel the device page
+    // p_mainframe->show_device(preset_bundle.use_bbl_device_tab());
     p_mainframe->m_tabpanel->SetSelection(p_mainframe->m_tabpanel->GetSelection());
 }
 
