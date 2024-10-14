@@ -45,9 +45,9 @@ static std::vector<std::string> s_project_options {
 
 // SM_FEATURE: add Snapmaker machine as default
 const char* PresetBundle::SM_BUNDLE = "Snapmaker";
-const char* PresetBundle::SM_DEFAULT_PRINTER_MODEL = "Snapmaker J1 (0.4 nozzle)";
+const char* PresetBundle::SM_DEFAULT_PRINTER_MODEL = "Snapmaker Artisan(0.4 nozzle)";
 const char* PresetBundle::SM_DEFAULT_PRINTER_VARIANT = "0.4";
-const char* PresetBundle::SM_DEFAULT_FILAMENT        = "Snapmaker J1 ABS";
+const char* PresetBundle::SM_DEFAULT_FILAMENT        = "PolyLite Dual PLA";
 
 PresetBundle::PresetBundle()
     : prints(Preset::TYPE_PRINT, Preset::print_options(), static_cast<const PrintRegionConfig &>(FullPrintConfig::defaults()))
