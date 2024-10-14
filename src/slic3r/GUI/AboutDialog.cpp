@@ -339,7 +339,7 @@ AboutDialog::AboutDialog()
               (boost::format(
               "<html>"
               "<body>"
-              "<p style=\"text-align:left\"><a style=\"color:#009789\" href=\"https://github.com/SoftFever/Snapmaker_Orca\">https://github.com/SoftFever/Snapmaker_Orca</ a></p>"
+              "<p style=\"text-align:left\"><a style=\"color:#009789\" href=\"https://github.com/Snapmaker/OrcaSlicer\">https://github.com/Snapmaker/OrcaSlicer</ a></p>"
               "</body>"
               "</html>")
             ).str());

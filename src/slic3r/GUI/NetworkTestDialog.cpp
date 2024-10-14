@@ -250,7 +250,7 @@ void NetworkTestDialog::start_all_job_sequence()
 		update_status(-1, "start_test_sequence");
         start_test_url(TEST_BING_JOB, "Bing", "http://www.bing.com");
         if (m_closing) return;
-		start_test_url(TEST_ORCA_JOB, "Snapmaker_Orca(GitHub)", "https://github.com/SoftFever/Snapmaker_Orca");
+		start_test_url(TEST_ORCA_JOB, "Snapmaker_Orca(GitHub)", "https://github.com/Snapmaker/OrcaSlicer");
 		if (m_closing) return;
 		update_status(-1, "end_test_sequence");
 	});
@@ -308,7 +308,7 @@ void NetworkTestDialog::start_test_github_thread()
     if (m_in_testing[TEST_ORCA_JOB])
         return;
     test_job[TEST_ORCA_JOB] = new boost::thread([this] {
-        start_test_url(TEST_ORCA_JOB, "Snapmaker_Orca(GitHub)", "https://github.com/SoftFever/Snapmaker_Orca");
+        start_test_url(TEST_ORCA_JOB, "Snapmaker_Orca(GitHub)", "https://github.com/Snapmaker/OrcaSlicer");
     });
 }
 void NetworkTestDialog::start_test_bing_thread()
