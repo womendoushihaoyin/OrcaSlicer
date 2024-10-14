@@ -5,76 +5,76 @@
   "description": "Snapmaker configurations",
   "machine_model_list": [
     {
+      "name": "Snapmaker Artisan",
+      "sub_path": "machine/Snapmaker Artisan.json"
+    },
+    {
       "name": "Snapmaker J1",
       "sub_path": "machine/Snapmaker J1.json"
-    },
-    {
-      "name": "Snapmaker A250",
-      "sub_path": "machine/Snapmaker A250.json"
-    },
-    {
-      "name": "Snapmaker A350",
-      "sub_path": "machine/Snapmaker A350.json"
-    },
-    {
-      "name": "Snapmaker A250 Dual",
-      "sub_path": "machine/Snapmaker A250 Dual.json"
     },
     {
       "name": "Snapmaker A350 Dual",
       "sub_path": "machine/Snapmaker A350 Dual.json"
     },
     {
-      "name": "Snapmaker A250 QSKit",
-      "sub_path": "machine/Snapmaker A250 QSKit.json"
-    },
-    {
-      "name": "Snapmaker A350 QSKit",
-      "sub_path": "machine/Snapmaker A350 QSKit.json"
-    },
-    {
-      "name": "Snapmaker A250 BKit",
-      "sub_path": "machine/Snapmaker A250 BKit.json"
-    },
-    {
-      "name": "Snapmaker A350 BKit",
-      "sub_path": "machine/Snapmaker A350 BKit.json"
-    },
-    {
-      "name": "Snapmaker A250 QS+B Kit",
-      "sub_path": "machine/Snapmaker A250 QS+B Kit.json"
-    },
-    {
-      "name": "Snapmaker A350 QS+B Kit",
-      "sub_path": "machine/Snapmaker A350 QS+B Kit.json"
-    },
-    {
-      "name": "Snapmaker A250 Dual QSKit",
-      "sub_path": "machine/Snapmaker A250 Dual QSKit.json"
+      "name": "Snapmaker A250 Dual",
+      "sub_path": "machine/Snapmaker A250 Dual.json"
     },
     {
       "name": "Snapmaker A350 Dual QSKit",
       "sub_path": "machine/Snapmaker A350 Dual QSKit.json"
     },
     {
-      "name": "Snapmaker A250 Dual BKit",
-      "sub_path": "machine/Snapmaker A250 Dual BKit.json"
+      "name": "Snapmaker A250 Dual QSKit",
+      "sub_path": "machine/Snapmaker A250 Dual QSKit.json"
     },
     {
       "name": "Snapmaker A350 Dual BKit",
       "sub_path": "machine/Snapmaker A350 Dual BKit.json"
     },
     {
-      "name": "Snapmaker A250 Dual QS+B Kit",
-      "sub_path": "machine/Snapmaker A250 Dual QS+B Kit.json"
+      "name": "Snapmaker A250 Dual BKit",
+      "sub_path": "machine/Snapmaker A250 Dual BKit.json"
     },
     {
       "name": "Snapmaker A350 Dual QS+B Kit",
       "sub_path": "machine/Snapmaker A350 Dual QS+B Kit.json"
     },
     {
-      "name": "Snapmaker Artisan",
-      "sub_path": "machine/Snapmaker Artisan.json"
+      "name": "Snapmaker A250 Dual QS+B Kit",
+      "sub_path": "machine/Snapmaker A250 Dual QS+B Kit.json"
+    },
+    {
+      "name": "Snapmaker A350 QSKit",
+      "sub_path": "machine/Snapmaker A350 QSKit.json"
+    },
+    {
+      "name": "Snapmaker A250 QSKit",
+      "sub_path": "machine/Snapmaker A250 QSKit.json"
+    },
+    {
+      "name": "Snapmaker A350",
+      "sub_path": "machine/Snapmaker A350.json"
+    },
+    {
+      "name": "Snapmaker A250",
+      "sub_path": "machine/Snapmaker A250.json"
+    },
+    {
+      "name": "Snapmaker A350 BKit",
+      "sub_path": "machine/Snapmaker A350 BKit.json"
+    },
+    {
+      "name": "Snapmaker A250 BKit",
+      "sub_path": "machine/Snapmaker A250 BKit.json"
+    },
+    {
+      "name": "Snapmaker A350 QS+B Kit",
+      "sub_path": "machine/Snapmaker A350 QS+B Kit.json"
+    },
+    {
+      "name": "Snapmaker A250 QS+B Kit",
+      "sub_path": "machine/Snapmaker A250 QS+B Kit.json"
     }
   ],
   "process_list": [
