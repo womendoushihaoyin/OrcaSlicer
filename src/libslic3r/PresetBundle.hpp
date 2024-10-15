@@ -112,6 +112,7 @@ public:
 
     // BBS
     void            set_num_filaments(unsigned int n, std::string new_col = "");
+    void            set_num_filaments(unsigned int n, std::vector<std::string> new_colors);
     unsigned int sync_ams_list(unsigned int & unknowns);
     //BBS: check whether this is the only edited filament
     bool is_the_only_edited_filament(unsigned int filament_index);
