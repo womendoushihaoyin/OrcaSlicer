@@ -3602,6 +3602,69 @@ wxString GUI_App::transition_tridid(int trid_id)
     return wxString::Format("%s%d", maping_dict[id_index], id_suffix);
 }
 
+// SM
+void GUI_App::sm_get_login_info() {
+    if (!m_login_userinfo.is_user_login() || m_login_userinfo.get_user_name().empty()) {
+        // default
+        json param;
+        param["command"] = "studio_useroffline";
+        param["sequece_id"] = "10001";
+        std::string logout_cmd = param.dump();
+        wxString    strJS      = wxString::Format("window.postMessage(%s)", logout_cmd);
+        GUI::wxGetApp().run_script(strJS);
+    } else {
+        json param;
+        param["command"]    = "studio_userlogin";
+        param["sequece_id"] = "10001";
+        json data;
+        data["avatar"] = m_login_userinfo.get_user_icon_url();
+        data["name"]   = m_login_userinfo.get_user_name();
+        param["data"]  = data;
+        std::string login_cmd = param.dump();
+        wxString    strJS      = wxString::Format("window.postMessage(%s)", login_cmd);
+        GUI::wxGetApp().run_script(strJS);
+    }
+    mainframe->m_webview->SetLoginPanelVisibility(true);
+}
+
+void GUI_App::sm_request_login(bool show_user_info)
+{
+    sm_ShowUserLogin();
+
+    if (show_user_info) {
+        sm_get_login_info();
+    }
+
+}
+
+void GUI_App::sm_ShowUserLogin(bool show)
+{
+    // BBS: User Login Dialog
+    if (show) {
+        try {
+            if (!sm_login_dlg)
+                sm_login_dlg = new SMUserLogin();
+            else {
+                delete sm_login_dlg;
+                sm_login_dlg = new SMUserLogin();
+            }
+            sm_login_dlg->ShowModal();
+        } catch (std::exception&) {
+            ;
+        }
+    } else {
+        if (sm_login_dlg)
+            sm_login_dlg->EndModal(wxID_OK);
+    }
+}
+
+void GUI_App::sm_request_user_logout()
+{
+    if (m_login_userinfo.is_user_login()) {
+        m_login_userinfo.set_user_login(false);
+    }
+}
+
 //BBS
 void GUI_App::request_login(bool show_user_info)
 {
@@ -3734,17 +3797,17 @@ std::string GUI_App::handle_web_request(std::string cmd)
             }
             else if (command_str.compare("get_login_info") == 0) {
                 CallAfter([this] {
-                        get_login_info();
+                        sm_get_login_info();
                     });
             }
             else if (command_str.compare("homepage_login_or_register") == 0) {
                 CallAfter([this] {
-                    this->request_login(true);
+                    this->sm_request_login(true);
                 });
             }
             else if (command_str.compare("homepage_logout") == 0) {
                 CallAfter([this] {
-                    wxGetApp().request_user_logout();
+                    wxGetApp().sm_request_user_logout();
                 });
             }
             else if (command_str.compare("homepage_modeldepot") == 0) {

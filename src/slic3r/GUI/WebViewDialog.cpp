@@ -418,7 +418,7 @@ void WebViewPanel::OnFreshLoginStatus(wxTimerEvent &event)
 {
     auto mainframe = Slic3r::GUI::wxGetApp().mainframe;
     if (mainframe && mainframe->m_webview == this)
-        Slic3r::GUI::wxGetApp().get_login_info();
+        Slic3r::GUI::wxGetApp().sm_get_login_info();
 }
 
 void WebViewPanel::SetLoginPanelVisibility(bool bshow)
@@ -490,6 +490,9 @@ void WebViewPanel::ShowNetpluginTip()
     // Install Network Plugin
     //std::string NP_Installed = wxGetApp().app_config->get("installed_networking");
     bool        bValid       = wxGetApp().is_compatibility_version();
+
+    // SM test
+    bValid = true;
 
     int nShow = 0;
     if (!bValid) nShow = 1;
