@@ -27,6 +27,7 @@
 #include "format.hpp"
 
 #include "WebUserLoginDialog.hpp"
+#include "WebSMUserLoginDialog.hpp"
 
 #include "libslic3r/Print.hpp"
 
@@ -495,7 +496,8 @@ void login()
 	//LoginDialog dlg;
 	//dlg.ShowModal();
 
-	ZUserLogin dlg;
+	// ZUserLogin dlg;
+	SMUserLogin dlg;
     dlg.run();
 }
 
