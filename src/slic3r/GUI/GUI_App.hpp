@@ -20,6 +20,7 @@
 #include "slic3r/Utils/NetworkAgent.hpp"
 #include "slic3r/GUI/WebViewDialog.hpp"
 #include "slic3r/GUI/WebUserLoginDialog.hpp"
+#include "slic3r/GUI/WebSMUserLoginDialog.hpp"
 #include "slic3r/GUI/BindDialog.hpp"
 #include "slic3r/GUI/HMS.hpp"
 #include "slic3r/GUI/Jobs/UpgradeNetworkJob.hpp"
@@ -293,6 +294,7 @@ private:
 
     // login widget
     ZUserLogin*     login_dlg { nullptr };
+    SMUserLogin*    sm_login_dlg{ nullptr };
 
     VersionInfo version_info;
     VersionInfo privacy_version_info;
@@ -442,6 +444,33 @@ private:
     bool            check_login();
     void            get_login_info();
     bool            is_user_login();
+
+    // SM
+    struct SMUserInfo
+    {
+    public:
+        bool is_user_login() { return m_login; }
+        void set_user_login(bool login) { m_login = login; }
+
+        std::string get_user_name() { return m_login_user_name; }
+        void     set_user_name(const std::string& name) { m_login_user_name = name; }
+
+        std::string get_user_token() { return m_login_user_token; }
+        void     set_user_token(const std::string& token) { m_login_user_token = token; }
+
+        std::string get_user_icon_url() { return m_login_user_icon_url; }
+        void     set_user_icon_url(const std::string& url) { m_login_user_icon_url = url; }
+    private:
+        std::string m_login_user_name = "";
+        std::string m_login_user_token = "";
+        std::string m_login_user_icon_url = "";
+        bool     m_login = false;
+    };
+    SMUserInfo*     sm_get_userinfo() { return &m_login_userinfo; }
+    void            sm_get_login_info();
+    void            sm_request_login(bool show_user_info = false);
+    void            sm_ShowUserLogin(bool show  =  true);
+    void            sm_request_user_logout();
 
     void            request_user_login(int online_login = 0);
     void            request_user_handle(int online_login = 0);
@@ -698,6 +727,8 @@ private:
     boost::optional<Semver> m_last_config_version;
     bool                    m_config_corrupted { false };
     std::string             m_open_method;
+
+    SMUserInfo m_login_userinfo;
 };
 
 DECLARE_APP(GUI_App)
