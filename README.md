@@ -45,7 +45,7 @@ Explore the latest developments in Snapmaker Orca with our nightly builds. Feedb
 
 **Mac**:
 1. Download the DMG for your computer: `arm64` version for Apple Silicon and `x86_64` for Intel CPU.  
-2. Drag Snapmaker_Orca.app to Application folder. 
+2. Drag Snapmaker Orca.app to Application folder. 
 3. *If you want to run a build from a PR, you also need following instructions below*  
     <details quarantine>
     - Option 1 (You only need to do this once. After that the app can be opened normally.):
@@ -53,9 +53,9 @@ Explore the latest developments in Snapmaker Orca with our nightly builds. Feedb
       - Step 2: A warning window will pop up, click _Open_  
       
     - Option 2:  
-      Execute this command in terminal: `xattr -dr com.apple.quarantine /Applications/Snapmaker_Orca.app`
+      Execute this command in terminal: `xattr -dr com.apple.quarantine /Applications/Snapmaker Orca.app`
       ```console
-          softfever@mac:~$ xattr -dr com.apple.quarantine /Applications/Snapmaker_Orca.app
+          softfever@mac:~$ xattr -dr com.apple.quarantine /Applications/Snapmaker Orca.app
       ```
     - Option 3:  
         - Step 1: open the app, a warning window will pop up  

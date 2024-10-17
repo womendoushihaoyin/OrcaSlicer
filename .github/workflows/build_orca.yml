@@ -112,7 +112,7 @@ jobs:
           security import $CERTIFICATE_PATH -P $P12_PASSWORD -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
           security list-keychain -d user -s $KEYCHAIN_PATH
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k $P12_PASSWORD $KEYCHAIN_PATH
-          codesign --deep --force --verbose --options runtime --timestamp --entitlements ${{ github.workspace }}/scripts/disable_validation.entitlements --sign "$CERTIFICATE_ID" ${{ github.workspace }}/build_${{inputs.arch}}/Snapmaker_Orca/Snapmaker_Orca.app
+          codesign --deep --force --verbose --options runtime --timestamp --entitlements ${{ github.workspace }}/scripts/disable_validation.entitlements --sign "$CERTIFICATE_ID" "${{ github.workspace }}/build_${{inputs.arch}}/Snapmaker_Orca/Snapmaker Orca.app"
           ln -s /Applications ${{ github.workspace }}/build_${{inputs.arch}}/Snapmaker_Orca/Applications
           hdiutil create -volname "Snapmaker_Orca" -srcfolder ${{ github.workspace }}/build_${{inputs.arch}}/Snapmaker_Orca -ov -format UDZO Snapmaker_Orca_Mac_${{inputs.arch}}_${{ env.ver }}.dmg
           codesign --deep --force --verbose --options runtime --timestamp --entitlements ${{ github.workspace }}/scripts/disable_validation.entitlements --sign "$CERTIFICATE_ID" Snapmaker_Orca_Mac_${{inputs.arch}}_${{ env.ver }}.dmg
