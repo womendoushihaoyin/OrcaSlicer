@@ -121,6 +121,8 @@ if (WIN32)
     add_library(Snapmaker_Orca SHARED Snapmaker_Orca.cpp Snapmaker_Orca.hpp BaseException.cpp BaseException.h StackWalker.cpp StackWalker.h)
 else ()
     add_executable(Snapmaker_Orca Snapmaker_Orca.cpp Snapmaker_Orca.hpp)
+    if (APPLE)
+        set_target_properties(Snapmaker_Orca PROPERTIES BUNDLE_NAME "Snapmaker Orca")
 endif ()
 
 if (MINGW)
