@@ -2710,8 +2710,8 @@ msgstr "Snapmaker Orca is licensed under "
 msgid "GNU Affero General Public License, version 3"
 msgstr "GNU Affero General Public License, version 3"
 
-msgid "Snapmaker Orca is based on PrusaSlicer and BambuStudio"
-msgstr "Snapmaker Orca는 PrusaSlicer와 BambuStudio를 기반으로 합니다"
+msgid "Snapmaker Orca is Based on Orca Slicer"
+msgstr "Snapmaker Orca is Based on Orca Slicer"
 
 msgid "Libraries"
 msgstr "라이브러리"

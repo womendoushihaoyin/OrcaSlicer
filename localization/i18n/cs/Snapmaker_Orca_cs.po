@@ -2735,7 +2735,7 @@ msgstr "Snapmaker Orca je licencován pod "
 msgid "GNU Affero General Public License, version 3"
 msgstr "GNU Affero General Public License, verze 3"
 
-msgid "Snapmaker Orca is based on PrusaSlicer and BambuStudio"
+msgid "Snapmaker Orca is Based on Orca Slicer"
 msgstr ""
 
 msgid "Libraries"

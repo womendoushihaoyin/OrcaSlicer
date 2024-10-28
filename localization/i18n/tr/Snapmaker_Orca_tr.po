@@ -2736,8 +2736,8 @@ msgstr "Orca Dilimleyici şu lisansa sahiptir: "
 msgid "GNU Affero General Public License, version 3"
 msgstr "GNU Affero Genel Kamu Lisansı, sürüm 3"
 
-msgid "Snapmaker Orca is based on PrusaSlicer and BambuStudio"
-msgstr "Snapmaker Orca, PrusaSlicer ve BambuStudio’yu temel alır"
+msgid "Snapmaker Orca is Based on Orca Slicer"
+msgstr "Snapmaker Orca is Based on Orca Slicer"
 
 msgid "Libraries"
 msgstr "Kütüphaneler"

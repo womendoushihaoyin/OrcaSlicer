@@ -2741,7 +2741,7 @@ msgstr " Snapmaker Orca 是在"
 msgid "GNU Affero General Public License, version 3"
 msgstr "GNU Affero 通用公共許可證，版本 3 下授權的"
 
-msgid "Snapmaker Orca is based on PrusaSlicer and BambuStudio"
+msgid "Snapmaker Orca is Based on Orca Slicer"
 msgstr ""
 
 msgid "Libraries"
