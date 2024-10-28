@@ -2760,8 +2760,8 @@ msgstr "Snapmaker Orca знаходиться під ліцензією "
 msgid "GNU Affero General Public License, version 3"
 msgstr "Стандартна громадська ліцензія GNU Affero, версія 3"
 
-msgid "Snapmaker Orca is based on PrusaSlicer and BambuStudio"
-msgstr "Snapmaker Orca базується на PrusaSlicer та BambuStudio"
+msgid "Snapmaker Orca is Based on Orca Slicer"
+msgstr "Snapmaker Orca is Based on Orca Slicer"
 
 msgid "Libraries"
 msgstr "Бібліотеки"
