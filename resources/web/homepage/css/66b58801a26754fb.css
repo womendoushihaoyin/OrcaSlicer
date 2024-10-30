@@ -3490,3 +3490,1157 @@ body.video-react-full-window .video-react-fullscreen {
     height: 19px;
 }
 
+/*test*/
+.portal-css-1ex50um {
+    position: fixed;
+    inset: 0px;
+    z-index: 999;
+}
+
+.portal-css-1r91avz {
+    position: fixed;
+    display: flex;
+    -webkit-box-align: center;
+    align-items: center;
+    -webkit-box-pack: center;
+    justify-content: center;
+    inset: 0px;
+    background-color: rgba(0, 0, 0, 0.5);
+    -webkit-tap-highlight-color: transparent;
+    z-index: -1;
+}
+
+.portal-css-16u656j {
+    height: 100%;
+    outline: 0px;
+    display: flex;
+    -webkit-box-pack: center;
+    justify-content: center;
+    -webkit-box-align: center;
+    align-items: center;
+}
+
+.portal-css-93vtwm {
+    background-color: rgb(255, 255, 255);
+    color: rgb(33, 43, 54);
+    background-image: none;
+    position: relative;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100% - 64px);
+    max-width: 600px;
+    box-shadow: rgba(0, 0, 0, 0.24) 0px 0px 4px 0px, rgba(0, 0, 0, 0.24) 0px 24px 48px 0px;
+    transition: box-shadow 300ms cubic-bezier(0.4, 0, 0.2, 1);
+    border-radius: 8px;
+    margin: 32px;
+}
+
+.portal-css-1ex50um .MuiPaper-root {
+    background: rgb(255, 255, 255);
+    max-width: unset;
+    flex: 0 0 calc(100% - 160px);
+    border-radius: 12px !important;
+}
+
+.portal-css-93vtwm.MuiPaper-rounded {
+    border-radius: 4px;
+}
+
+.portal-css-19v82mx {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    border-top: 0px;
+    border-bottom: 0px;
+    padding: 20px 20px 8px;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-height: 240px;
+}
+
+.portal-css-4zknmo {
+    display: flex;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.portal-css-ubzqd {
+    width: 100%;
+    margin-bottom: 10px;
+}
+
+@media (min-width: 800px) {
+    .portal-css-ubzqd {
+        display: none;
+    }
+}
+
+.portal-css-14ewmc0 {
+    display: flex;
+    gap: 12px;
+    flex: 1 1 0%;
+    overflow: hidden;
+}
+
+.portal-css-1q7wnvz {
+    width: 48px;
+    height: 48px;
+    cursor: pointer;
+    position: relative;
+}
+
+.portal-css-1q7wnvz img {
+    display: block;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.portal-css-1omp05f {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1 1 0%;
+    overflow: hidden;
+}
+
+.portal-css-1a5vpwx {
+    display: flex;
+    -webkit-box-align: center;
+    align-items: center;
+    flex: 1 1 0%;
+}
+
+.portal-css-smo9y1 {
+    color: rgb(31, 31, 31);
+    font-size: 18px;
+    font-style: normal;
+    font-weight: 700;
+    line-height: 24px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin: 0px;
+}
+
+.portal-css-wn1ugj {
+    display: flex;
+    -webkit-box-align: center;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+@media (min-width: 800px) {
+    .portal-css-wn1ugj {
+        flex-wrap: nowrap;
+    }
+}
+
+.portal-css-121o35x {
+    color: rgb(31, 31, 31);
+    text-align: justify;
+    font-size: 14px;
+    font-style: normal;
+    font-weight: 400;
+    line-height: 20px;
+    display: flex;
+    -webkit-box-align: center;
+    align-items: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.portal-css-121o35x .user_name {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.portal-css-rcsx8c {
+    display: inline-flex;
+    -webkit-box-align: center;
+    align-items: center;
+    -webkit-box-pack: center;
+    justify-content: center;
+    position: relative;
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+    cursor: pointer;
+    user-select: none;
+    vertical-align: middle;
+    appearance: none;
+    text-transform: none;
+    font-family: "Open Sans", "system-ui", "Segoe UI", Roboto, Oxygen, Ubuntu, "Fira Sans", "Droid Sans", "Helvetica Neue", sans;
+    color: rgb(255, 255, 255);
+    background-color: rgb(0, 174, 66);
+    box-shadow: none;
+    font-size: 14px;
+    font-weight: 400;
+    line-height: 20px;
+    min-width: unset;
+    outline: 0px;
+    border-width: 0px;
+    border-style: initial;
+    border-color: initial;
+    border-image: initial;
+    margin: 0px;
+    text-decoration: none;
+    transition: background-color 250ms cubic-bezier(0.4, 0, 0.2, 1), box-shadow 250ms cubic-bezier(0.4, 0, 0.2, 1), border-color 250ms cubic-bezier(0.4, 0, 0.2, 1), color 250ms cubic-bezier(0.4, 0, 0.2, 1);
+    padding: 2px 8px;
+    border-radius: 4px;
+    white-space: nowrap;
+}
+
+
+.portal-css-4zknmo {
+    display: flex;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.portal-css-4zknmo.middle {
+    flex: 1 1 0%;
+}
+
+.portal-css-b2vxo1 {
+    position: relative;
+    display: flex;
+    -webkit-box-pack: justify;
+    justify-content: space-between;
+    flex-direction: column;
+    max-height: 460px;
+    overflow-y: auto;
+    flex: 1 1 0%;
+}
+
+@media (min-width: 800px) {
+    .portal-css-b2vxo1 {
+        flex-direction: row;
+        max-height: unset;
+        overflow: hidden;
+    }
+}
+
+.portal-css-1fr9imt {
+    flex-shrink: 0;
+}
+
+@media (min-width: 800px) {
+    .portal-css-1fr9imt {
+        width: 48%;
+        margin-right: 36px;
+        display: flex;
+        flex-direction: column;
+    }
+}
+
+.portal-css-39l4sl {
+    display: none;
+}
+
+@media (min-width: 800px) {
+    .portal-css-39l4sl {
+        display: block;
+        margin-bottom: 10px;
+        width: 100%;
+    }
+}
+
+.portal-css-14ewmc0 {
+    display: flex;
+    gap: 12px;
+    flex: 1 1 0%;
+    overflow: hidden;
+}
+
+.portal-css-1imy2ff {
+    width: 100%;
+    position: relative;
+}
+
+@media (min-width: 800px) {
+    .portal-css-1imy2ff {
+        height: calc(100% - 58px);
+    }
+}
+
+.portal-css-1r2f04i {
+    margin-bottom: 10px;
+}
+
+.portal-css-xb80sm {
+    position: relative;
+    padding-bottom: 75%;
+    margin-bottom: 10px;
+    border-radius: 5px;
+    overflow: hidden;
+}
+
+.portal-css-fet278 {
+    display: flex;
+    -webkit-box-pack: center;
+    justify-content: center;
+    -webkit-box-align: center;
+    align-items: center;
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+    overflow: hidden;
+}
+
+.portal-css-135epe0 {
+    display: flex;
+    -webkit-box-pack: center;
+    justify-content: center;
+    -webkit-box-align: center;
+    align-items: center;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+    overflow: hidden;
+}
+
+.portal-css-1dn0z63 {
+    display: block;
+    margin: 0px auto;
+    z-index: 99;
+    max-width: 100%;
+    height: 100%;
+    object-fit: cover;
+    cursor: pointer;
+    background: rgb(255, 255, 255);
+}
+
+.portal-css-6nnnh9 {
+    display: flex;
+    -webkit-box-pack: center;
+    justify-content: center;
+    -webkit-box-align: center;
+    align-items: center;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+    overflow: hidden;
+}
+
+.portal-css-10yfke6 {
+    display: flex;
+    -webkit-box-pack: center;
+    justify-content: center;
+    -webkit-box-align: center;
+    align-items: center;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+    overflow: hidden;
+}
+
+.portal-css-1f5v0ac {
+    display: flex;
+    -webkit-box-pack: center;
+    justify-content: center;
+    -webkit-box-align: center;
+    align-items: center;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+    overflow: hidden;
+}
+
+.portal-css-mqoa3b {
+    display: flex;
+    -webkit-box-pack: center;
+    justify-content: center;
+    -webkit-box-align: center;
+    align-items: center;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+    overflow: hidden;
+}
+
+.portal-css-1aodlyi {
+    display: flex;
+    -webkit-box-pack: center;
+    justify-content: center;
+    -webkit-box-align: center;
+    align-items: center;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+    overflow: hidden;
+}
+
+.portal-css-1ikri0q {
+    display: flex;
+    flex-direction: column;
+    position: absolute;
+    top: 0px;
+    left: 0px;
+    z-index: 100;
+    border-bottom-right-radius: 3px;
+    overflow: hidden;
+    transform: scale(1.5);
+    transform-origin: left top;
+}
+
+
+.portal-css-1ygm9it svg {
+    width: 19px;
+    height: 19px;
+}
+
+.portal-css-1uch0cc {
+    position: relative;
+    overflow: hidden;
+    height: auto;
+}
+
+.portal-css-1uch0cc .swiper-slide {
+    width: auto;
+}
+
+.portal-css-1bagh5i {
+    position: relative;
+    padding-bottom: 73.3%;
+    cursor: pointer;
+    border-radius: 5px;
+    overflow: hidden;
+    border: 2px solid transparent;
+}
+
+.portal-css-1bagh5i.active {
+    border-color: rgb(0, 174, 66);
+}
+
+.portal-css-1kci8bl {
+    position: absolute;
+    padding: 1px;
+    width: 100%;
+    height: 100%;
+    border-radius: 5px;
+    overflow: hidden;
+    box-sizing: border-box;
+}
+
+
+.portal-css-pnrlxt {
+    position: absolute;
+    right: 0px;
+    bottom: 0px;
+    background: rgba(0, 0, 0, 0.24);
+    font-size: 14px;
+    padding: 0px 8px;
+    text-align: center;
+    color: white;
+    font-weight: 600;
+    line-height: 24px;
+    border-top-left-radius: 4px;
+    pointer-events: none;
+}
+
+.portal-css-1uch0cc .swiper-button-disabled {
+    display: none;
+}
+
+.portal-css-1uch0cc .swiper-button-prev img {
+    width: 14px;
+    filter: brightness(5);
+}
+
+.portal-css-1uch0cc .swiper-button-next {
+    width: 40px;
+    height: 100%;
+    margin: 0px;
+    position: absolute;
+    top: 0px;
+    right: 0px;
+    background: rgba(0, 0, 0, 0.24);
+}
+
+.portal-css-1uch0cc .swiper-button-next img {
+    width: 14px;
+    filter: brightness(5);
+}
+
+.portal-css-17z0qxd {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+@media (min-width: 800px) {
+    .portal-css-17z0qxd {
+        width: 52%;
+        overflow: hidden;
+        position: relative;
+    }
+}
+
+.portal-css-15zgkt3 {
+    position: relative;
+    flex: 1 1 0%;
+    width: 100%;
+}
+
+@media (min-width: 800px) {
+    .portal-css-15zgkt3 {
+        overflow-y: auto;
+        position: absolute;
+        width: 100%;
+        height: 100%;
+    }
+}
+
+.portal-css-iv168w {
+    width: 100%;
+    border-radius: 8px;
+    border: 1px solid rgb(219, 219, 219);
+    background: rgb(255, 255, 255);
+}
+
+.portal-css-8atqhb {
+    width: 100%;
+}
+
+.portal-css-382x4q {
+    width: 100%;
+    display: flex;
+    padding: 12px 16px;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.portal-css-1dptlm0 {
+    display: flex;
+    white-space: nowrap;
+    -webkit-box-align: center;
+    align-items: center;
+    color: rgb(31, 31, 31);
+    margin: 0px;
+    font-size: 18px;
+    font-weight: 700;
+}
+
+.portal-css-iv168w h4 {
+    line-height: 24px;
+    height: 24px;
+    margin: 0px;
+}
+
+.portal-css-1dptlm0 span {
+    margin-left: 4px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.portal-css-1bh4n2c {
+    display: flex;
+    -webkit-box-align: center;
+    align-items: center;
+}
+
+.portal-css-z78s9m {
+    position: relative;
+    width: 100%;
+    display: flex;
+    -webkit-box-align: center;
+    align-items: center;
+}
+
+.portal-css-vjtgs6 {
+    display: flex;
+    width: 26px;
+    height: 26px;
+    padding: 4px;
+    -webkit-box-pack: center;
+    justify-content: center;
+    -webkit-box-align: center;
+    align-items: center;
+    flex-shrink: 0;
+    border-radius: 4px;
+    border: 1px solid rgb(235, 235, 235);
+    background: rgb(242, 242, 242);
+    box-shadow: rgba(0, 0, 0, 0.06) 0px 2px 8px 0px;
+    cursor: pointer;
+    z-index: 3;
+    color: rgb(92, 92, 92);
+}
+
+.portal-css-vjtgs6 svg {
+    font-size: 16px;
+    cursor: pointer;
+}
+
+.portal-css-9giiy1 {
+    flex: 1 1 0%;
+    height: 100%;
+    overflow-y: visible;
+    z-index: 1;
+}
+
+.portal-css-9giiy1 .swiper-slide {
+    width: auto;
+    padding: 2px 0px;
+}
+
+.portal-css-111wug5 {
+    padding-right: 8px;
+}
+
+.portal-css-z78s9m .machine-swiper-button-prev + .swiper .first {
+    padding-left: 8px;
+}
+
+.portal-css-w93bxu {
+    padding: 0px 8px;
+    color: rgb(92, 92, 92);
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 24px;
+    border-radius: 4px;
+    border: 1px solid rgb(235, 235, 235);
+    background: rgb(242, 242, 242);
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.portal-css-w93bxu.selected {
+    background: rgb(92, 92, 92);
+    border-color: rgb(92, 92, 92);
+    color: rgb(242, 242, 242);
+}
+
+.portal-css-vjtgs6 {
+    display: flex;
+    width: 26px;
+    height: 26px;
+    padding: 4px;
+    -webkit-box-pack: center;
+    justify-content: center;
+    -webkit-box-align: center;
+    align-items: center;
+    flex-shrink: 0;
+    border-radius: 4px;
+    border: 1px solid rgb(235, 235, 235);
+    background: rgb(242, 242, 242);
+    box-shadow: rgba(0, 0, 0, 0.06) 0px 2px 8px 0px;
+    cursor: pointer;
+    z-index: 3;
+    color: rgb(92, 92, 92);
+}
+
+.portal-css-vjtgs6 svg {
+    font-size: 16px;
+    cursor: pointer;
+}
+
+.portal-css-d0e3s6 {
+    position: absolute;
+    top: 0px;
+    left: 0px;
+    width: 100%;
+    height: 100%;
+    border-radius: 4px;
+    border: 1px solid rgba(0, 0, 0, 0);
+    z-index: 2;
+    pointer-events: none;
+}
+
+.portal-css-d0e3s6 .end-mask, .portal-css-d0e3s6 .begining-mask {
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    top: 0px;
+    left: 0px;
+}
+
+.portal-css-d0e3s6 .end-mask {
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0) 74.71%, rgb(255, 255, 255) 100%);
+}
+
+.portal-css-d0e3s6 .begining-mask {
+    background: linear-gradient(270deg, rgba(255, 255, 255, 0) 74.71%, rgb(255, 255, 255) 100%);
+}
+
+.portal-css-d0e3s6.is-begining .begining-mask {
+    display: none;
+}
+
+.portal-css-1cb1g1t {
+    display: flex;
+    flex-flow: wrap;
+    width: 100%;
+    padding: 12px;
+}
+
+.portal-css-1age63q {
+    width: 100%;
+    display: flex;
+}
+
+.portal-css-1qxeglk {
+    display: flex;
+    gap: 12px;
+    font-size: 14px;
+    color: rgb(51, 51, 51);
+    overflow: hidden;
+    width: 100%;
+    height: 100%;
+    padding: 4px;
+    white-space: nowrap;
+    text-align: start;
+    font-weight: 600;
+    -webkit-box-align: start;
+    align-items: start;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.portal-css-1qxeglk.active {
+    background: rgb(242, 242, 242);
+}
+
+.portal-css-h9vdjw {
+    width: 96px;
+    height: 72px;
+    border-radius: 4px;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+
+.portal-css-1j0tc12 {
+    display: flex;
+    -webkit-box-pack: justify;
+    justify-content: space-between;
+    flex: 1 1 0%;
+    height: 100%;
+    overflow: hidden;
+    flex-direction: column;
+    padding: 8px 0px;
+}
+
+.portal-css-1x66f0r {
+    display: flex;
+    -webkit-box-pack: justify;
+    justify-content: space-between;
+    -webkit-box-align: center;
+    align-items: center;
+    height: 50%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.portal-css-18c9i04 {
+    flex: 1 1 0%;
+    display: flex;
+    -webkit-box-align: center;
+    align-items: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.portal-css-1x66f0r .config_title {
+    font-size: 14px;
+    line-height: 28px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.portal-css-f8d5z8 {
+    flex-shrink: 0;
+    padding: 0px 4px;
+    color: rgb(0, 174, 66);
+    text-align: center;
+    font-size: 12px;
+    line-height: 20px;
+    border-radius: 2px;
+    background: rgba(0, 174, 66, 0.16);
+}
+
+.portal-css-1i2t3yw {
+    display: none;
+    -webkit-box-align: center;
+    align-items: center;
+    gap: 4px;
+    color: rgb(92, 92, 92);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 20px;
+}
+
+.portal-css-1i2t3yw svg {
+    font-size: 16px;
+    flex-shrink: 0;
+}
+
+.portal-css-17ojvaz {
+    display: flex;
+    -webkit-box-align: center;
+    align-items: center;
+    padding: 0px 5px;
+}
+
+
+.portal-css-17ojvaz svg {
+    margin-right: 5px;
+    font-size: 16px;
+}
+
+.portal-css-17ojvaz .rating_count {
+    font-size: 14px;
+    font-weight: 600;
+    color: rgb(51, 51, 51);
+    line-height: 20px;
+}
+
+.portal-css-17ojvaz .rating_total {
+    color: rgb(92, 92, 92);
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 20px;
+    margin-left: 4px;
+}
+
+
+.portal-css-f532lr {
+    width: 100%;
+    height: 1px;
+    background-color: rgb(235, 235, 235);
+    border: none;
+    margin: 4px 0px;
+}
+
+.portal-css-g4ynan {
+    height: 1px;
+    background-color: rgb(235, 235, 235);
+    border: none;
+    margin: 18px 0px;
+}
+
+.portal-css-jscx8 {
+    border-radius: 12px;
+    background: rgb(255, 255, 255);
+    padding: 24px 40px 32px;
+}
+
+
+.portal-css-15zgkt3 .tab-anchor {
+    padding: 0px;
+}
+
+
+.portal-css-z7k12k {
+    display: flex;
+    flex-wrap: wrap;
+    -webkit-box-align: center;
+    align-items: center;
+    margin: 0px;
+    font-size: 16px;
+    color: rgb(31, 31, 31);
+    font-weight: 700;
+    line-height: 24px;
+    padding-bottom: 16px;
+}
+
+.portal-css-z7k12k.pb-8 {
+    padding-bottom: 8px;
+}
+
+.ck-content_ck-content__LX5VB ul {
+    list-style-type: disc;
+}
+
+.portal-css-4no9qp .boostmeroot {
+    margin: 28px 0px;
+    border-radius: 4px;
+    border: 1px solid rgba(119, 63, 173, 0.12);
+    background: rgba(119, 63, 173, 0.06);
+    display: flex;
+}
+
+.portal-css-4no9qp .boostmeroot .boostme {
+    flex: 1 1 0%;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 24px 24px 24px 40px;
+}
+
+.portal-css-4no9qp .boostmeroot .boostme .boosttitle {
+    color: rgb(119, 63, 173);
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 24px;
+}
+
+.portal-css-4no9qp .boostmeroot .boost-btncontent {
+    display: flex;
+    -webkit-box-pack: center;
+    justify-content: center;
+    -webkit-box-align: center;
+    align-items: center;
+    padding-right: 40px;
+}
+
+.portal-css-2mv27d {
+    display: flex;
+    gap: 4px;
+    -webkit-box-align: center;
+    align-items: center;
+    height: 40px;
+    flex-shrink: 0;
+    border-radius: 24px;
+    cursor: pointer;
+    background: url(https://makerworld.bblmw.com/makerworld/boost/20240416/defaultButtonBg.png) center center / auto 100% no-repeat;
+}
+
+.portal-css-2mv27d.type-studio {
+    height: 48px;
+    width: 48px;
+    border-radius: 8px;
+    gap: 0px;
+    background: rgba(181, 126, 235, 0.12);
+}
+
+.portal-css-n85nuq {
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+    border-radius: 20px;
+    border: 2px solid rgb(234, 215, 245);
+    background: rgb(255, 248, 248);
+    display: flex;
+    -webkit-box-align: center;
+    align-items: center;
+    -webkit-box-pack: center;
+    justify-content: center;
+}
+
+.portal-css-n85nuq.type-studio {
+    border-radius: 8px;
+    width: 48px;
+    height: 48px;
+    border: 1px solid rgb(181, 126, 235);
+    background: transparent;
+}
+
+.portal-css-6smmg4 {
+    color: rgb(255, 255, 255);
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 24px;
+    display: none;
+    padding-right: 12px;
+}
+
+.portal-css-6smmg4.type-studio {
+    display: none;
+}
+
+.portal-css-13kdmde {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 16px;
+}
+
+.portal-css-1iefgqa {
+    position: relative;
+    appearance: none;
+    max-width: 100%;
+    font-family: "Open Sans", "system-ui", "Segoe UI", Roboto, Oxygen, Ubuntu, "Fira Sans", "Droid Sans", "Helvetica Neue", sans;
+    display: inline-flex;
+    -webkit-box-align: center;
+    align-items: center;
+    -webkit-box-pack: center;
+    justify-content: center;
+    vertical-align: middle;
+    box-sizing: border-box;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 24px;
+    height: 24px;
+    color: rgb(92, 92, 92);
+    margin: 0px;
+    white-space: nowrap;
+    transition: background-color 300ms cubic-bezier(0.4, 0, 0.2, 1), box-shadow 300ms cubic-bezier(0.4, 0, 0.2, 1);
+    outline: 0px;
+    text-decoration: none;
+    border-width: 0px;
+    border-style: initial;
+    border-color: initial;
+    border-image: initial;
+    padding: 0px;
+    border-radius: 4px;
+    background: rgb(247, 247, 247);
+}
+
+.portal-css-14vsv3w {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding-left: 12px;
+    padding-right: 12px;
+    white-space: nowrap;
+}
+
+
+.portal-css-19hught {
+    margin: 0px 0px 8px;
+    font-size: 14px;
+    font-weight: 400;
+    color: rgb(92, 92, 92);
+}
+
+
+.portal-css-c3mal0 {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.portal-css-c3mal0.horizontal {
+    flex-direction: row;
+}
+
+
+.portal-css-1yrsgng {
+    position: relative;
+    flex-shrink: 0;
+    width: 96px;
+    height: 37px;
+}
+
+.portal-css-1sprapw span {
+    color: rgb(133, 133, 133);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 16px;
+    display: block;
+}
+
+.portal-css-1sprapw p {
+    margin-top: 4px;
+    color: rgb(133, 133, 133);
+    font-size: 12px;
+}
+
+.portal-css-w0bvwf {
+    padding: 16px 0px;
+    min-height: 48px;
+    display: flex;
+    -webkit-box-pack: justify;
+    justify-content: space-between;
+    -webkit-box-align: center;
+    align-items: center;
+    gap: 16px 8px;
+    flex-wrap: wrap;
+    flex: 1 1 0%;
+}
+
+.portal-css-tccdxk {
+    display: flex;
+    gap: 20px;
+    -webkit-box-align: center;
+    align-items: center;
+}
+
+.portal-css-7fpqnu {
+    display: flex;
+    -webkit-box-align: center;
+    align-items: center;
+    height: 100%;
+    font-size: 18px;
+    padding-right: 2px;
+    color: rgb(163, 163, 163);
+}
+
+.portal-css-14lpih {
+    color: rgb(133, 133, 133);
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 22px;
+}
+
+.portal-css-2142di {
+    font-size: 14px;
+    color: rgb(163, 163, 163);
+}
+
+.portal-css-ae2dwu {
+    display: flex;
+    -webkit-box-align: center;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.portal-css-10kg4x5 {
+    display: flex;
+    border: 1px solid rgb(219, 219, 219);
+    border-radius: 8px;
+}
+
+.portal-css-iivdc1 {
+    display: flex;
+    padding: 12px 30px;
+    gap: 8px;
+    cursor: pointer;
+    -webkit-box-align: center;
+    align-items: center;
+}
+
+.portal-css-iivdc1.border-right {
+    border-right: 1px solid rgb(219, 219, 219);
+}
+
+.portal-css-1xfrdmu {
+    display: flex;
+    flex: 1 1 0%;
+    -webkit-box-pack: end;
+    justify-content: flex-end;
+}
+
+.portal-css-a3mhmk {
+    display: inline-flex;
+    -webkit-box-align: center;
+    align-items: center;
+    -webkit-box-pack: center;
+    justify-content: center;
+    position: relative;
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+    cursor: pointer;
+    user-select: none;
+    vertical-align: middle;
+    appearance: none;
+    line-height: 1.71429;
+    text-transform: none;
+    font-family: "Open Sans", "system-ui", "Segoe UI", Roboto, Oxygen, Ubuntu, "Fira Sans", "Droid Sans", "Helvetica Neue", sans;
+    color: rgb(255, 255, 255);
+    background-color: rgb(0, 174, 66);
+    box-shadow: none;
+    min-width: 60px;
+    height: 48px;
+    font-size: 16px;
+    font-weight: 700;
+    outline: 0px;
+    border-width: 0px;
+    border-style: initial;
+    border-color: initial;
+    border-image: initial;
+    margin: 0px;
+    text-decoration: none;
+    transition: background-color 250ms cubic-bezier(0.4, 0, 0.2, 1), box-shadow 250ms cubic-bezier(0.4, 0, 0.2, 1), border-color 250ms cubic-bezier(0.4, 0, 0.2, 1), color 250ms cubic-bezier(0.4, 0, 0.2, 1);
+    border-radius: 8px;
+    white-space: nowrap;
+    padding: 12px 30px;
+}
