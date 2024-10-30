@@ -7,6 +7,13 @@
 <title>homepage</title>
 <link rel="stylesheet" type="text/css" href="./css/home.css" />
 <link rel="stylesheet" type="text/css" href="./css/dark.css" />	
+<link rel="stylesheet" type="text/css" href="./css/rightcommon.css" />
+<link rel="stylesheet" type="text/css" href="./css/left.css" />
+<link rel="stylesheet" type="text/css" href="./css/recent.css" />
+<link rel="stylesheet" type="text/css" href="./css/common.css" />
+<link rel="stylesheet" type="text/css" href="./css/online.css" />
+
+
 
 <script type="text/javascript" src="../include/jquery-2.1.1.min.js"></script>
 <script type="text/javascript" src="../include/json2.js"></script>	
@@ -41,11 +48,19 @@
 	</div>
 
 	<div id="BtnArea">
-	    <div menu="recent" class="BtnItem BtnItemSelected" onClick="GotoMenu('recent')">
-			<div class="BtnIcon "><img class="LeftIcon" src="img/i2.png" /></div>
-			<div class="trans" tid="t28">recent</div> 
+	    <div menu="home" class="BtnItem BtnItemSelected" onClick="GotoMenu('home')">
+			<div class="BtnIcon "><img class="LeftIcon" src="img/left_home.svg" /></div>
+			<div class="BtnText trans" tid="t114">Home</div> 
 		</div>	
-
+	    <div menu="recent" class="BtnItem" onClick="GotoMenu('recent')">
+			<div class="BtnIcon "><img class="LeftIcon" src="img/left_recent.svg" /></div>
+			<div class="BtnText trans" tid="t35">Recent</div> 
+		</div>	
+	    <div menu="online" class="BtnItem" onClick="GotoMenu('online')">
+			<div class="BtnIcon"><img class="LeftIcon" src="img/left_online.svg" /></div>
+			<div class="BtnText trans" tid="t107">Online Models</div> 
+			<div id="OnlineNewTag" class="BtnNewIcon">New</div>
+		</div>			
 	</div>
 </div>
 
@@ -76,86 +91,65 @@
 		</div>		
 	</div>
 	
+	<div id= "HomeFullArea">
+        <!----------Recent open---------->
+        <div id="MiniRecentFileArea">
+            <div class="Title_Bar">
+                <div class="Title_Left_Area">
+                    <img class="TitleSmallIcon" src="./img/t2.svg" />
+                    <div id="HotModelTitle" class="Content-Title trans TextS1" tid="t35">Recent Files</div>
+                </div>
+                <div class="Right_Title_More TextS1" onClick="SwtichLeftMenu('recent')"><span class="trans" tid="t108">MORE</span> ></div>
+                </div>
+                <div id="MiniFileList" class="SingleGuideBar">  
+            </div>
+        </div>
+
+        <!----------Online Models--------->
+		<div id="HotModelArea">
+			<div id="Online_Models_Bar" class="Title_Bar">
+			<div class="Title_Left_Area">
+				<img class="TitleSmallIcon" src="./img/fire.svg" />
+				<div class="Content-Title trans TextS1" tid="t107">Online Models</div>
+			</div>
+			<div class="Right_Title_More TextS1" onClick="SwtichLeftMenu('online')"><span class="trans" tid="t108">MORE</span> ></div>
+			</div>
+			<div id="HotModelList" class="SingleGuideBar">  
+			</div>
+		</div>
+    </div>
+
 	<div id="DebugText"></div>	
+
+<!----------Recent File Full Area--------->
 	<div id="RecentFileArea">
 		<div id="RecentTitleBlock">
-		    <div id="RecentTitle" class="Content-Title trans TextS1" tid="t35">recent open</div>
-			<div id="RecentClearAllBtn" class="trans TextS1" tid="t12" onClick="OnDeleteAllRecentFiles()">Clear all</div>
+			<div id="Recent_LEFT_Title">
+				<img class="TitleSmallIcon" src="./img/t2.svg" />
+		    	<div id="RecentTitle" class="Content-Title trans TextS1" tid="t35">Recently opened</div>
+			</div>
+			<div id="Right_Title_Block">
+				<div id="Menu_Batch" class="Right_Title_Btn Btn_White" onClick="OnBatchDelete()">
+					<img class="Right_Title_Btn_Icon" src="img/batch.svg" /><span class="trans" tid="t115">Batch</span>
+				</div>
+                <div id="Menu_Clear" class="Right_Title_Btn Btn_White" onClick="OnDeleteAllRecentFiles()">
+					<img class="Right_Title_Btn_Icon" src="img/clear.svg" /><span class="trans" tid="t12">Clear</span>
+				</div>
+                <div id="Menu_Delete" class="Right_Title_Btn Btn_Green" onClick="OnMultiDelete()">
+					<img class="Right_Title_Btn_Icon" src="img/delete2.svg" /><span class="trans" tid="t88">Remove</span>
+				</div>	
+                <div id="Menu_Cancel" class="Right_Title_Btn Btn_White" onClick="OnCancelDelete()">
+					<img class="Right_Title_Btn_Icon" src="img/cancel.svg" /><span class="trans" tid="t38">Cancel</span>
+				</div>					
+			</div>
 		</div>
-		<div id="FileList">
-<!--		    <div class="FileItem" onClick="OnOpenRecentFile('aaaa')" fpath='d:\model\11.3mf'>
-				<a class="FileTip" title="d:\model\11.3mf"></a>
-				<div class="FileImg"><img src="img/d.png"/></div>
-				<div class="FileName TextS1">abcd12334abcd12334abcd12334.3mf</div>
-				<div class="FileDate">2021/12/27 09:22</div>
-			</div>
-		    <div class="FileItem" onClick="OnOpenRecentFile('aaaa')" fpath='d:\model\11.3mf'>
-				<a class="FileTip" title="d:\model\11.3mf"></a>
-				<div class="FileImg"><img src="img/d.png"/></div>
-				<div class="FileName TextS1">abcd12334abcd12334abcd12334.3mf</div>
-				<div class="FileDate">2021/12/27 09:22</div>
-			</div>
-		    <div class="FileItem" onClick="OnOpenRecentFile('aaaa')" fpath='d:\model\11.3mf'>
-				<a class="FileTip" title="d:\model\11.3mf"></a>
-				<div class="FileImg"><img src="img/d.png"/></div>
-				<div class="FileName TextS1">abcd12334abcd12334abcd12334.3mf</div>
-				<div class="FileDate">2021/12/27 09:22</div>
-			</div>
-		    <div class="FileItem" onClick="OnOpenRecentFile('aaaa')" fpath='d:\model\11.3mf'>
-				<a class="FileTip" title="d:\model\11.3mf"></a>
-				<div class="FileImg"><img src="img/d.png"/></div>
-				<div class="FileName TextS1">abcd12334abcd12334abcd12334.3mf</div>
-				<div class="FileDate">2021/12/27 09:22</div>
-			</div>
-		    <div class="FileItem" onClick="OnOpenRecentFile('aaaa')" fpath='d:\model\11.3mf'>
-				<a class="FileTip" title="d:\model\11.3mf"></a>
-				<div class="FileImg"><img src="img/d.png"/></div>
-				<div class="FileName TextS1">abcd12334abcd12334abcd12334.3mf</div>
-				<div class="FileDate">2021/12/27 09:22</div>
-			</div>
-		    <div class="FileItem" onClick="OnOpenRecentFile('aaaa')" fpath='d:\model\11.3mf'>
-				<a class="FileTip" title="d:\model\11.3mf"></a>
-				<div class="FileImg"><img src="img/d.png"/></div>
-				<div class="FileName TextS1">abcd12334abcd12334abcd12334.3mf</div>
-				<div class="FileDate">2021/12/27 09:22</div>
-			</div>
-		    <div class="FileItem" onClick="OnOpenRecentFile('aaaa')" fpath='d:\model\11.3mf'>
-				<a class="FileTip" title="d:\model\11.3mf"></a>
-				<div class="FileImg"><img src="img/d.png"/></div>
-				<div class="FileName TextS1">abcd12334abcd12334abcd12334.3mf</div>
-				<div class="FileDate">2021/12/27 09:22</div>
-			</div>
-		    <div class="FileItem" onClick="OnOpenRecentFile('aaaa')" fpath='d:\model\11.3mf'>
-				<a class="FileTip" title="d:\model\11.3mf"></a>
-				<div class="FileImg"><img src="img/d.png"/></div>
-				<div class="FileName TextS1">abcd12334abcd12334abcd12334.3mf</div>
-				<div class="FileDate">2021/12/27 09:22</div>
-			</div>
-		    <div class="FileItem" onClick="OnOpenRecentFile('aaaa')" fpath='d:\model\11.3mf'>
-				<a class="FileTip" title="d:\model\11.3mf"></a>
-				<div class="FileImg"><img src="img/d.png"/></div>
-				<div class="FileName TextS1">abcd12334abcd12334abcd12334.3mf</div>
-				<div class="FileDate">2021/12/27 09:22</div>
-			</div>
-		    <div class="FileItem" onClick="OnOpenRecentFile('aaaa')" fpath='d:\model\11.3mf'>
-				<a class="FileTip" title="d:\model\11.3mf"></a>
-				<div class="FileImg"><img src="img/d.png"/></div>
-				<div class="FileName TextS1">abcd12334abcd12334abcd12334.3mf</div>
-				<div class="FileDate">2021/12/27 09:22</div>
-			</div>
-		    <div class="FileItem" onClick="OnOpenRecentFile('aaaa')" fpath='d:\model\11.3mf'>
-				<a class="FileTip" title="d:\model\11.3mf"></a>
-				<div class="FileImg"><img src="img/d.png"/></div>
-				<div class="FileName TextS1">abcd12334abcd12334abcd12334.3mf</div>
-				<div class="FileDate">2021/12/27 09:22</div>
-			</div>
-		    <div class="FileItem" onClick="OnOpenRecentFile('aaaa')" fpath='d:\model\11.3mf'>
-				<a class="FileTip" title="d:\model\11.3mf"></a>
-				<div class="FileImg"><img src="img/d.png"/></div>
-				<div class="FileName TextS1">abcd12334abcd12334abcd12334.3mf</div>
-				<div class="FileDate">2021/12/27 09:22</div>
-			</div>	-->		
+		<div id="FileList">	
 		</div>
+	</div>
+
+	<!--HotModel Full Area-->
+	<div id="FullHotModelArea" style="display:none;">
+		<iframe src="onlineModel.html" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none;"></iframe>
 	</div>
 	
     <div style="height: 14px;"></div>	

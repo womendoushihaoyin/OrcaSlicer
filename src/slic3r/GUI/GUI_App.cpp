@@ -3828,13 +3828,29 @@ std::string GUI_App::handle_web_request(std::string cmd)
                     }
                 }
             }
-            // else if (command_str.compare("modelmall_model_advise_get") == 0) {
-            //     if (mainframe && this->app_config->get("staff_pick_switch") == "true") {
-            //         if (mainframe->m_webview) {
-            //             mainframe->m_webview->SendDesignStaffpick(has_model_mall());
-            //         }
-            //     }
-            // }
+            else if (command_str.compare("modelmall_model_advise_get") == 0) {
+                if (mainframe->m_webview) {
+                    // mainframe->m_webview->SendDesignStaffpick(has_model_mall());
+                    mainframe->m_webview->sm_get_design_staffpic();
+                }
+            } else if (command_str.compare("homepage_leftmenu_clicked") == 0) {
+                if (root.get_child_optional("menu") != boost::none) {
+                    std::string strMenu = root.get_optional<std::string>("menu").value();
+                    CallAfter([this, strMenu] {
+                        if (mainframe && mainframe->m_webview) {
+                            mainframe->m_webview->sm_SwitchWebContent(strMenu, 0);
+                        }
+                    });
+                }
+            } else if (command_str.compare("homepage_leftmenu_switch") == 0) {
+                if (root.get_child_optional("menu") != boost::none) {
+                    std::string strMenu = root.get_optional<std::string>("menu").value();
+
+                    if (mainframe && mainframe->m_webview) {
+                        mainframe->m_webview->sm_SwitchLeftMenu(strMenu);
+                    }
+                }
+            }
             // else if (command_str.compare("modelmall_model_open") == 0) {
             //     if (root.get_child_optional("data") != boost::none) {
             //         pt::ptree data_node = root.get_child("data");

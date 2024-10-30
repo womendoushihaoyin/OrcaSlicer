@@ -171,8 +171,7 @@ static const wxString ctrl = ("Ctrl+");
 static const wxString ctrl = _L("Ctrl+");
 #endif
 
-MainFrame::MainFrame() :
-DPIFrame(NULL, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, BORDERLESS_FRAME_STYLE, "mainframe")
+MainFrame::MainFrame() : DPIFrame(NULL, wxID_ANY, "", wxDefaultPosition, wxSize(1360, 1060), BORDERLESS_FRAME_STYLE, "mainframe")
     , m_printhost_queue_dlg(new PrintHostQueueDialog(this))
     // BBS
     , m_recent_projects(18)
@@ -410,9 +409,11 @@ DPIFrame(NULL, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, BORDERLESS_FRAME_
 
     const wxSize min_size = wxGetApp().get_min_size(); //wxSize(76*wxGetApp().em_unit(), 49*wxGetApp().em_unit());
 
-    SetMinSize(min_size/*wxSize(760, 490)*/);
-    SetSize(wxSize(FromDIP(1200), FromDIP(800)));
+    // SetMinSize(min_size/*wxSize(760, 490)*/);
+    // SetSize(wxSize(FromDIP(1200), FromDIP(800)));
 
+    SetMinSize(wxSize(1360, 1060));
+    SetSize(wxSize(FromDIP(1360), FromDIP(1060)));
     Layout();
 
     update_title();

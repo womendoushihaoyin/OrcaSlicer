@@ -904,6 +904,100 @@ void WebViewPanel::OnError(wxWebViewEvent& evt)
     UpdateState();
 }
 
+// Snapmaker
+void WebViewPanel::sm_get_design_staffpic() {
+    auto http = Http::post("https://id.snapmaker.com/api/model/list");
+    json param;
+    param["pageIndex"] = 1;
+    param["pageRows"]  = 10;
+    http.header("Content-Type", "application/json")
+        .set_post_body(param.dump())
+        .on_complete([&](std::string body, unsigned status) { 
+            json j_body = json::parse(body);
+            json response;
+            response["hits"] = json::array();
+            if (j_body.count("data")) {
+                for (size_t i = 0; i < j_body["data"].size(); ++i) {
+                    json record = j_body["data"];
+                    json ans;
+                    ans["design"] = json::object();
+                    
+                    ans["design"]["id"]    = record[i]["modelId"];
+                    ans["design"]["title"] = record[i]["name"];
+                    ans["design"]["titleTranslated"] = ""; // todo
+                    ans["design"]["cover"]           = record[i]["thumbnail"];
+                    ans["design"]["likeCount"]       = 159; // todo
+                    ans["design"]["collectionCount"] = 509; // todo
+                    ans["design"]["shareCount"]      = 0; // todo
+                    ans["design"]["printCount"]      = 387; // todo
+                    ans["design"]["downloadCount"]   = 211; // todo
+                    ans["design"]["commentCount"]    = 13; // todo
+                    ans["design"]["readCount"]       = 0; // todo
+                    ans["design"]["designCreator"]   = json::object();
+                    ans["design"]["designCreator"]["uid"] = record[i]["creatorId"];
+                    ans["design"]["designCreator"]["name"] = record[i]["creator"];
+                    ans["design"]["designCreator"]["avatar"] =
+                        "https://tse2-mm.cn.bing.net/th/id/OIP-C.bnFrKPm24qmFqvy61PecWwAAAA?rs=1&pid=ImgDetMain"; // todo
+                    ans["design"]["designCreator"]["fanCount"] = 129; // todo
+                    ans["design"]["designCreator"]["followCount"] = 229; // todo
+                    ans["design"]["designCreator"]["createTime"]  = "2024-04-24T04:17:34Z";
+                    ans["design"]["designCreator"]["certificated"] = false;
+
+                    response["hits"].push_back(ans);
+                }
+
+                std::string result = response.dump();
+                wxGetApp().CallAfter([this, result]() {
+                    auto body2 = from_u8(result);
+                    body2.insert(1, "\"command\": \"modelmall_model_advise_get\", ");
+                    RunScript(wxString::Format("window.postMessage(%s)", body2));
+                });
+            }
+
+            
+            
+        })
+        .on_error([&](std::string body, std::string error, unsigned status) { 
+            wxLogMessage("test");
+            wxLogMessage("test");
+            wxLogMessage("test");
+        })
+        .perform();
+}
+
+void WebViewPanel::sm_SwitchLeftMenu(std::string strMenu)
+{
+    if (!m_browser)
+        return;
+
+    json m_Res           = json::object();
+    m_Res["command"]     = "homepage_leftmenu_clicked";
+    m_Res["sequence_id"] = "10001";
+    m_Res["menu"]        = strMenu;
+
+    // wxString strJS = wxString::Format("HandleStudio(%s)", m_Res.dump(-1, ' ', false, json::error_handler_t::ignore));
+    wxString strJS = wxString::Format("HandleStudio(%s)", m_Res.dump(-1, ' ', true));
+
+    WebView::RunScript(m_browser, strJS);
+}
+
+void WebViewPanel::sm_SwitchWebContent(std::string modelname, int refresh) {
+    wxString strlang = wxGetApp().current_language_code_safe();
+
+    if (!m_browser)
+        return;
+
+    json m_Res           = json::object();
+    m_Res["command"]     = "homepage_leftmenu_clicked";
+    m_Res["sequence_id"] = "10001";
+    m_Res["menu"]        = modelname;
+
+    // wxString strJS = wxString::Format("HandleStudio(%s)", m_Res.dump(-1, ' ', false, json::error_handler_t::ignore));
+    wxString strJS = wxString::Format("HandleStudio(%s)", m_Res.dump(-1, ' ', true));
+
+    WebView::RunScript(m_browser, strJS);
+}
+
 
 SourceViewDialog::SourceViewDialog(wxWindow* parent, wxString source) :
                   wxDialog(parent, wxID_ANY, "Source Code",

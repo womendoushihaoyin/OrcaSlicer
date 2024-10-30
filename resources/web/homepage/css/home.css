@@ -575,65 +575,6 @@ body
 	left: 0px;
 }
 
-
-@media screen and (max-width: 1100px) {
-.GuideBlock
-{
-	width: calc(50% - 20px);
-	margin: 0px 10px 40px 10px;
-	cursor: pointer;
-}
-}
-
-@media screen and ( min-width:1101px) and ( max-width:1680px )
-{
-	.GuideBlock
-	{
-		width: calc(33% - 20px);
-	    margin: 0px 10px 40px 10px;
-		cursor: pointer;
-	}
-}
-
-@media screen and ( min-width:1681px) and (max-width:2120px ) {
-.GuideBlock
-{
-    width: calc(25% - 20px);	
-	margin: 0px 10px 40px 10px;
-	cursor: pointer;
-}
-}
-
-@media screen and ( min-width:2121px) and (max-width:2620px ) {
-.GuideBlock
-{
-    width: calc(20% - 20px);
-	margin: 0px 10px 40px 10px;
-	cursor: pointer;
-}
-}
-
-@media screen  and (min-width:2621px ) and (max-width:3120px ) {
-.GuideBlock
-{
-    width: calc(16.6% - 20px);
-	margin: 0px 10px 40px 10px;
-	cursor: pointer;
-}
-}
-
-@media screen  and (min-width:3121px ) {
-.GuideBlock
-{
-    width: calc(14.2% - 20px);
-	margin: 0px 10px 40px 10px;
-	cursor: pointer;
-}
-}
-
-
-
-
 .UG_IMG
 {
 	width: 100%;	
@@ -702,17 +643,6 @@ body
 {
 	cursor: pointer;	
 	color:#009688;	
-}
-
-.HotModelPiece
-{
-	width: 200px!important;
-	display:flex;
-	flex-direction: column;
-	cursor: pointer;
-	border: 1px solid #EEEEEE;
-	box-shadow: 0px 2px 12px rgba(0, 0, 0, 0.04);
-    border-radius: 8px;
 }
 
 .HotModel_PrevBlock
