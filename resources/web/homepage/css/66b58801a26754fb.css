@@ -3213,7 +3213,7 @@ body.video-react-full-window .video-react-fullscreen {
 
 @media (min-width: 600px) {
     .portal-css-fhtt0u {
-        width: calc(50% - 6px);
+        width: calc(48% - 6px);
     }
 }
 
@@ -4643,4 +4643,24 @@ body.video-react-full-window .video-react-fullscreen {
     border-radius: 8px;
     white-space: nowrap;
     padding: 12px 30px;
+}
+
+.portal-css-a3mhmk:hover {
+    text-decoration: none;
+    background-color: rgb(0, 123, 85);
+    box-shadow: rgba(145, 158, 171, 0.2) 0px 2px 4px -1px, rgba(145, 158, 171, 0.14) 0px 4px 5px 0px, rgba(145, 158, 171, 0.12) 0px 1px 10px 0px;
+}
+
+.portal-css-a3mhmk:hover {
+    box-shadow: none;
+}
+
+.portal-css-cjndy1 {
+    display: flex;
+    -webkit-box-align: center;
+    align-items: center;
+    height: 100%;
+    font-size: 18px;
+    padding-right: 2px;
+    color: rgb(104, 104, 104);
 }

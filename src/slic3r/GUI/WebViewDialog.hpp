@@ -104,7 +104,7 @@ public:
     void sm_get_design_staffpic(); // request the profile of models from snapmaker
     void sm_SwitchWebContent(std::string modelname, int refresh = 0);
     void sm_SwitchLeftMenu(std::string strMenu);
-
+    void sm_OpenModelDetail(std::string id);
 
     void get_design_staffpick(int offset, int limit, std::function<void(std::string)> callback);
     int  get_model_mall_detail_url(std::string *url, std::string id);

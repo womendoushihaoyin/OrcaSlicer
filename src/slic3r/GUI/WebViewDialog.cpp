@@ -906,7 +906,8 @@ void WebViewPanel::OnError(wxWebViewEvent& evt)
 
 // Snapmaker
 void WebViewPanel::sm_get_design_staffpic() {
-    auto http = Http::post("https://id.snapmaker.com/api/model/list");
+    // https://id.snapmaker.com/api/model/list
+    auto http = Http::post("http://172.17.100.32/api/model/list");
     json param;
     param["pageIndex"] = 1;
     param["pageRows"]  = 10;
@@ -998,6 +999,36 @@ void WebViewPanel::sm_SwitchWebContent(std::string modelname, int refresh) {
     WebView::RunScript(m_browser, strJS);
 }
 
+
+void WebViewPanel::sm_OpenModelDetail(std::string id) { 
+    sm_SwitchLeftMenu("online"); 
+
+    // https: // id.snapmaker.com/api/model/info?modelId=
+    auto http = Http::get("http://172.17.100.32/api/model/info?modelId=" + id);
+    http.on_complete([&](std::string body, unsigned status) {
+            json j_body = json::parse(body);
+            if (j_body.count("msg") && j_body["msg"].get<std::string>() == "success") {
+                if (j_body.count("data")) {
+                    // test 默认头像
+                    j_body["data"]["creatorAvator"] =
+                        "https://tse2-mm.cn.bing.net/th/id/OIP-C.bnFrKPm24qmFqvy61PecWwAAAA?rs=1&pid=ImgDetMain";
+                    auto result = from_u8(j_body["data"].dump());
+                    result.insert(1, "\"command\": \"modelmall_model_open\", ");
+
+                    wxGetApp().CallAfter([this, result] { 
+                        RunScript(wxString::Format("window.postMessage(%s)", result));
+                    });
+                }
+            }
+            
+        })
+        .on_error([&](std::string body, std::string error, unsigned status) {
+            wxLogMessage("test");
+            wxLogMessage("test");
+            wxLogMessage("test");
+        })
+        .perform();
+}
 
 SourceViewDialog::SourceViewDialog(wxWindow* parent, wxString source) :
                   wxDialog(parent, wxID_ANY, "Source Code",

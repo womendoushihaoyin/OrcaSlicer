@@ -83,6 +83,7 @@ function makeModelCard(OnePickModel)
         let a_label = $('<a></a>');
         a_label.attr('href', 'javascript:void(0);');
         a_label.append(div_1);
+        a_label.attr('onclick', 'showModelDetail('+ModelID+');')
 
         let div_2 = $('<div></div>');
         div_2.addClass('design-cover-wrap portal-css-16eo00i');
@@ -183,6 +184,7 @@ function makeModelCard(OnePickModel)
         design_div.append(div_12);
 
         let div_container = $('<div></div>');
+        div_container.attr('id', 'model' + ModelID);
         div_container.addClass("portal-css-fhtt0u");
         div_container.append(design_div);
 
@@ -192,8 +194,87 @@ function makeModelCard(OnePickModel)
         $('.portal-css-1skxrux').first().append(div_container);
 }
 
+function scrollToTarget(modelID){
+    const element = document.getElementById('model' + modelID);
+    element.scrollIntoView({behavior: "smooth"});
+}
+
+function showmodelDetail(data){
+    $('#detail-card').css('display', 'block');
+
+    $('#creator-avator').attr('src', data["creatorAvator"] + '?image_process=resize,w_360/format,webp');
+    $('#model-name').attr('aria-label', data["name"]);
+    $('#model-name').html(data["name"]);
+
+    $('#creator-name').html(data["creator"]);
+
+    $('#model-description').html(data["content"]);
+
+    
+    $('#license-pic').attr('src', data["license"][1] + '?image_process=resize,w_120/format,webp');
+
+    $('#download-count').html(846);
+    $('#print-count').html(1000);
+    $('#publish-time').html('发布于 2024-10-31 18:05');
+    $('#zan-count').html(225);
+    $('#collection-count').html(25);
+
+    updataModelPics(data["banners"]);
+}
+
+function updataModelPics(pics){
+    if(pics.length <= 0) return;
+
+    let model_swipper = $('#model-swipper');
+    model_swipper.html(''); // 清空原有图片
+    for(let i  = 0; i < pics.length; i++){
+        for(let i = 0; i < pics.length; i++){
+            let div = $('<div></div>');
+            
+            div.addClass('swiper-slide');
+            if(i == 1){
+                div.addClass('swiper-slide-active');
+            }else if(i == 2){
+                div.addClass('swiper-slide-next');
+            }
+            div.addClass('portal-css-135epe0');
+            div.attr('style', 'width: 305px; margin-right:50px;');
+        
+            let img = $('<img />'); // 应该使用img变量而不是modelImg_img
+            img.attr('src', pics[i] + '?image_process=resize,w_305/format,webp');
+            img.attr('alt', '');
+            img.addClass('portal-css-1dn0z63 swiper-lazy');
+            img.attr('loading', 'lazy');
+        
+            div.append(img); // 将img插入到div中
+            
+            model_swipper.append(div); // 将div插入到model_swipper中
+        }
+        
+    }
+}
+
+function showModelDetail(ModelID){
+    var postMsg = {};
+	postMsg.cmd = "if_show_model_detail";
+	postMsg.data = ModelID;
+    window.parent.postMessage(postMsg, '*');
+}
+
+document.addEventListener("click", function(event){
+    var cardArea = $("#card-area")[0];
+    if(!cardArea.contains(event.target)){
+        $('#detail-card').css('display', 'none');
+    }
+});
+
 window.addEventListener('message', function (event) {
     if (event.data.cmd  == 'if_hot_model_advise_get'){
         UpdateModelContent(event.data.data);
+    }else if(event.data.cmd  == 'model_target'){
+        scrollToTarget(event.data.data);
+    }else if(event.data.cmd  == "modelmall_model_open"){
+        showmodelDetail(event.data.data);
     }
 });
+

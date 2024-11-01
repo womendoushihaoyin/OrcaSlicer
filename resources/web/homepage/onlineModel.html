@@ -758,7 +758,7 @@
             </div>
 		</div>
 
-        <div role="presentation" class="MuiDialog-root MuiModal-root portal-css-1ex50um" style="display:none;">
+        <div id="detail-card" role="presentation" class="MuiDialog-root MuiModal-root portal-css-1ex50um" style="display: none;">
             <div aria-hidden="true" class="MuiBackdrop-root MuiModal-backdrop portal-css-1r91avz"
                 style="opacity: 1; transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1);"></div>
             <div tabindex="0" data-testid="sentinelStart"></div>
@@ -766,12 +766,12 @@
                 style="opacity: 1; transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1);">
                 <div class="MuiPaper-root MuiPaper-elevation MuiPaper-rounded MuiPaper-elevation24 MuiDialog-paper MuiDialog-paperScrollPaper MuiDialog-paperWidthSm portal-css-93vtwm"
                     role="dialog" aria-labelledby=":r2r:">
-                    <div class="MuiDialogContent-root portal-css-19v82mx">
+                    <div id="card-area" class="MuiDialogContent-root portal-css-19v82mx">
                         <div class="portal-css-4zknmo">
                             <div class="portal-css-ubzqd">
                                 <div class="portal-css-14ewmc0">
                                     <div class="portal-css-0">
-                                        <div class="portal-css-1q7wnvz"><img
+                                        <div class="portal-css-1q7wnvz"><img 
                                                 src="https://public-cdn.bblmw.cn/avatar/1487262198/2024-09-10_cf014c862e283.jpg?x-oss-process=image/resize,w_60/format,webp"
                                                 width="48" height="48" alt=""></div>
                                     </div>
@@ -795,17 +795,17 @@
                                     <div class="portal-css-39l4sl">
                                         <div class="portal-css-14ewmc0">
                                             <div class="portal-css-0">
-                                                <div class="portal-css-1q7wnvz"><img
+                                                <div class="portal-css-1q7wnvz"><img id="creator-avator" 
                                                         src="https://public-cdn.bblmw.cn/avatar/1487262198/2024-09-10_cf014c862e283.jpg?x-oss-process=image/resize,w_60/format,webp"
                                                         width="48" height="48" alt=""></div>
                                             </div>
                                             <div class="portal-css-1omp05f">
                                                 <div class="MuiBox-root portal-css-1a5vpwx">
-                                                    <h1 class="title-for-share translated-text portal-css-smo9y1"
+                                                    <h1 id="model-name" class="title-for-share translated-text portal-css-smo9y1"
                                                         aria-label="手指旋转飞镖">手指旋转飞镖</h1>
                                                 </div>
                                                 <div class="portal-css-wn1ugj">
-                                                    <div class="portal-css-121o35x"><span class="user_name">Warmtech</span>
+                                                    <div class="portal-css-121o35x"><span id="creator-name" class="user_name">Warmtech</span>
                                                     </div><button
                                                         class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeSmall MuiButton-containedSizeSmall MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeSmall MuiButton-containedSizeSmall follow portal-css-rcsx8c"
                                                         tabindex="0" type="button" designid="580630">关注</button>
@@ -820,8 +820,8 @@
                                                     <div class="MuiBox-root portal-css-fet278">
                                                         <div class="swiper swiper-initialized swiper-horizontal swiper-backface-hidden"
                                                             style="width: 100%; height: 100%;">
-                                                            <div class="swiper-wrapper"
-                                                                style="transform: translate3d(0px, 0px, 0px);">
+                                                            <div id="model-swipper" class="swiper-wrapper"
+                                                                style="transform: translate3d(-748px, 0px, 0px);">
                                                                 <div class="swiper-slide portal-css-135epe0 swiper-slide-active"
                                                                     url="https://makerworld.bblmw.cn/makerworld/model/CN99ee84465a306d/design/2024-10-24_158cd174c39ed.gif?x-oss-process=image/resize,w_300/format,webp"
                                                                     style="width: 305px; margin-right: 50px;"><img
@@ -971,7 +971,7 @@
                                 <div class="portal-css-17z0qxd">
                                     <div class="portal-css-15zgkt3">
                                         <div class="portal-css-iv168w">
-                                            <div class="portal-css-8atqhb">
+                                            <div class="portal-css-8atqhb" style="display: none;">
                                                 <div class="portal-css-382x4q">
                                                     <div class="portal-css-0">
                                                         <h4 class="portal-css-1dptlm0">打印配置<span>(3)</span></h4>
@@ -1266,11 +1266,11 @@
                                                 </div>
                                             </div>
                                         </div>
-                                        <hr class="portal-css-g4ynan">
+                                        <hr class="portal-css-g4ynan" style="display: none;">
                                         <div class="tab-anchor portal-css-jscx8" data-id="1">
                                             <div class="MuiBox-root portal-css-0">
                                                 <h3 class="pb-8 portal-css-z7k12k">描述</h3>
-                                                <div class="portal-css-4no9qp">
+                                                <div id="model-description" class="portal-css-4no9qp">
                                                     <div class="rich_text_show ck-content_ck-content__LX5VB">
                                                         <h2>手指飞镖玩具</h2>
                                                         <p>玩法如图所示</p>
@@ -1326,46 +1326,13 @@
                                                     </div>
                                                 </div>
                                             </div>
-                                            <div class="translated-text MuiBox-root portal-css-13kdmde"><a
-                                                    href="/zh/studio/webview/search?keyword=tag:%20%E7%8E%A9%E5%85%B7">
-                                                    <div class="MuiButtonBase-root MuiChip-root MuiChip-filled MuiChip-sizeMedium MuiChip-colorDefault MuiChip-clickable MuiChip-clickableColorDefault MuiChip-filledDefault portal-css-1iefgqa"
-                                                        tabindex="0" role="button"><span
-                                                            class="MuiChip-label MuiChip-labelMedium portal-css-14vsv3w">玩具</span>
-                                                    </div>
-                                                </a><a href="/zh/studio/webview/search?keyword=tag:%20%E8%A7%A3%E5%8E%8B">
-                                                    <div class="MuiButtonBase-root MuiChip-root MuiChip-filled MuiChip-sizeMedium MuiChip-colorDefault MuiChip-clickable MuiChip-clickableColorDefault MuiChip-filledDefault portal-css-1iefgqa"
-                                                        tabindex="0" role="button"><span
-                                                            class="MuiChip-label MuiChip-labelMedium portal-css-14vsv3w">解压</span>
-                                                    </div>
-                                                </a><a href="/zh/studio/webview/search?keyword=tag:%20%E9%A3%9E%E9%95%96">
-                                                    <div class="MuiButtonBase-root MuiChip-root MuiChip-filled MuiChip-sizeMedium MuiChip-colorDefault MuiChip-clickable MuiChip-clickableColorDefault MuiChip-filledDefault portal-css-1iefgqa"
-                                                        tabindex="0" role="button"><span
-                                                            class="MuiChip-label MuiChip-labelMedium portal-css-14vsv3w">飞镖</span>
-                                                    </div>
-                                                </a><a href="/zh/studio/webview/search?keyword=tag:%20%E6%97%8B%E8%BD%AC">
-                                                    <div class="MuiButtonBase-root MuiChip-root MuiChip-filled MuiChip-sizeMedium MuiChip-colorDefault MuiChip-clickable MuiChip-clickableColorDefault MuiChip-filledDefault portal-css-1iefgqa"
-                                                        tabindex="0" role="button"><span
-                                                            class="MuiChip-label MuiChip-labelMedium portal-css-14vsv3w">旋转</span>
-                                                    </div>
-                                                </a><a href="/zh/studio/webview/search?keyword=tag:%20%E6%AD%A6%E5%99%A8">
-                                                    <div class="MuiButtonBase-root MuiChip-root MuiChip-filled MuiChip-sizeMedium MuiChip-colorDefault MuiChip-clickable MuiChip-clickableColorDefault MuiChip-filledDefault portal-css-1iefgqa"
-                                                        tabindex="0" role="button"><span
-                                                            class="MuiChip-label MuiChip-labelMedium portal-css-14vsv3w">武器</span>
-                                                    </div>
-                                                </a><a href="/zh/studio/webview/search?keyword=tag:%20%E6%8A%8A%E7%8E%A9">
-                                                    <div class="MuiButtonBase-root MuiChip-root MuiChip-filled MuiChip-sizeMedium MuiChip-colorDefault MuiChip-clickable MuiChip-clickableColorDefault MuiChip-filledDefault portal-css-1iefgqa"
-                                                        tabindex="0" role="button"><span
-                                                            class="MuiChip-label MuiChip-labelMedium portal-css-14vsv3w">把玩</span>
-                                                    </div>
-                                                </a></div>
                                         </div>
                                         <hr class="portal-css-g4ynan">
                                         <div class="MuiBox-root portal-css-0">
                                             <h4 class="portal-css-19hught">许可证</h4>
                                             <div class="horizontal portal-css-c3mal0">
-                                                <div class="portal-css-1yrsgng"><img alt="" loading="lazy" width="96"
-                                                        height="37" decoding="async" data-nimg="1"
-                                                        srcset="/_next/image?url=https%3A%2F%2Fcdn1.bambulab.com%2Fcreativecommons%2Fstandard-digital-file-license.png&amp;w=96&amp;q=75 1x, /_next/image?url=https%3A%2F%2Fcdn1.bambulab.com%2Fcreativecommons%2Fstandard-digital-file-license.png&amp;w=256&amp;q=75 2x"
+                                                <div class="portal-css-1yrsgng"><img id="license-pic"alt="" loading="lazy" width="96"
+                                                        height="37" 
                                                         src="/_next/image?url=https%3A%2F%2Fcdn1.bambulab.com%2Fcreativecommons%2Fstandard-digital-file-license.png&amp;w=256&amp;q=75"
                                                         style="color: transparent;"></div>
                                                 <div class="portal-css-1sprapw"><span>本作品以Standard Digital File
@@ -1385,29 +1352,6 @@
                                     <div class="portal-css-dtg2nl">
                                         <div class=" portal-css-70qvj9">
                                             <div class="portal-css-7fpqnu"><svg width="1em" height="1em" viewBox="0 0 16 16"
-                                                    fill="none">
-                                                    <path d="M6.40625 14.3776L6.03125 13.8442H9.96875L9.6875 14.3776H6.40625Z"
-                                                        fill="#D9D9D9"></path>
-                                                    <path fill-rule="evenodd" clip-rule="evenodd"
-                                                        d="M5.54316 13.5909C5.63777 13.4088 5.82598 13.2944 6.03126 13.2944H9.96876C10.1615 13.2944 10.3402 13.3953 10.4397 13.5604C10.5393 13.7254 10.5452 13.9305 10.4553 14.101L10.174 14.6343C10.0788 14.8148 9.89156 14.9278 9.68751 14.9278H6.40626C6.2272 14.9278 6.05934 14.8406 5.95635 14.6941L5.58135 14.1608C5.46327 13.9928 5.44855 13.7731 5.54316 13.5909Z"
-                                                        fill="currentColor"></path>
-                                                    <path fill-rule="evenodd" clip-rule="evenodd"
-                                                        d="M11.0624 7.53631C10.8182 7.59798 10.647 7.81768 10.647 8.06958V13.8421C10.647 14.1458 10.8933 14.3921 11.197 14.3921H13.9062C14.21 14.3921 14.4562 14.1458 14.4562 13.8421C14.4562 12.5075 14.2989 10.9447 13.0845 9.91268C12.439 9.36409 12.181 8.82796 11.9191 8.28367C11.8432 8.12614 11.7671 7.96792 11.6811 7.80852C11.5616 7.5868 11.3067 7.47465 11.0624 7.53631ZM11.747 10.115C11.9219 10.3283 12.1273 10.5428 12.3722 10.7509C13.0621 11.3373 13.2923 12.2215 13.344 13.2921H11.747V10.115Z"
-                                                        fill="currentColor"></path>
-                                                    <path fill-rule="evenodd" clip-rule="evenodd"
-                                                        d="M4.93759 7.53631C5.18183 7.59798 5.35296 7.81768 5.35296 8.06958V13.8421C5.35296 14.1458 5.10672 14.3921 4.80296 14.3921H2.09376C1.79001 14.3921 1.54376 14.1458 1.54376 13.8421C1.54376 12.5075 1.70114 10.9447 2.91549 9.91268C3.56097 9.36409 3.819 8.82796 4.08094 8.28367C4.15676 8.12614 4.2329 7.96792 4.31887 7.80852C4.43844 7.5868 4.69335 7.47465 4.93759 7.53631ZM4.25296 10.115C4.07815 10.3283 3.8727 10.5428 3.62785 10.7509C2.93787 11.3373 2.70769 12.2215 2.65602 13.2921H4.25296V10.115Z"
-                                                        fill="currentColor"></path>
-                                                    <path fill-rule="evenodd" clip-rule="evenodd"
-                                                        d="M8.42052 2.35677C8.18122 2.16408 7.81472 2.16408 7.57542 2.35676C6.47677 3.24143 5.87453 4.14541 5.47429 5.27972C5.3881 5.52399 5.35079 5.79232 5.35079 6.07859V13.2946H10.6451V6.07859C10.6451 5.79232 10.6078 5.52399 10.5216 5.27972C10.1214 4.14541 9.51917 3.24143 8.42052 2.35677ZM6.88553 1.5C7.52758 0.982998 8.46836 0.982998 9.11041 1.5C10.3694 2.5138 11.0913 3.5882 11.559 4.91371C11.696 5.30205 11.7451 5.69925 11.7451 6.07859V13.8446C11.7451 14.1483 11.4989 14.3946 11.1951 14.3946H4.80079C4.49704 14.3946 4.25079 14.1483 4.25079 13.8446V6.07859C4.25079 5.69925 4.29994 5.30205 4.43697 4.91371C4.90467 3.5882 5.62651 2.5138 6.88553 1.5Z"
-                                                        fill="currentColor"></path>
-                                                    <path fill-rule="evenodd" clip-rule="evenodd"
-                                                        d="M8 6.04485C7.42455 6.04485 7.00428 6.49835 7.00428 7C7.00428 7.50165 7.42455 7.95514 8 7.95514C8.57545 7.95514 8.99572 7.50165 8.99572 7C8.99572 6.49835 8.57545 6.04485 8 6.04485ZM6 7C6 5.86957 6.92096 5 8 5C9.07904 5 10 5.86957 10 7C10 8.13043 9.07904 9 8 9C6.92096 9 6 8.13043 6 7Z"
-                                                        fill="currentColor"></path>
-                                                </svg></div>
-                                            <div class="portal-css-14lpih">16</div>
-                                        </div>
-                                        <div class=" portal-css-70qvj9">
-                                            <div class="portal-css-7fpqnu"><svg width="1em" height="1em" viewBox="0 0 16 16"
                                                     fill="none" style="font-size: 20px;">
                                                     <path fill-rule="evenodd" clip-rule="evenodd"
                                                         d="M13.25 7.0249C13.5814 7.0249 13.85 7.29353 13.85 7.6249V11.8749C13.85 12.7586 13.1337 13.4749 12.25 13.4749H3.75002C2.86637 13.4749 2.15002 12.7586 2.15002 11.8749V7.62732C2.15002 7.29595 2.41865 7.02732 2.75002 7.02732C3.0814 7.02732 3.35002 7.29595 3.35002 7.62732V11.8749C3.35002 12.0958 3.52911 12.2749 3.75002 12.2749H12.25C12.4709 12.2749 12.65 12.0958 12.65 11.8749V7.6249C12.65 7.29353 12.9187 7.0249 13.25 7.0249Z"
@@ -1419,7 +1363,7 @@
                                                         d="M7.99758 1.8999C8.32895 1.8999 8.59758 2.16853 8.59758 2.4999V9.95824C8.59758 10.2896 8.32895 10.5582 7.99758 10.5582C7.66621 10.5582 7.39758 10.2896 7.39758 9.95824V2.4999C7.39758 2.16853 7.66621 1.8999 7.99758 1.8999Z"
                                                         fill="currentColor"></path>
                                                 </svg></div>
-                                            <div class="portal-css-14lpih">371</div>
+                                            <div id="download-count" class="portal-css-14lpih">371</div>
                                         </div>
                                         <div class=" portal-css-70qvj9">
                                             <div class="portal-css-7fpqnu"><svg width="1em" height="1em" viewBox="0 0 16 16"
@@ -1437,42 +1381,14 @@
                                                         d="M3 2.5C2.72386 2.5 2.5 2.72386 2.5 3V5.5H1.5V3C1.5 2.17157 2.17157 1.5 3 1.5H5.5V2.5H3ZM13 2.5H10.5V1.5H13C13.8284 1.5 14.5 2.17157 14.5 3V5.5H13.5V3C13.5 2.72386 13.2761 2.5 13 2.5ZM2.5 10.5V13C2.5 13.2761 2.72386 13.5 3 13.5H5.5V14.5H3C2.17157 14.5 1.5 13.8284 1.5 13V10.5H2.5ZM13.5 13V10.5H14.5V13C14.5 13.8284 13.8284 14.5 13 14.5H10.5V13.5H13C13.2761 13.5 13.5 13.2761 13.5 13Z"
                                                         fill="#858585"></path>
                                                 </svg></div>
-                                            <div class="portal-css-14lpih">272</div>
+                                            <div id="print-count" class="portal-css-14lpih">272</div>
                                         </div>
                                         <div class="portal-css-70qvj9">
-                                            <div class="portal-css-2142di">发布于 2024-10-24 14:34</div>
+                                            <div id="publish-time" class="portal-css-2142di">发布于 2024-10-24 14:34</div>
                                         </div>
                                     </div>
                                 </div>
                                 <div class="portal-css-ae2dwu">
-                                    <div class="js-boost-entry MuiBox-root portal-css-0" designid="580630">
-                                        <div class="js-boost-demo portal-css-0">
-                                            <div class="  type-studio portal-css-2mv27d">
-                                                <div class="icon-box type-studio portal-css-n85nuq"><svg width="24" height="24"
-                                                        viewBox="0 0 24 24" fill="none">
-                                                        <path
-                                                            d="M12.9189 22.5H11.0811C10.1369 22.5 9.2986 21.8958 9 21H15C14.7014 21.8958 13.8631 22.5 12.9189 22.5Z"
-                                                            fill="#D7B8F2"></path>
-                                                        <path
-                                                            d="M19.2051 15.3544C17.7786 14.0757 17.3845 12.7217 16.8717 11.7188V20.9959H21C21 18.8647 20.7436 16.7334 19.2051 15.3544Z"
-                                                            fill="#D7B8F2"></path>
-                                                        <path
-                                                            d="M4.79491 15.3544C6.22143 14.0757 6.61547 12.7217 7.1283 11.7188V20.9959H3C3 18.8647 3.25641 16.7334 4.79491 15.3544Z"
-                                                            fill="#D7B8F2"></path>
-                                                        <path
-                                                            d="M7.36289 6.51968C8.02418 4.54304 9.03301 2.95327 10.8293 1.42771C11.5008 0.857428 12.4969 0.857429 13.1684 1.42771C14.9647 2.95327 15.9735 4.54304 16.6348 6.51968C16.8049 7.02803 16.8707 7.56283 16.8707 8.09769V21H7.12695V8.09769C7.12695 7.56283 7.19283 7.02803 7.36289 6.51968Z"
-                                                            fill="#B57EEB"></path>
-                                                        <path
-                                                            d="M14.4961 9.5C14.4961 10.8807 13.3768 12 11.9961 12C10.6154 12 9.49609 10.8807 9.49609 9.5C9.49609 8.11929 10.6154 7 11.9961 7C13.3768 7 14.4961 8.11929 14.4961 9.5Z"
-                                                            fill="#E6D9F7"></path>
-                                                        <path fill-rule="evenodd" clip-rule="evenodd"
-                                                            d="M12.5258 7.05512C12.3567 7.01901 12.1812 7 12.0013 7C11.7527 7 11.5127 7.03627 11.2861 7.10381L9.51172 9.72981C9.55095 10.1602 9.69928 10.5591 9.92884 10.8986L12.5258 7.05512ZM10.6547 11.6067C10.5133 11.5161 10.3816 11.4117 10.2616 11.2954L13.0183 7.21552C13.1721 7.28412 13.3178 7.3678 13.4534 7.46469L10.6547 11.6067Z"
-                                                            fill="white"></path>
-                                                    </svg></div>
-                                                <div class="type-studio portal-css-6smmg4">助力</div>
-                                            </div>
-                                        </div>
-                                    </div>
                                     <div class="portal-css-10kg4x5">
                                         <div class="">
                                             <div class="border-right portal-css-iivdc1">
@@ -1485,7 +1401,7 @@
                                                             d="M4.25351 7.96705H6.25C6.66421 7.96705 7 8.30284 7 8.71705V17.0501C7 17.4643 6.66421 17.8001 6.25 17.8001H4.25358C2.9977 17.8187 1.92523 16.8961 1.75677 15.6506C1.75226 15.6173 1.75 15.5837 1.75 15.5501V10.3001C1.75 10.2665 1.75226 10.2329 1.75677 10.1996C1.91847 9.00416 2.94943 7.94796 4.25351 7.96705ZM3.25 10.3571V15.4925C3.33499 15.9645 3.75053 16.3088 4.23424 16.3002L4.2475 16.3L5.5 16.3001V9.46705H4.23423C3.79658 9.45931 3.34191 9.83561 3.25 10.3571Z"
                                                             fill="#686868"></path>
                                                     </svg></div>
-                                                <div class="portal-css-14lpih"><span class="count">82</span></div>
+                                                <div id="zan-count" class="portal-css-14lpih"><span class="count">82</span></div>
                                             </div>
                                         </div>
                                         <div class="">
@@ -1505,7 +1421,7 @@
                                                                     stroke-width="1.45" stroke-linecap="round"
                                                                     stroke-linejoin="round"></path>
                                                             </svg></div>
-                                                        <div class="portal-css-14lpih"><span class="count">359</span></div>
+                                                        <div id="collection-count" class="portal-css-14lpih"><span class="count">359</span></div>
                                                     </div>
                                                 </div>
                                             </div>

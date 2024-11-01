@@ -179,6 +179,12 @@ function HandleStudio( pVal )
 	let strName=pVal['menu'];
 	SwitchMenu(strName);
 	OnBoardChange(strName);
+  } else if (strCmd == "modelmall_model_open"){
+	var iframeWindow = document.getElementById("FullHotModelFrame").contentWindow;
+	var postMsg = {};
+	postMsg.cmd = "modelmall_model_open";
+	postMsg.data = pVal;
+	iframeWindow.postMessage(postMsg, '*');
   } else if (data.cmd === "SetLoginPanelVisibility") {
     SetLoginPanelVisibility(data.visible);
   }
@@ -750,6 +756,13 @@ function OpenOneStaffPickModel( ModelID )
 	tSend['data']={};
 	tSend['data']['id']=ModelID;
 
+	/*test*/
+	var iframeWindow = document.getElementById("FullHotModelFrame").contentWindow;
+	var postMsg = {};
+	postMsg.cmd = "model_target";
+	postMsg.data = ModelID;
+	iframeWindow.postMessage(postMsg, '*'); 
+
 	SendWXMessage( JSON.stringify(tSend) );		
 }
 
@@ -757,7 +770,9 @@ function OpenOneStaffPickModel( ModelID )
 /*test*/
 
 window.addEventListener("message", function(event){
-	console.log(event.data);
+	if (event.data.cmd  == 'if_show_model_detail'){
+        OpenOneStaffPickModel(event.data.data);
+    }
 });
 
 //---------------Global-----------------
