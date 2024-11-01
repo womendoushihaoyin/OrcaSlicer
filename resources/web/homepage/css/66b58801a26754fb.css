@@ -4664,3 +4664,9 @@ body.video-react-full-window .video-react-fullscreen {
     padding-right: 2px;
     color: rgb(104, 104, 104);
 }
+
+@media (min-width: 1364px) {
+    .portal-css-1ex50um .MuiPaper-root {
+        flex: 0 0 1204px;
+    }
+}

@@ -1,6 +1,15 @@
 function OnInit() {
     console.log("Online Model Initialized");
     sendMessageToParent();
+
+    // 绑定功能函数
+    $('#swiper-button-prev').on('click', function() {
+        onSwiperPrevClick();
+    });
+
+    $('#swiper-button-next').on('click', function() {
+        onSwiperNextClick();
+    });
 }
 
 function sendMessageToParent(){
@@ -219,38 +228,124 @@ function showmodelDetail(data){
     $('#zan-count').html(225);
     $('#collection-count').html(25);
 
-    updataModelPics(data["banners"]);
+    total_pic_count = data["banners"].length;
+
+    updateModelPics(data["banners"]);
+    updateModelPicSelector(data["banners"]);
 }
 
-function updataModelPics(pics){
-    if(pics.length <= 0) return;
-
+function updateModelPics(pics){
     let model_swipper = $('#model-swipper');
     model_swipper.html(''); // 清空原有图片
+
+    // 还原滑动
+    $('#model-swipper').attr('style', '0px, 0px, 0px); transition: all 0.3s ease-in-out;');
+    current_index = 0;
+
+    if(pics.length <= 0) return;
+
+    let baseWidth = model_swipper.width() / pics.length;
+
     for(let i  = 0; i < pics.length; i++){
-        for(let i = 0; i < pics.length; i++){
-            let div = $('<div></div>');
-            
-            div.addClass('swiper-slide');
-            if(i == 1){
+        let div = $('<div></div>');
+
+        div.addClass('swiper-slide');
+        if (i == 1) {
+            div.addClass('swiper-slide-active');
+        } else if (i == 2) {
+            div.addClass('swiper-slide-next');
+        }
+        div.addClass('portal-css-135epe0');
+
+        //div.attr('style', 'margin-right:50px;');
+        //div.attr('style', 'width: 305px; margin-right:50px;');
+
+        // div.attr('style', `width: ${baseWidth}px; margin-right:50px;`);
+
+        let img = $('<img />'); // 应该使用img变量而不是modelImg_img
+        img.attr('src', pics[i] + '?image_process=resize,w_305/format,webp');
+        img.attr('alt', '');
+        img.addClass('portal-css-1dn0z63 swiper-lazy');
+        img.attr('loading', 'lazy');
+
+        div.append(img); // 将img插入到div中
+
+        model_swipper.append(div); // 将div插入到model_swipper中
+        
+    }
+}
+
+
+var current_index  = 0; // 当前显示的主图片
+var swiper_left_index = 0; // 当前最左侧的轮播图片
+var container_pic_count = 3; // 图片显示的数量
+var total_pic_count = 0; // 图片总数量
+
+function updateModelPicSelector(pics){
+    let model_pics_selector = $('#model-pics-selector');
+    model_pics_selector.html(''); // 清空原有图片
+
+    // 还原滑动
+    $('#model-pics-selector').attr('style', '0px, 0px, 0px); transition: all 0.3s ease-in-out;');
+    swiper_left_index = 0;
+
+    $('#swiper-button-prev').css('display', 'none');
+    if(pics.length <= container_pic_count){
+        $('#swiper-button-next').css('display', 'none');
+    }else{
+        $('#swiper-button-next').css('display', 'block');
+    }
+
+    if(pics.length <= 0) return;
+
+    let baseWidth = model_pics_selector.width() / container_pic_count - 10;
+
+    for(let i  = 0; i < pics.length; i++){
+        let div = $('<div></div>');
+
+        div.addClass('swiper-slide');
+
+        if(i <= 3){
+            div.addClass('swiper-slide-visible');
+
+            if(i == 0){
+                div.addClass('swiper-slide-thumb-active');
                 div.addClass('swiper-slide-active');
-            }else if(i == 2){
+            }else if(i == 1){
                 div.addClass('swiper-slide-next');
             }
-            div.addClass('portal-css-135epe0');
-            div.attr('style', 'width: 305px; margin-right:50px;');
-        
-            let img = $('<img />'); // 应该使用img变量而不是modelImg_img
-            img.attr('src', pics[i] + '?image_process=resize,w_305/format,webp');
-            img.attr('alt', '');
-            img.addClass('portal-css-1dn0z63 swiper-lazy');
-            img.attr('loading', 'lazy');
-        
-            div.append(img); // 将img插入到div中
-            
-            model_swipper.append(div); // 将div插入到model_swipper中
         }
-        
+        div.attr('style', `width: ${baseWidth}px; margin-right: 10px;`);
+
+        div_1 = $('<div></div>');
+        div_1.addClass('MuiBox-root');
+        div_1.addClass('portal-css-1bagh5i');
+        if(i == 0){
+            div_1.addClass('active');
+        }
+        div_1.on('click', function(){
+            modelPicSelect(i);
+        });
+
+        div_2 = $('<div></div>');
+        div_2.addClass('MuiBox-root');
+        div_2.addClass('portal-css-1kci8bl');
+
+        div_3 = $('<div></div>');
+        div_3.addClass('portal-css-1f8sh1y');
+
+        let img = $('<img />');
+        img.addClass('lazy');
+        img.addClass('portal-css-1e5ufbu');
+        img.attr('src', pics[i] + '?image_process=resize,w_100/format,webp');
+        img.attr('alt', '');
+        img.attr('style', 'border-radius: 5px;');
+
+        div_3.append(img);
+        div_2.append(div_3);
+        div_1.append(div_2);
+        div.append(div_1);
+        model_pics_selector.append(div);
     }
 }
 
@@ -259,6 +354,84 @@ function showModelDetail(ModelID){
 	postMsg.cmd = "if_show_model_detail";
 	postMsg.data = ModelID;
     window.parent.postMessage(postMsg, '*');
+}
+
+function modelPicSelect(index){
+    if(index == current_index){
+        return;
+    }
+
+    baseWidth = $($('#model-swipper')[0].children[index]).width();
+
+    $('#model-pics-selector')[0].children[current_index].classList.remove('swiper-slide-thumb-active');
+    $('#model-pics-selector')[0].children[current_index].children[0].classList.remove('active');
+    $('#model-pics-selector')[0].children[current_index].classList.remove('swiper-slide-active');
+    
+    $('#model-pics-selector')[0].children[index].classList.add('swiper-slide-thumb-active');
+    $('#model-pics-selector')[0].children[index].children[0].classList.add('active');
+    $('#model-pics-selector')[0].children[index].classList.add('swiper-slide-active');
+
+    if(current_index - 1 >= 0){
+        $('#model-pics-selector')[0].children[current_index - 1].classList.remove('swiper-slide-prev');
+    }
+    if(current_index + 1 < $('#model-pics-selector')[0].children.length){
+        $('#model-pics-selector')[0].children[current_index + 1].classList.remove('swiper-slide-next');
+    }
+    if(index - 1 >= 0){
+        $('#model-pics-selector')[0].children[index - 1].classList.add('swiper-slide-prev');
+    }
+    if(index + 1 < $('#model-pics-selector')[0].children.length){
+        $('#model-pics-selector')[0].children[index + 1].classList.add('swiper-slide-next');
+    }
+    current_index = index;
+
+    $('#model-swipper').attr('style', 'transform: translate3d(-' +  (index * baseWidth) + 'px, 0px, 0px); transition: all 0.3s ease-in-out;');
+
+}
+
+function onSwiperPrevClick(){
+    if(swiper_left_index >= 1){
+        swiper_left_index--;
+    }
+
+    let baseWidth = $($('#model-pics-selector')[0].children[0]).width();
+
+    $('#model-pics-selector').attr('style', 'transform: translate3d(-' +  (swiper_left_index * baseWidth) + 'px, 0px, 0px); transition: all 0.3s ease-in-out;');
+
+    if(total_pic_count - swiper_left_index > 0){
+        $('#swiper-button-next').css('display', 'block');
+    }else{
+        $('#swiper-button-next').css('display', 'none');
+    }
+
+    if(swiper_left_index == 0){
+        $('#swiper-button-prev').css('display', 'none');
+    }else
+    {
+        $('#swiper-button-prev').css('display', 'block');
+    }
+}
+
+function onSwiperNextClick(){
+    if(swiper_left_index + container_pic_count < total_pic_count){
+        swiper_left_index++;
+    }
+
+    let baseWidth = $($('#model-pics-selector')[0].children[0]).width();
+    $('#model-pics-selector').attr('style', 'transform: translate3d(-' +  (swiper_left_index * baseWidth) + 'px, 0px, 0px); transition: all 0.3s ease-in-out;');
+
+    if(total_pic_count - swiper_left_index > container_pic_count){
+        $('#swiper-button-next').css('display', 'block');
+    }else{
+        $('#swiper-button-next').css('display', 'none');
+    }
+
+    if(swiper_left_index == 0){
+        $('#swiper-button-prev').css('display', 'none');
+    }else
+    {
+        $('#swiper-button-prev').css('display', 'block');
+    }
 }
 
 document.addEventListener("click", function(event){
