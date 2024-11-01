@@ -3951,6 +3951,7 @@ body.video-react-full-window .video-react-fullscreen {
     filter: brightness(5);
 }
 
+/*
 .portal-css-1uch0cc .swiper-button-next {
     width: 40px;
     height: 100%;
@@ -3960,7 +3961,7 @@ body.video-react-full-window .video-react-fullscreen {
     right: 0px;
     background: rgba(0, 0, 0, 0.24);
 }
-
+*/
 .portal-css-1uch0cc .swiper-button-next img {
     width: 14px;
     filter: brightness(5);
