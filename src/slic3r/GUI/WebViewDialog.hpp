@@ -169,6 +169,32 @@ public:
     SourceViewDialog(wxWindow* parent, wxString source);
 };
 
+class SnapmakerWorld
+{
+public:
+    static SnapmakerWorld* GetInstance();
+
+    void Get_Model_Detail(std::string model_id, std::function<void(WebViewPanel*, std::string)> callback);
+
+    void Get_Design_Staffpick(int pageIndex, int pageSize, std::function<void(webviewPanel*, std::string)> callback);
+
+
+public:
+    int GetPageSize(){ return m_pageSize; }
+private:
+    SnapmakerWorld();
+
+private:
+    std::string m_host_url = "https://id.snapmaker.com/";
+
+    std::map<std::string, std::string> m_api_url_map = {
+        {"GET_MODEL_DETAIL", "api/model/info?modelId="},
+        {"GET_DESIGN_STAFFPICK", "api/model/list"},
+    };
+
+    int m_pageSize = 10;
+}
+
 } // GUI
 } // Slic3r
 

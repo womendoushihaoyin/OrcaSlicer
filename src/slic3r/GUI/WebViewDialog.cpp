@@ -906,64 +906,16 @@ void WebViewPanel::OnError(wxWebViewEvent& evt)
 
 // Snapmaker
 void WebViewPanel::sm_get_design_staffpic() {
-    // https://id.snapmaker.com/api/model/list
-    auto http = Http::post("http://172.17.100.32/api/model/list");
-    json param;
-    param["pageIndex"] = 1;
-    param["pageRows"]  = 10;
-    http.header("Content-Type", "application/json")
-        .set_post_body(param.dump())
-        .on_complete([&](std::string body, unsigned status) { 
-            json j_body = json::parse(body);
-            json response;
-            response["hits"] = json::array();
-            if (j_body.count("data")) {
-                for (size_t i = 0; i < j_body["data"].size(); ++i) {
-                    json record = j_body["data"];
-                    json ans;
-                    ans["design"] = json::object();
-                    
-                    ans["design"]["id"]    = record[i]["modelId"];
-                    ans["design"]["title"] = record[i]["name"];
-                    ans["design"]["titleTranslated"] = ""; // todo
-                    ans["design"]["cover"]           = record[i]["thumbnail"];
-                    ans["design"]["likeCount"]       = 159; // todo
-                    ans["design"]["collectionCount"] = 509; // todo
-                    ans["design"]["shareCount"]      = 0; // todo
-                    ans["design"]["printCount"]      = 387; // todo
-                    ans["design"]["downloadCount"]   = 211; // todo
-                    ans["design"]["commentCount"]    = 13; // todo
-                    ans["design"]["readCount"]       = 0; // todo
-                    ans["design"]["designCreator"]   = json::object();
-                    ans["design"]["designCreator"]["uid"] = record[i]["creatorId"];
-                    ans["design"]["designCreator"]["name"] = record[i]["creator"];
-                    ans["design"]["designCreator"]["avatar"] =
-                        "https://tse2-mm.cn.bing.net/th/id/OIP-C.bnFrKPm24qmFqvy61PecWwAAAA?rs=1&pid=ImgDetMain"; // todo
-                    ans["design"]["designCreator"]["fanCount"] = 129; // todo
-                    ans["design"]["designCreator"]["followCount"] = 229; // todo
-                    ans["design"]["designCreator"]["createTime"]  = "2024-04-24T04:17:34Z";
-                    ans["design"]["designCreator"]["certificated"] = false;
 
-                    response["hits"].push_back(ans);
-                }
-
-                std::string result = response.dump();
-                wxGetApp().CallAfter([this, result]() {
-                    auto body2 = from_u8(result);
-                    body2.insert(1, "\"command\": \"modelmall_model_advise_get\", ");
-                    RunScript(wxString::Format("window.postMessage(%s)", body2));
-                });
-            }
-
-            
-            
-        })
-        .on_error([&](std::string body, std::string error, unsigned status) { 
-            wxLogMessage("test");
-            wxLogMessage("test");
-            wxLogMessage("test");
-        })
-        .perform();
+    auto snmk_world = SnapmakerWorld::GetInstance();
+    if(snmk_world){
+        auto func = [](WebViewPanel* panel, std::string result){
+            auto body = from_u8(result);
+            body.insert(1, "\"command\": \"modelmall_model_advise_get\", ");
+            RunScript(wxString::Format("window.postMessage(%s)", body));
+        };
+        snmk_world->Get_Design_Staffpick(1, snmk_world->GetPageSize(), func);
+    }
 }
 
 void WebViewPanel::sm_SwitchLeftMenu(std::string strMenu)
@@ -1003,31 +955,13 @@ void WebViewPanel::sm_SwitchWebContent(std::string modelname, int refresh) {
 void WebViewPanel::sm_OpenModelDetail(std::string id) { 
     sm_SwitchLeftMenu("online"); 
 
-    // https: // id.snapmaker.com/api/model/info?modelId=
-    auto http = Http::get("http://172.17.100.32/api/model/info?modelId=" + id);
-    http.on_complete([&](std::string body, unsigned status) {
-            json j_body = json::parse(body);
-            if (j_body.count("msg") && j_body["msg"].get<std::string>() == "success") {
-                if (j_body.count("data")) {
-                    // test 默认头像
-                    j_body["data"]["creatorAvator"] =
-                        "https://tse2-mm.cn.bing.net/th/id/OIP-C.bnFrKPm24qmFqvy61PecWwAAAA?rs=1&pid=ImgDetMain";
-                    auto result = from_u8(j_body["data"].dump());
-                    result.insert(1, "\"command\": \"modelmall_model_open\", ");
-
-                    wxGetApp().CallAfter([this, result] { 
-                        RunScript(wxString::Format("window.postMessage(%s)", result));
-                    });
-                }
-            }
-            
-        })
-        .on_error([&](std::string body, std::string error, unsigned status) {
-            wxLogMessage("test");
-            wxLogMessage("test");
-            wxLogMessage("test");
-        })
-        .perform();
+    auto snmk_world = SnapmakerWorld::GetInstance();
+    if(snmk_world){
+        auto cb = [](WebViewPanel* panel, std::string result){
+            panel->RunScript(wxString::Format("window.postMessage(%s)", result));
+        };
+        snmk_world->Get_Model_Detail(id, cb);
+    }
 }
 
 SourceViewDialog::SourceViewDialog(wxWindow* parent, wxString source) :
@@ -1046,6 +980,89 @@ SourceViewDialog::SourceViewDialog(wxWindow* parent, wxString source) :
     SetSizer(sizer);
 }
 
+SnapmakerWorld::SnapmakerWorld(){
+
+}
+
+SnapmakerWorld* SnapmakerWorld::GetInstance(){
+    static SnapmakerWorld instance;
+    return &instance;
+}
+
+void SnapmakerWorld::Get_Model_Detail(std::string model_id, std::function<void(webviewPanel*, std::string)> callback){
+    // https: // id.snapmaker.com/api/model/info?modelId=
+    auto http = Http::get(m_host_url + m_api_url_map["GET_MODEL_DETAIL"] + model_id);
+    http.on_complete([&](std::string body, unsigned status) {
+            json j_body = json::parse(body);
+            if (j_body.count("msg") && j_body["msg"].get<std::string>() == "success") {
+                if (j_body.count("data")) {
+                    // test 默认头像
+                    j_body["data"]["creatorAvator"] =
+                        "https://tse2-mm.cn.bing.net/th/id/OIP-C.bnFrKPm24qmFqvy61PecWwAAAA?rs=1&pid=ImgDetMain";
+                    auto result = from_u8(j_body["data"].dump());
+                    result.insert(1, "\"command\": \"modelmall_model_open\", ");
+
+                    wxGetApp().CallAfter(callback, this, result);
+                }
+            }
+            
+        })
+        .on_error([&](std::string body, std::string error, unsigned status) {
+        })
+        .perform();
+}
+
+void SnapmakerWorld::Get_Design_Staffpick(int pageIndex, int pageRows, std::function<void(webviewPanel*, std::string)> callback){
+    // https://id.snapmaker.com/api/model/list
+    auto http = Http::post(m_host_url + m_api_url_map["GET_DESIGN_STAFFPICK"]);
+    json param;
+    param["pageIndex"] = pageIndex;
+    param["pageRows"]  = pageRows;
+    http.header("Content-Type", "application/json")
+        .set_post_body(param.dump())
+        .on_complete([&](std::string body, unsigned status) { 
+            json j_body = json::parse(body);
+            json response;
+            response["hits"] = json::array();
+            if (j_body.count("data")) {
+                for (size_t i = 0; i < j_body["data"].size(); ++i) {
+                    json record = j_body["data"];
+                    json ans;
+                    ans["design"] = json::object();
+                    
+                    ans["design"]["id"]    = record[i]["modelId"];
+                    ans["design"]["title"] = record[i]["name"];
+                    ans["design"]["titleTranslated"] = ""; // todo
+                    ans["design"]["cover"]           = record[i]["thumbnail"];
+                    ans["design"]["likeCount"]       = 159; // todo
+                    ans["design"]["collectionCount"] = 509; // todo
+                    ans["design"]["shareCount"]      = 0; // todo
+                    ans["design"]["printCount"]      = 387; // todo
+                    ans["design"]["downloadCount"]   = 211; // todo
+                    ans["design"]["commentCount"]    = 13; // todo
+                    ans["design"]["readCount"]       = 0; // todo
+                    ans["design"]["designCreator"]   = json::object();
+                    ans["design"]["designCreator"]["uid"] = record[i]["creatorId"];
+                    ans["design"]["designCreator"]["name"] = record[i]["creator"];
+                    ans["design"]["designCreator"]["avatar"] =
+                        "https://tse2-mm.cn.bing.net/th/id/OIP-C.bnFrKPm24qmFqvy61PecWwAAAA?rs=1&pid=ImgDetMain"; // todo
+                    ans["design"]["designCreator"]["fanCount"] = 129; // todo
+                    ans["design"]["designCreator"]["followCount"] = 229; // todo
+                    ans["design"]["designCreator"]["createTime"]  = "2024-04-24T04:17:34Z";
+                    ans["design"]["designCreator"]["certificated"] = false;
+
+                    response["hits"].push_back(ans);
+                }
+
+                std::string result = response.dump();
+                wxGetApp().CallAfter(callback, this, result);
+            }
+            
+        })
+        .on_error([&](std::string body, std::string error, unsigned status) { 
+
+        })
+        .perform();
 
 } // GUI
 } // Slic3r
