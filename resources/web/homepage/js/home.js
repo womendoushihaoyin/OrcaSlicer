@@ -137,8 +137,10 @@ function HandleStudio( pVal )
     ShowRecentFileList(pVal["response"]);
   } else if (strCmd == "studio_userlogin") {
     SetLoginInfo(pVal["data"]["avatar"], pVal["data"]["name"]);
+	NotifyModelPagetoLogIn(pVal["data"]["avatar"]);
   } else if (strCmd == "studio_useroffline") {
     SetUserOffline();
+	NotifyModelPagetoLogOut();
   } else if (strCmd == "studio_set_mallurl") {
     SetMallUrl(pVal["data"]["url"]);
   } else if (strCmd == "studio_clickmenu") {
@@ -766,6 +768,20 @@ function OpenOneStaffPickModel( ModelID )
 	SendWXMessage( JSON.stringify(tSend) );		
 }
 
+function NotifyModelPagetoLogOut(){
+	var iframeWindow = document.getElementById("FullHotModelFrame").contentWindow;
+	var postMsg = {};
+	postMsg.cmd = "model_logout";
+	iframeWindow.postMessage(postMsg, '*'); 
+}
+
+function NotifyModelPagetoLogIn(avatar){
+	var iframeWindow = document.getElementById("FullHotModelFrame").contentWindow;
+	var postMsg = {};
+	postMsg.cmd = "model_login";
+	postMsg.data = avatar;
+	iframeWindow.postMessage(postMsg, '*'); 
+}
 
 /*test*/
 

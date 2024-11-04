@@ -448,6 +448,10 @@ window.addEventListener('message', function (event) {
         scrollToTarget(event.data.data);
     }else if(event.data.cmd  == "modelmall_model_open"){
         showmodelDetail(event.data.data);
+    }else if(event.data.cmd  == "model_logout"){
+        $('#model-user-avatar').attr('src', './img/avatar.webp');
+    }else if(event.data.cmd  == "model_login"){
+        $('#model-user-avatar').attr('src', event.data.data);
     }
 });
 
