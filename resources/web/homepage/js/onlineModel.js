@@ -17,12 +17,28 @@ function sendMessageToParent(){
     window.parent.postMessage(message, '*');
 }
 
-function UpdateModelContent( ModelList )
+var m_ModelList = null;
+function UpdateModelContent( ModelList, isadd = false )
 {
+    if(ModelList ==  m_ModelList){
+        return;
+    }else{
+        m_ModelList =  ModelList;
+    }
+
+    if(!isadd){
+        $('.portal-css-1skxrux').first().html('');
+    }
+    
 	let PickTotal=ModelList.length;
 	if(PickTotal==0)
 	{
-		$('.portal-css-1skxrux').first().html('暂无数据');
+        if(isadd){
+            $('.portal-css-1skxrux').first().append('<div class="portal-css-1skxrux">已经到底了</div>');
+            page_bottom = true;
+        }else{
+            $('.portal-css-1skxrux').first().html('暂无数据');
+        }
 		return;
 	}
 
@@ -434,10 +450,58 @@ function onSwiperNextClick(){
     }
 }
 
+var lastSearchInput = "";
+function searchInputChange(event){
+    if(event.keyCode === 13 || event.key === 'Enter'){
+        var input = event.target || event.srcElement;
+
+        if(input.value == lastSearchInput){
+            return;
+        }
+        model_page= 0;
+        page_bottom = false;
+        lastSearchInput = input.value;
+        var postMsg = {};
+        postMsg.cmd = "if_search_model";
+        postMsg.data = input.value;
+        postMsg.page = model_search_page;
+        window.parent.postMessage(postMsg, '*');
+    }
+    
+}
+
+var model_page = 1;
+var model_search_page = 1;
+var page_bottom = false;
+
+function handleScrollToBottom(){
+    if(page_bottom){
+        return;
+    }
+    var postMsg = {};
+    postMsg.cmd = "if_add_request";
+    if(lastSearchInput == ""){
+        model_page++;
+        postMsg.page = model_page;
+        postMsg.data = "";
+    }else{
+        model_search_page++;
+        postMsg.page = model_search_page;
+        postMsg.data = lastSearchInput;
+    }
+    window.parent.postMessage(postMsg, '*');
+}
+
 document.addEventListener("click", function(event){
     var cardArea = $("#card-area")[0];
     if(!cardArea.contains(event.target)){
         $('#detail-card').css('display', 'none');
+    }
+});
+
+window.addEventListener('scroll', function() {
+    if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight) {
+        handleScrollToBottom();
     }
 });
 
@@ -452,6 +516,8 @@ window.addEventListener('message', function (event) {
         $('#model-user-avatar').attr('src', './img/avatar.webp');
     }else if(event.data.cmd  == "model_login"){
         $('#model-user-avatar').attr('src', event.data.data);
+    }else if(event.data.cmd  == "model_page_update"){
+        UpdateModelContent(event.data.data, event.data.isadd);
     }
 });
 

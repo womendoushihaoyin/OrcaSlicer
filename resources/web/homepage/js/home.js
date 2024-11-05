@@ -156,14 +156,17 @@ function HandleStudio( pVal )
     } else {
       $("#NoPluginTip").hide();
     }
-  } else if (strCmd == "modelmall_model_advise_get") {
+  }else if(strCmd == "modelmall_model_search_get"){
+	NotifyModelPagetoUpdateContent(pVal["hits"], false);
+  } 
+  else if (strCmd == "modelmall_model_advise_get") {
     //alert('hot');
     if (m_HotModelList != null) {
       let SS1 = JSON.stringify(pVal["hits"]);
       let SS2 = JSON.stringify(m_HotModelList);
 
       if (SS1 == SS2) return;
-    }
+	}
 
     m_HotModelList = pVal["hits"];
     ShowStaffPick(m_HotModelList);
@@ -177,6 +180,8 @@ function HandleStudio( pVal )
 	iframeWindow.postMessage(postMsg, '*');
 	
 
+  } else if (strCmd == "modelmall_next_page_model_get") {
+	NotifyModelPagetoUpdateContent(pVal["hits"], true);
   } else if(strCmd=='homepage_leftmenu_clicked'){
 	let strName=pVal['menu'];
 	SwitchMenu(strName);
@@ -768,6 +773,29 @@ function OpenOneStaffPickModel( ModelID )
 	SendWXMessage( JSON.stringify(tSend) );		
 }
 
+function Get_Search_Model( data )
+{
+	var tSend={};
+	tSend['sequence_id']=Math.round(new Date() / 1000);
+	tSend['command']="modelmall_model_search_get";
+	tSend['data']={};
+	tSend['data']['key']=data["data"];
+	tSend['data']['page']=data["page"];
+
+	SendWXMessage( JSON.stringify(tSend) );		
+}
+
+function Get_Next_Page(data){
+	var tSend={};
+	tSend['sequence_id']=Math.round(new Date() / 1000);
+	tSend['command']="modelmall_next_page_model_get";
+	tSend['data']={};
+	tSend['data']['key']=data["data"];
+	tSend['data']['page']=data["page"];
+
+	SendWXMessage( JSON.stringify(tSend) );	
+}
+
 function NotifyModelPagetoLogOut(){
 	var iframeWindow = document.getElementById("FullHotModelFrame").contentWindow;
 	var postMsg = {};
@@ -783,12 +811,25 @@ function NotifyModelPagetoLogIn(avatar){
 	iframeWindow.postMessage(postMsg, '*'); 
 }
 
+function NotifyModelPagetoUpdateContent(ModelList, isadd){
+	var iframeWindow = document.getElementById("FullHotModelFrame").contentWindow;
+	var postMsg = {};
+	postMsg.cmd = "model_page_update";
+	postMsg.data = ModelList;
+	postMsg.isadd = isadd;
+	iframeWindow.postMessage(postMsg, '*'); 
+}
+
 /*test*/
 
 window.addEventListener("message", function(event){
 	if (event.data.cmd  == 'if_show_model_detail'){
         OpenOneStaffPickModel(event.data.data);
-    }
+    }else if(event.data.cmd == 'if_search_model'){
+		Get_Search_Model(event.data);
+	}else if(event.data.cmd== 'if_add_request'){
+		Get_Next_Page(event.data)
+	}
 });
 
 //---------------Global-----------------

@@ -905,16 +905,30 @@ void WebViewPanel::OnError(wxWebViewEvent& evt)
 }
 
 // Snapmaker
-void WebViewPanel::sm_get_design_staffpic() {
+void WebViewPanel::sm_get_design_staffpic(int pageIndex) {
 
     auto snmk_world = SnapmakerWorld::GetInstance();
     if(snmk_world){
-        auto func = [](WebViewPanel* panel, std::string result){
+        // snmk_world->Get_Model_List(std::bind(&WebViewPanel::on_design_staffpic_arrived, this, std::placeholders::_1), pageIndex);
+        snmk_world->Get_Model_List([this](std::string result) {
             auto body = from_u8(result);
             body.insert(1, "\"command\": \"modelmall_model_advise_get\", ");
             RunScript(wxString::Format("window.postMessage(%s)", body));
-        };
-        snmk_world->Get_Design_Staffpick(1, snmk_world->GetPageSize(), func);
+        }, pageIndex);
+    }
+}
+
+void WebViewPanel::sm_get_next_page_model(int pageIndex, std::string key) {
+    auto snmk_world = SnapmakerWorld::GetInstance();
+    if (snmk_world) {
+        // snmk_world->Get_Model_List(std::bind(&WebViewPanel::on_design_staffpic_arrived, this, std::placeholders::_1), pageIndex);
+        snmk_world->Get_Model_List(
+            [this](std::string result) {
+                auto body = from_u8(result);
+                body.insert(1, "\"command\": \"modelmall_next_page_model_get\", ");
+                RunScript(wxString::Format("window.postMessage(%s)", body));
+            },
+            pageIndex);
     }
 }
 
@@ -957,12 +971,25 @@ void WebViewPanel::sm_OpenModelDetail(std::string id) {
 
     auto snmk_world = SnapmakerWorld::GetInstance();
     if(snmk_world){
-        auto cb = [](WebViewPanel* panel, std::string result){
-            panel->RunScript(wxString::Format("window.postMessage(%s)", result));
-        };
-        snmk_world->Get_Model_Detail(id, cb);
+        snmk_world->Get_Model_Detail([this](std::string result) {
+            auto wx_result = from_u8(result);
+            wx_result.insert(1, "\"command\": \"modelmall_model_open\", ");
+            RunScript(wxString::Format("window.postMessage(%s)", wx_result));
+        }, id);
     }
 }
+
+void WebViewPanel::sm_get_search_model(std::string key, int pageIndex) {
+    auto snmk_world = SnapmakerWorld::GetInstance();
+    if (snmk_world) {
+        snmk_world->Get_Model_List([this](std::string result){
+                auto body = from_u8(result);
+                body.insert(1, "\"command\": \"modelmall_model_search_get\", ");
+                this->RunScript(wxString::Format("window.postMessage(%s)", body));   
+        }, pageIndex, key);
+    }
+}
+
 
 SourceViewDialog::SourceViewDialog(wxWindow* parent, wxString source) :
                   wxDialog(parent, wxID_ANY, "Source Code",
@@ -989,7 +1016,8 @@ SnapmakerWorld* SnapmakerWorld::GetInstance(){
     return &instance;
 }
 
-void SnapmakerWorld::Get_Model_Detail(std::string model_id, std::function<void(webviewPanel*, std::string)> callback){
+void SnapmakerWorld::Get_Model_Detail(std::function<void(std::string)> callback, std::string model_id)
+{
     // https: // id.snapmaker.com/api/model/info?modelId=
     auto http = Http::get(m_host_url + m_api_url_map["GET_MODEL_DETAIL"] + model_id);
     http.on_complete([&](std::string body, unsigned status) {
@@ -999,10 +1027,11 @@ void SnapmakerWorld::Get_Model_Detail(std::string model_id, std::function<void(w
                     // test 默认头像
                     j_body["data"]["creatorAvator"] =
                         "https://tse2-mm.cn.bing.net/th/id/OIP-C.bnFrKPm24qmFqvy61PecWwAAAA?rs=1&pid=ImgDetMain";
-                    auto result = from_u8(j_body["data"].dump());
-                    result.insert(1, "\"command\": \"modelmall_model_open\", ");
+                    auto result = j_body["data"].dump();
 
-                    wxGetApp().CallAfter(callback, this, result);
+                    wxGetApp().CallAfter([callback, result] { 
+                        callback(result);
+                    });
                 }
             }
             
@@ -1012,15 +1041,25 @@ void SnapmakerWorld::Get_Model_Detail(std::string model_id, std::function<void(w
         .perform();
 }
 
-void SnapmakerWorld::Get_Design_Staffpick(int pageIndex, int pageRows, std::function<void(webviewPanel*, std::string)> callback){
+void SnapmakerWorld::Get_Model_List(std::function<void(std::string)> callback, int pageIndex, std::string name, std::string userId)
+{
     // https://id.snapmaker.com/api/model/list
-    auto http = Http::post(m_host_url + m_api_url_map["GET_DESIGN_STAFFPICK"]);
+    auto http = Http::post(m_host_url + m_api_url_map["GET_MODEL_LIST"]);
+    // auto http = Http::post("http://172.17.100.32/api/model/list");
     json param;
     param["pageIndex"] = pageIndex;
-    param["pageRows"]  = pageRows;
+    // param["pageRows"]  = m_pageSize;
+    param["pageRows"]  = 5;
+    if (name != "") {
+        param["name"] = name;
+    }
+    if (userId != "") {
+        param["userId"] = userId;
+    }
+
     http.header("Content-Type", "application/json")
         .set_post_body(param.dump())
-        .on_complete([&](std::string body, unsigned status) { 
+        .on_complete([&, callback](std::string body, unsigned status) {
             json j_body = json::parse(body);
             json response;
             response["hits"] = json::array();
@@ -1029,40 +1068,44 @@ void SnapmakerWorld::Get_Design_Staffpick(int pageIndex, int pageRows, std::func
                     json record = j_body["data"];
                     json ans;
                     ans["design"] = json::object();
-                    
-                    ans["design"]["id"]    = record[i]["modelId"];
-                    ans["design"]["title"] = record[i]["name"];
-                    ans["design"]["titleTranslated"] = ""; // todo
-                    ans["design"]["cover"]           = record[i]["thumbnail"];
-                    ans["design"]["likeCount"]       = 159; // todo
-                    ans["design"]["collectionCount"] = 509; // todo
-                    ans["design"]["shareCount"]      = 0; // todo
-                    ans["design"]["printCount"]      = 387; // todo
-                    ans["design"]["downloadCount"]   = 211; // todo
-                    ans["design"]["commentCount"]    = 13; // todo
-                    ans["design"]["readCount"]       = 0; // todo
-                    ans["design"]["designCreator"]   = json::object();
-                    ans["design"]["designCreator"]["uid"] = record[i]["creatorId"];
+
+                    ans["design"]["id"]                    = record[i]["modelId"];
+                    ans["design"]["title"]                 = record[i]["name"];
+                    ans["design"]["titleTranslated"]       = ""; // todo
+                    ans["design"]["cover"]                 = record[i]["thumbnail"];
+                    ans["design"]["likeCount"]             = 159; // todo
+                    ans["design"]["collectionCount"]       = 509; // todo
+                    ans["design"]["shareCount"]            = 0;   // todo
+                    ans["design"]["printCount"]            = 387; // todo
+                    ans["design"]["downloadCount"]         = 211; // todo
+                    ans["design"]["commentCount"]          = 13;  // todo
+                    ans["design"]["readCount"]             = 0;   // todo
+                    ans["design"]["designCreator"]         = json::object();
+                    ans["design"]["designCreator"]["uid"]  = record[i]["creatorId"];
                     ans["design"]["designCreator"]["name"] = record[i]["creator"];
                     ans["design"]["designCreator"]["avatar"] =
                         "https://tse2-mm.cn.bing.net/th/id/OIP-C.bnFrKPm24qmFqvy61PecWwAAAA?rs=1&pid=ImgDetMain"; // todo
-                    ans["design"]["designCreator"]["fanCount"] = 129; // todo
-                    ans["design"]["designCreator"]["followCount"] = 229; // todo
-                    ans["design"]["designCreator"]["createTime"]  = "2024-04-24T04:17:34Z";
+                    ans["design"]["designCreator"]["fanCount"]     = 129;                                         // todo
+                    ans["design"]["designCreator"]["followCount"]  = 229;                                         // todo
+                    ans["design"]["designCreator"]["createTime"]   = "2024-04-24T04:17:34Z";
                     ans["design"]["designCreator"]["certificated"] = false;
 
                     response["hits"].push_back(ans);
                 }
 
                 std::string result = response.dump();
-                wxGetApp().CallAfter(callback, this, result);
+
+                wxGetApp().CallAfter([result, callback] { 
+                    callback(result);
+                });
             }
-            
         })
-        .on_error([&](std::string body, std::string error, unsigned status) { 
+        .on_error([&](std::string body, std::string error, unsigned status) {
 
         })
         .perform();
+}
+
 
 } // GUI
 } // Slic3r

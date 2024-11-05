@@ -3850,6 +3850,24 @@ std::string GUI_App::handle_web_request(std::string cmd)
                         mainframe->m_webview->sm_SwitchLeftMenu(strMenu);
                     }
                 }
+            } else if (command_str.compare("modelmall_model_search_get") == 0) {
+                if (root.get_child_optional("data") != boost::none) {
+                    pt::ptree                    data_node = root.get_child("data");
+                    boost::optional<std::string> key        = data_node.get_optional<std::string>("key");
+                    boost::optional<int>         page      = data_node.get_optional<int>("page");
+                    if (mainframe->m_webview) {
+                        mainframe->m_webview->sm_get_search_model(key.has_value() ? key.value() : "", page.has_value() ? page.value() : 1);
+                    }
+                }
+            } else if (command_str.compare("modelmall_next_page_model_get") == 0) {
+                if (root.get_child_optional("data") != boost::none) {
+                    pt::ptree                    data_node = root.get_child("data");
+                    boost::optional<std::string> key       = data_node.get_optional<std::string>("key");
+                    boost::optional<int>         page      = data_node.get_optional<int>("page");
+                    if (mainframe->m_webview) {
+                        mainframe->m_webview->sm_get_next_page_model(page.has_value() ? page.value() : 1, key.has_value() ? key.value() : "");
+                    }
+                }
             }
              else if (command_str.compare("modelmall_model_open") == 0) {
                  if (root.get_child_optional("data") != boost::none) {

@@ -101,10 +101,15 @@ public:
     void ShowNetpluginTip();
 
 // Snapmaker
-    void sm_get_design_staffpic(); // request the profile of models from snapmaker
+    void sm_get_design_staffpic(int pageIndex = 1); // request the profile of models from snapmaker
+    void sm_get_next_page_model(int pageIndex, std::string key = "");
+
     void sm_SwitchWebContent(std::string modelname, int refresh = 0);
     void sm_SwitchLeftMenu(std::string strMenu);
+
     void sm_OpenModelDetail(std::string id);
+
+    void sm_get_search_model(std::string key, int pageIndex);
 
     void get_design_staffpick(int offset, int limit, std::function<void(std::string)> callback);
     int  get_model_mall_detail_url(std::string *url, std::string id);
@@ -169,18 +174,22 @@ public:
     SourceViewDialog(wxWindow* parent, wxString source);
 };
 
+
 class SnapmakerWorld
 {
 public:
     static SnapmakerWorld* GetInstance();
 
-    void Get_Model_Detail(std::string model_id, std::function<void(WebViewPanel*, std::string)> callback);
+    void Get_Model_Detail(std::function<void(std::string)> callback, std::string model_id);
 
-    void Get_Design_Staffpick(int pageIndex, int pageSize, std::function<void(webviewPanel*, std::string)> callback);
-
+    void Get_Model_List(std::function<void(std::string)> callback,
+                        int pageIndex,
+                        std::string               name   = "",
+                        std::string               userId = "" /*todo: timerange*/);
 
 public:
-    int GetPageSize(){ return m_pageSize; }
+    int GetPageSize() { return m_pageSize; }
+
 private:
     SnapmakerWorld();
 
@@ -189,11 +198,11 @@ private:
 
     std::map<std::string, std::string> m_api_url_map = {
         {"GET_MODEL_DETAIL", "api/model/info?modelId="},
-        {"GET_DESIGN_STAFFPICK", "api/model/list"},
+        {"GET_MODEL_LIST", "api/model/list"},
     };
 
     int m_pageSize = 10;
-}
+};
 
 } // GUI
 } // Slic3r
