@@ -723,12 +723,6 @@ static std::vector<Vec2d> get_path_of_change_filament(const Print& print)
         float wipe_tower_rotation = tcr.priming ? 0.f : alpha;
         Vec2f plate_origin_2d(m_plate_origin(0), m_plate_origin(1));
 
-        // For Snapmaker Artision
-        gcodegen.m_next_wipe_x = 0;
-        gcodegen.m_next_wipe_y = 0;
-        auto transformed_pos   = Eigen::Rotation2Df(wipe_tower_rotation) * tcr.start_pos + wipe_tower_offset;
-        gcodegen.m_next_wipe_x = transformed_pos(0);
-        gcodegen.m_next_wipe_y = transformed_pos(1);
 
         std::string tcr_rotated_gcode = post_process_wipe_tower_moves(tcr, wipe_tower_offset, wipe_tower_rotation);
 
@@ -843,8 +837,6 @@ static std::vector<Vec2d> get_path_of_change_filament(const Print& print)
         Vec2f transformed_pos = pos;
         Vec2f old_pos(-1000.1f, -1000.1f);
 
-        bool isFirstTransform = true;
-        
         while (gcode_str) {
             std::getline(gcode_str, line);  // we read the gcode line by line
 
@@ -6270,7 +6262,6 @@ std::string GCode::set_extruder(unsigned int extruder_id, double print_z, bool b
 
             gcode += this->placeholder_parser_process("filament_start_gcode", filament_start_gcode, extruder_id, &config);
             check_add_eol(gcode);
-            
         }
         if (m_config.enable_pressure_advance.get_at(extruder_id)) {
             gcode += m_writer.set_pressure_advance(m_config.pressure_advance.get_at(extruder_id));
@@ -6411,11 +6402,6 @@ std::string GCode::set_extruder(unsigned int extruder_id, double print_z, bool b
         snprintf(key_value, sizeof(key_value), "flush_length_%d", flush_idx + 1);
         dyn_config.set_key_value(key_value, new ConfigOptionFloat(0.f));
     }
-        
-    // For Snapmaker Artisian
-    dyn_config.set_key_value("next_wipe_x", new ConfigOptionFloat(m_next_wipe_x));
-    dyn_config.set_key_value("next_wipe_y", new ConfigOptionFloat(m_next_wipe_y));
-    
 
     // Process the custom change_filament_gcode.
     const std::string& change_filament_gcode = m_config.change_filament_gcode.value;
