@@ -255,14 +255,19 @@ void AppConfig::set_defaults()
         set_bool("stealth_mode", false);
     }
 
+
     if(get("check_stable_update_only").empty()) {
         set_bool("check_stable_update_only", false);
     }
+    // SM prerelease does not update
+    set_bool("check_stable_update_only", true);
+
 
     // Orca
     if(get("show_splash_screen").empty()) {
         set_bool("show_splash_screen", true);
     }
+    
 
     if(get("auto_arrange").empty()) {
         set_bool("auto_arrange", true);
