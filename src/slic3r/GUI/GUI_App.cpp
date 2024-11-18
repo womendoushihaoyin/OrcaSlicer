@@ -3680,7 +3680,6 @@ void GUI_App::sm_request_user_logout()
     if (m_login_userinfo.is_user_login()) {
         m_login_userinfo.set_user_login(false);
     }
-    
     try {
         if (!sm_login_dlg) {
             sm_login_dlg = new SMUserLogin(true);
