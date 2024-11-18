@@ -162,7 +162,7 @@ void SMUserLogin::OnNavigationRequest(wxWebViewEvent &evt)
     wxString tmpUrl = evt.GetURL();
     
     size_t start = tmpUrl.find("token=");
-    if (tmpUrl.Contains(m_accountUrl) && start != std::string::npos) {
+    if (start != std::string::npos) {
         std::string token;
         
         start += std::string("token=").size(); // 跳过"token="的长度
@@ -181,7 +181,7 @@ void SMUserLogin::OnNavigationRequest(wxWebViewEvent &evt)
             std::string url  = m_userInfoUrl.ToStdString();
             auto http = Http::get(url);
             std::string token = info->get_user_token();
-            http.header("authorization",token);
+            http.header("Authorization",token);
             http.on_complete([&](std::string body, unsigned status) {
                     if (status == 200) {
                         json response = json::parse(body);
