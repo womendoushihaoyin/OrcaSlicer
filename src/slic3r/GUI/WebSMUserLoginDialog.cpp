@@ -39,7 +39,7 @@ END_EVENT_TABLE()
 
 int SMUserLogin::web_sequence_id = 20000;
 
-SMUserLogin::SMUserLogin() : wxDialog((wxWindow *) (wxGetApp().mainframe), wxID_ANY, "Snapmaker Orca")
+SMUserLogin::SMUserLogin(bool isLogout) : wxDialog((wxWindow *) (wxGetApp().mainframe), wxID_ANY, "Snapmaker Orca")
 {
     SetBackgroundColour(*wxWHITE);
 
@@ -50,7 +50,7 @@ SMUserLogin::SMUserLogin() : wxDialog((wxWindow *) (wxGetApp().mainframe), wxID_
     // set the frame icon
 
     // Create the webview
-    m_browser = WebView::CreateWebView(this, TargetUrl);
+    m_browser = WebView::CreateWebView(this, isLogout ? LogoutUrl : TargetUrl);
     if (m_browser == nullptr) {
         wxLogError("Could not init m_browser");
         return;
@@ -79,7 +79,7 @@ SMUserLogin::SMUserLogin() : wxDialog((wxWindow *) (wxGetApp().mainframe), wxID_
     // Bind(wxEVT_CLOSE_WINDOW, &SMUserLogin::OnClose, this);
 
     // UI
-    SetTitle(_L("Login"));
+    SetTitle(isLogout ? _L("Log out") : _L("Login"));
     // Set a more sensible size for web browsing
     wxSize pSize = FromDIP(wxSize(650, 840));
     SetSize(pSize);
@@ -158,11 +158,10 @@ void SMUserLogin::OnIdle(wxIdleEvent &WXUNUSED(evt))
  */
 void SMUserLogin::OnNavigationRequest(wxWebViewEvent &evt)
 {
-    //wxLogMessage("%s", "Navigation request to '" + evt.GetURL() + "'(target='" + evt.GetTarget() + "')");
     wxString tmpUrl = evt.GetURL();
     
     size_t start = tmpUrl.find("token=");
-    if (tmpUrl.Contains(m_accountUrl) && start != std::string::npos) {
+    if (start != std::string::npos) {
         std::string token;
         
         start += std::string("token=").size(); // 跳过"token="的长度
