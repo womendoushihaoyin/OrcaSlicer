@@ -5660,7 +5660,9 @@ bool GUI_App::check_and_save_current_preset_changes(const wxString& caption, con
         if (remember_choice)
             act_buttons |= ActionButtons::REMEMBER_CHOISE;
         UnsavedChangesDialog dlg(caption, header, "", act_buttons);
-        if (dlg.ShowModal() == wxID_CANCEL)
+        bool                 no_need_change = dlg.getUpdateItemCount() == 0 ? true : false;
+
+        if (!no_need_change && dlg.ShowModal() == wxID_CANCEL)
             return false;
 
         if (dlg.save_preset())  // save selected changes
@@ -5708,7 +5710,8 @@ bool GUI_App::check_and_keep_current_preset_changes(const wxString& caption, con
         bool is_called_from_configwizard = postponed_apply_of_keeped_changes != nullptr;
 
         UnsavedChangesDialog dlg(caption, header, "", action_buttons);
-        if (dlg.ShowModal() == wxID_CANCEL)
+        bool no_need_change = dlg.getUpdateItemCount() == 0 ? true : false;
+        if (!no_need_change && dlg.ShowModal() == wxID_CANCEL)
             return false;
 
         auto reset_modifications = [this, is_called_from_configwizard]() {
@@ -5723,7 +5726,7 @@ bool GUI_App::check_and_keep_current_preset_changes(const wxString& caption, con
             load_current_presets(false);
         };
 
-        if (dlg.discard())
+        if (dlg.discard() || no_need_change)
             reset_modifications();
         else  // save selected changes
         {
