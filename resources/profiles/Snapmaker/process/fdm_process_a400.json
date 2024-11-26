@@ -5,7 +5,7 @@
   "name": "fdm_process_a400",
   "setting_id": "3085664947",
   "inherits": "fdm_process_common",
-
+  
 
   "initial_layer_infill_speed": "75",
   "inner_wall_speed": "160",
@@ -18,7 +18,8 @@
   "preheat_time": "60",
   "preheat_steps": "1",
 
-  
+  "enable_prime_tower": "1",
+
   "outer_wall_speed": "100",
   "support_base_pattern": "default",
   "support_bottom_interface_spacing": "0.5",

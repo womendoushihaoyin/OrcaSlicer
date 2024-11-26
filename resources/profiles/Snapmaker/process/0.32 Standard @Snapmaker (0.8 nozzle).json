@@ -8,20 +8,12 @@
   "compatible_printers": [
     "Snapmaker A250 (0.8 nozzle)",
     "Snapmaker A350 (0.8 nozzle)",
-    "Snapmaker A250 Dual (0.8 nozzle)",
-    "Snapmaker A350 Dual (0.8 nozzle)",
     "Snapmaker A250 QSKit (0.8 nozzle)",
     "Snapmaker A350 QSKit (0.8 nozzle)",
     "Snapmaker A250 BKit (0.8 nozzle)",
     "Snapmaker A350 BKit (0.8 nozzle)",
     "Snapmaker A250 QS+B Kit (0.8 nozzle)",
-    "Snapmaker A350 QS+B Kit (0.8 nozzle)",
-    "Snapmaker A250 Dual QSKit (0.8 nozzle)",
-    "Snapmaker A350 Dual QSKit (0.8 nozzle)",
-    "Snapmaker A250 Dual BKit (0.8 nozzle)",
-    "Snapmaker A350 Dual BKit (0.8 nozzle)",
-    "Snapmaker A250 Dual QS+B Kit (0.8 nozzle)",
-    "Snapmaker A350 Dual QS+B Kit (0.8 nozzle)"
+    "Snapmaker A350 QS+B Kit (0.8 nozzle)"
   ],
   "layer_height": "0.32",
   "wall_loops": "2",
