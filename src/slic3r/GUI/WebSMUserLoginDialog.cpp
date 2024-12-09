@@ -194,9 +194,6 @@ void SMUserLogin::OnNavigationRequest(wxWebViewEvent &evt)
                                     wxGetApp().sm_get_userinfo()->set_user_icon_url(data["icon"].get<std::string>());
                                 }
                             }
-
-                            wxLaunchDefaultBrowser(m_home_url);
-                            this->Hide();
                         });
                     }
                 })
@@ -207,11 +204,6 @@ void SMUserLogin::OnNavigationRequest(wxWebViewEvent &evt)
         });
         this->RunScript("document.cookie = '';");
         // load_url(m_home_url);
-    } else {
-        if (tmpUrl.find("/logout") != std::string::npos) {
-            this->Hide();
-            wxLaunchDefaultBrowser(m_home_url);
-        }
     }
     UpdateState();
 }
