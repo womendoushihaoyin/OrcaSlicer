@@ -6,7 +6,7 @@
   "setting_id": "2598417433",
 
   "default_acceleration": "1000",
-  "enable_prime_tower": "0",
+  "enable_prime_tower": "1",
   "enable_support": "0",
   "inner_wall_acceleration": "1000",
   "internal_solid_infill_acceleration": "1000",

@@ -176,6 +176,8 @@ void SMUserLogin::OnNavigationRequest(wxWebViewEvent &evt)
         info->set_user_login(true);
         info->set_user_token(token);
 
+        this->Hide();
+
         wxGetApp().CallAfter([info, this]() {
             std::string url  = m_userInfoUrl.ToStdString();
             auto http = Http::get(url);
