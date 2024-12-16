@@ -5672,6 +5672,12 @@ void ObjectList::set_extruder_for_selected_items(const int extruder)
             config.set("extruder", new_extruder);
         else
             config.set_key_value("extruder", new ConfigOptionInt(new_extruder));
+        
+        config.set("sparse_infill_filament", new_extruder);
+        config.set("solid_infill_filament", new_extruder);
+        config.set("wall_filament", new_extruder);
+
+        wxGetApp().obj_list()->update_selections();
 
         config.set("sparse_infill_filament", new_extruder);
         config.set("solid_infill_filament", new_extruder);

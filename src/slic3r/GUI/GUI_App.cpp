@@ -3690,13 +3690,13 @@ void GUI_App::sm_request_user_logout()
         m_login_userinfo.set_user_login(false);
     }
     try {
-        if (!sm_login_dlg) {
+        /*if (!sm_login_dlg) {
             sm_login_dlg = new SMUserLogin(true);
         } else {
             delete sm_login_dlg;
             sm_login_dlg = new SMUserLogin(true);
         }
-        sm_login_dlg->ShowModal();
+        sm_login_dlg->ShowModal();*/
     } catch (std::exception&) {
         ;
     }
@@ -5695,8 +5695,8 @@ bool GUI_App::check_and_save_current_preset_changes(const wxString& caption, con
         if (remember_choice)
             act_buttons |= ActionButtons::REMEMBER_CHOISE;
         UnsavedChangesDialog dlg(caption, header, "", act_buttons);
-        bool                 no_need_change = dlg.getUpdateItemCount() == 0;
-        if (!no_need_change && dlg.ShowModal() == wxID_CANCEL)
+        bool no_need_change = dlg.getUpdateItemCount() == 0 ? true : false;
+        if (!no_need_change &&dlg.ShowModal() == wxID_CANCEL)
             return false;
 
         if (dlg.save_preset())  // save selected changes
