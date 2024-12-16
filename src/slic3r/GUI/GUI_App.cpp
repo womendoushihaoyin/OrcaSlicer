@@ -1081,6 +1081,11 @@ GUI_App::GUI_App()
 #endif
 
     reset_to_active();
+
+    // test
+    m_http_server.set_request_handler(HttpServer::web_server_handle_request);
+    m_http_server.start();
+    
 }
 
 void GUI_App::shutdown()
@@ -3628,6 +3633,7 @@ void GUI_App::sm_get_login_info() {
         param["sequece_id"] = "10001";
         std::string logout_cmd = param.dump();
         wxString    strJS      = wxString::Format("window.postMessage(%s)", logout_cmd);
+        strJS      = "receiveFromFlutter('123')";
         GUI::wxGetApp().run_script(strJS);
     } else {
         json param;

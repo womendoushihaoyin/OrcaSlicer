@@ -5673,6 +5673,13 @@ void ObjectList::set_extruder_for_selected_items(const int extruder)
         else
             config.set_key_value("extruder", new ConfigOptionInt(new_extruder));
 
+        config.set("sparse_infill_filament", new_extruder);
+        config.set("solid_infill_filament", new_extruder);
+        config.set("wall_filament", new_extruder);
+
+        // wxGetApp().params_panel()->notify_object_config_changed();
+        wxGetApp().obj_list()->update_selections();
+
         // for object, clear all its part volume's extruder config
         if (type & itObject) {
             ObjectDataViewModelNode* node = (ObjectDataViewModelNode*)item.GetID();
