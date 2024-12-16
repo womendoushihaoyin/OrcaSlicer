@@ -3681,13 +3681,13 @@ void GUI_App::sm_request_user_logout()
         m_login_userinfo.set_user_login(false);
     }
     try {
-        /*if (!sm_login_dlg) {
+        if (!sm_login_dlg) {
             sm_login_dlg = new SMUserLogin(true);
         } else {
             delete sm_login_dlg;
             sm_login_dlg = new SMUserLogin(true);
         }
-        sm_login_dlg->ShowModal();*/
+        // sm_login_dlg->ShowModal();
     } catch (std::exception&) {
         ;
     }
