@@ -309,6 +309,7 @@ private:
     bool             m_show_http_errpr_msgdlg{false};
     wxString         m_info_dialog_content;
     HttpServer       m_http_server;
+    HttpServer       m_page_http_server;
     bool             m_show_gcode_window{true};
     boost::thread    m_check_network_thread;
   public:
@@ -516,6 +517,10 @@ private:
     void            stop_sync_user_preset();
     void            start_http_server();
     void            stop_http_server();
+
+    // page loading http server
+    void            start_page_http_server();
+    void            stop_page_http_server();
     void            switch_staff_pick(bool on);
 
     void            on_show_check_privacy_dlg(int online_login = 0);

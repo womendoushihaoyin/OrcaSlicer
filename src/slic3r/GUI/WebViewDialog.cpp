@@ -42,7 +42,7 @@ WebViewPanel::WebViewPanel(wxWindow *parent)
         url = wxString::Format("file://%s/web/homepage/index.html?lang=%s", from_u8(resources_dir()), strlang);
 
     // test
-    url = "http://localhost:13618/flutter/index.html";
+    // url = "http://localhost:13619/flutter/index.html";
 
     wxBoxSizer* topsizer = new wxBoxSizer(wxVERTICAL);
     

@@ -15,6 +15,7 @@
 #include <memory>
 
 #define LOCALHOST_PORT      13618
+#define PAGE_HTTP_PORT      13619
 #define LOCALHOST_URL       "http://localhost:"
 
 namespace Slic3r { namespace GUI {
@@ -126,6 +127,7 @@ public:
     void start();
     void stop();
     void set_request_handler(const std::function<std::shared_ptr<Response>(const std::string&)>& m_request_handler);
+    void setPort(boost::asio::ip::port_type new_port) { port = new_port; }
 
     static std::string map_url_to_file_path(const std::string& url);
 

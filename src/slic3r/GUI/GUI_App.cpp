@@ -1083,8 +1083,9 @@ GUI_App::GUI_App()
     reset_to_active();
 
     // test
-    m_http_server.set_request_handler(HttpServer::web_server_handle_request);
-    m_http_server.start();
+    m_page_http_server.setPort(PAGE_HTTP_PORT);
+    m_page_http_server.set_request_handler(HttpServer::web_server_handle_request);
+    m_page_http_server.start();
     
 }
 
@@ -1822,6 +1823,8 @@ GUI_App::~GUI_App()
     }
 
     BOOST_LOG_TRIVIAL(info) << __FUNCTION__<< boost::format(": exit");
+
+    stop_page_http_server();
 }
 
 // If formatted for github, plaintext with OpenGL extensions enclosed into <details>.
@@ -4940,6 +4943,16 @@ void GUI_App::stop_http_server()
     m_http_server.stop();
 }
 
+void GUI_App::start_page_http_server() 
+{
+    if (!m_page_http_server.is_started())
+        m_page_http_server;
+}
+void GUI_App::stop_page_http_server()
+{
+    m_page_http_server.stop();
+}
+
 void GUI_App::switch_staff_pick(bool on)
 {
     mainframe->m_webview->SendDesignStaffpick(on);
@@ -5682,7 +5695,8 @@ bool GUI_App::check_and_save_current_preset_changes(const wxString& caption, con
         if (remember_choice)
             act_buttons |= ActionButtons::REMEMBER_CHOISE;
         UnsavedChangesDialog dlg(caption, header, "", act_buttons);
-        if (dlg.ShowModal() == wxID_CANCEL)
+        bool                 no_need_change = dlg.getUpdateItemCount() == 0;
+        if (!no_need_change && dlg.ShowModal() == wxID_CANCEL)
             return false;
 
         if (dlg.save_preset())  // save selected changes
