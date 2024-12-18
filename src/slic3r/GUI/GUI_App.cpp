@@ -3636,7 +3636,7 @@ void GUI_App::sm_get_login_info() {
         param["sequece_id"] = "10001";
         std::string logout_cmd = param.dump();
         wxString    strJS      = wxString::Format("window.postMessage(%s)", logout_cmd);
-        strJS      = "receiveFromFlutter('123')";
+        // strJS      = "receiveFromFlutter('123')";
         GUI::wxGetApp().run_script(strJS);
     } else {
         json param;
@@ -3690,13 +3690,13 @@ void GUI_App::sm_request_user_logout()
         m_login_userinfo.set_user_login(false);
     }
     try {
-        /*if (!sm_login_dlg) {
+        if (!sm_login_dlg) {
             sm_login_dlg = new SMUserLogin(true);
         } else {
             delete sm_login_dlg;
             sm_login_dlg = new SMUserLogin(true);
         }
-        sm_login_dlg->ShowModal();*/
+        // sm_login_dlg->ShowModal();
     } catch (std::exception&) {
         ;
     }

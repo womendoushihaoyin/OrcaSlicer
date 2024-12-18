@@ -35,6 +35,35 @@
 <body>
   <script src="flutter_bootstrap.js" async></script>
   <script>
+    // SSWCP函数 
+    function test_sswcp(input, test_callback){
+      param = {
+        sequenceId: 1,
+        cmd: "test",
+        data: input,
+        callback_name: test_callback,
+      };
+      window.wx.postMessage(JSON.stringify(param));
+    }
+
+    function test_callback(response){
+      console.log(response);
+    }
+
+    function test_sswcp_async(input, test_callback){
+      param = {
+        sequenceId: 1,
+        cmd: "test_async",
+        data: input,
+        callback_name: test_callback,
+      };
+      window.wx.postMessage(JSON.stringify(param));
+    }
+
+    function test_async_callback(response){
+      console.log(response);
+    }
+
     // 定义一个 JS 函数
     function receiveFromFlutter(message) {
       // 处理从 Flutter 传递过来的消息

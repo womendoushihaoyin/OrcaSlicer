@@ -259,6 +259,8 @@ set(SLIC3R_GUI_SOURCES
     GUI/MonitorPage.hpp
     GUI/StatusPanel.cpp
     GUI/StatusPanel.hpp
+    GUI/SSWCP.cpp
+    GUI/SSWCP.hpp
     GUI/HMS.hpp
     GUI/HMS.cpp
     GUI/SliceInfoPanel.cpp
