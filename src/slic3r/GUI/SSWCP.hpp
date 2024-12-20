@@ -6,30 +6,119 @@
 #include <stack>
 
 #include <wx/webview.h>
-
+#include <unordered_set>
+#include <unordered_map>
 #include "nlohmann/json.hpp"
+#include "Bonjour.hpp"
+
 
 using namespace nlohmann;
 
 namespace Slic3r { namespace GUI {
+
+class SSWCP_Instance
+{
+public:
+    enum INSTANCE_TYPE {
+        COMMON,
+        MACHINE_FIND,
+        MACHINE_CONNECT,
+        MACHINE_MANAGE,
+    };
+
+public:
+    SSWCP_Instance(std::string cmd, int sequenceId, const json& data, std::string callback_name, wxWebView* webview)
+        : m_cmd(cmd), m_sequence_id(sequenceId), m_webview(webview), m_callback_name(callback_name), m_param_data(data)
+    {}
+
+    virtual ~SSWCP_Instance() {}
+
+    virtual void process();
+
+    virtual void send_to_js();
+
+    virtual void finish_job();
+
+    virtual INSTANCE_TYPE getType() { return m_type; }
+
+    virtual bool is_stop() { return false; }
+    virtual void set_stop(bool stop) {}
+
+private:
+    void sync_test();
+    void async_test();
+
+public:
+    std::string m_cmd           = "";
+    int m_sequence_id = -1;
+    wxWebView* m_webview     = nullptr;
+    std::string m_callback_name = "";
+    json        m_param_data;
+
+    json m_res_data;
+    int  m_status = 0;
+    std::string m_error  = "";
+
+protected:
+    INSTANCE_TYPE m_type = COMMON;
+};
+
+class SSWCP_MachineFind_Instance : public SSWCP_Instance
+{
+public:
+    SSWCP_MachineFind_Instance(std::string cmd, int sequenceId, const json& data, std::string callback_name, wxWebView* webview)
+        : SSWCP_Instance(cmd, sequenceId, data, callback_name, webview)
+    {
+        m_type = MACHINE_FIND;
+    }
+
+    void process() override;
+
+    bool is_stop() { return m_stop; }
+    void set_stop(bool stop);
+
+private:
+    void sw_GetMachineFindSupportInfo();
+    void sw_StartMachineFind();
+    void sw_StopMachineFind();
+
+private:
+    void add_machine_to_list(const json& machine_info);
+    void onOneEngineEnd();
+
+private:
+    std::mutex m_machine_list_mtx;
+    std::mutex m_stop_mtx;
+
+private:
+    std::unordered_map<std::string, json> m_machine_list;
+
+private:
+    int                                   m_engine_end_count = 0;
+    std::vector<std::shared_ptr<Bonjour>> m_engines;
+    bool                                  m_stop = false;
+};
 
 class SSWCP
 {
 public:
     static void handle_web_message(std::string message, wxWebView* webview);
 
-    static void send_to_js(wxWebView* webview, int sequenceId, std::string callback_name, const json& data = {} , int status = 0, std::string err = "");
+    static std::shared_ptr<SSWCP_Instance> create_sswcp_instance(
+        std::string cmd, int sequenceId, const json& data, std::string callback_name, wxWebView* webview);
 
-protected:
-    static void sync_test(int sequenceId, const json& data, std::string callback_name, wxWebView* webview);
+    static void delete_target(SSWCP_Instance* target);
 
-    static void async_test(int sequenceId, const json& data, std::string callback_name, wxWebView* webview);
-
+    static void stop_machine_find();
+    
 private:
 
-    static std::unordered_map<std::string, std::function<void(int, const json&, std::string, wxWebView*)>> m_func_map;
+    static std::unordered_set<std::string> m_machine_find_cmd_list;
 
-};
+    static std::unordered_map<SSWCP_Instance*, std::shared_ptr<SSWCP_Instance>> m_instance_list;
+}; 
+
+
 
 }};
 
