@@ -17,6 +17,8 @@
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
 
+#include <slic3r/GUI/Widgets/WebView.hpp>
+
 namespace pt = boost::property_tree;
 
 using namespace nlohmann;
@@ -44,14 +46,16 @@ void SSWCP_Instance::send_to_js() {
     response["err"]        = m_error;
     response["data"]       = m_res_data;
 
-    std::string str_res = m_callback_name + "(" + response.dump() + ")";
+    std::string str_res = m_callback_name + "(" + response.dump() + ");";
 
     if (m_webview) {
-        wxWebView* view = m_webview;
-        wxGetApp().CallAfter([view, str_res]() {
+        wxGetApp().CallAfter([this, str_res]() {
             try {
-                view->RunScript(str_res);
-            } catch (std::exception& e) {}
+                WebView::RunScript(this->m_webview, str_res);
+            } 
+            catch (std::exception& e) {
+                
+            }
         });
     }
 }
@@ -216,7 +220,8 @@ void SSWCP_MachineFind_Instance::sw_StartMachineFind()
             }
         }
 
-    } catch (std::exception& e) {}
+    } 
+    catch (std::exception& e) {}
 }
 
 void SSWCP_MachineFind_Instance::sw_StopMachineFind()

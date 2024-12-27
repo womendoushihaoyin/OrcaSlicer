@@ -13,6 +13,7 @@
 
     This is a placeholder for base href that will be replaced by the value of
     the `--base-href` argument provided to `flutter build`.
+
   -->
   <base href="/flutter/">
 
@@ -104,58 +105,55 @@
     function test_async_callback(response){
       console.log(response);
     }
-
     // 定义一个 JS 函数
-    function receiveFromFlutter(message) {
+    function receiveFromFlutter(data, callback) {
       // 处理从 Flutter 传递过来的消息
       // 这里可以根据实际情况处理消息
       //message 为从 List
-      console.log("Message from Flutter: ", message);
-    }
-  
-    function test(){
+      // console.log("Flutter Web  Function: [receiveFromFlutter] from Flutter: ", data);
+
       var tSend={};
       tSend['sequence_id']=Math.round(new Date() / 1000);
       tSend['command']="homepage_login_or_register";
-      window.wx.postMessage(JSON.stringify(tSend));
+      tSend['data']={};
+      tSend['data']['token']="AAAAA-VVVVV-SSSSS-UUUUU-YYYYY";
+      callback(JSON.stringify(tSend)); // 调用 JS 回调函数
     }
 
-    // 提供给 Flutter 调用的接口
-    window.sendToFlutter = function () {
-      console.log("window.sendToFlutter ");
+    function sendMessageToJs(data) {
+      //console.log("Flutter Web  Function: [sendMessageToJs] from Flutter: ", data);
+    }
 
-      if (window.flutter_inappwebview) {
-        console.log("window.sendToFlutter - flutter_inappwebview");
-        window.flutter_inappwebview.callHandler('receiveMessage', 'Hello from JavaScript - flutter_inappwebview');
-      }
-      if (window.flutter_webview_plugin) {
-        console.log("window.sendToFlutter - flutter_webview_plugin ");
+    function registerCallback(data) {
+      // console.log("Flutter Web  Function: [registerCallback] from Flutter: ", message);
+    }
 
-        window.flutter_webview_plugin.callHandler('receiveMessage', 'Hello from JavaScript-flutter_webview_plugin');
-      }
+    function getToken(callback) {
+      console.log("Flutter Web  Function: [getToken] from Flutter: ");
+      var token = "AAAAA-VVVVV-SSSSS-UUUUU-YYYYY";
+      // 获取用户 token
+      // 这里可以根据实际情况获取 token
+      callback(token); // 调用 JS 回调函数
+      return token;
+    }
 
-      if (window.flutter_native_webview) {
-        console.log("window.sendToFlutter - flutter_native_webview");
-        window.flutter_native_webview.callHandler('receiveMessage', 'Hello from JavaScript - flutter_native_webview');
-      }
+    function unregisterCallback(data) {
+      console.log("Flutter Web  Function: [unregisterCallback] from Flutter: ", message);
+    }
 
+    
 
-    // is chrome
+    // 注册 Flutter 传递过来的消息处理函数 或者直接使用 window.postMessage 发送消息
+    window.sswcp.sendMessageToFlutter = function (message) {
+      // console.log("window.sendMessageToFlutter: " + message);
+      window.postMessage(message, '*'); // 调用 window.postMessage 传递消息给 flutter
+    }
 
-     if (window.chrome && window.chrome.webview) {  
-        console.log("window.sendToFlutter - chrome.webview");
-        window.chrome.webview.postMessage('Hello from JavaScript - chrome.webview'); // 调用 chrome.webview 传递消息给 flutter
-     }
+    window.addEventListener('message', function (event) {
+      // console.log("window.addEventListener: " + event.data + " from " + event.message);
 
-     if (window.chrome) {  
-        console.log("window.sendToFlutter - chrome");
-        //window.chrome.postMessage('Hello from JavaScript - chrome.webview'); // 调用 chrome.webview 传递消息给 flutter
-        window.parent.postMessage('Hello from JavaScript', '*'); // 调用 window.parent.postMessage 传递消息给 flutter
-      }
+    }); // 监听 flutter 传递过来的消息
 
-
-
-    };
   </script>
 </body>
 </html>

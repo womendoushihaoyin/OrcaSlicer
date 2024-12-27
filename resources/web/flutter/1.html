@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <script>
+        // SSWCP函数 
+    function diy(){
+        for(var i=0;i<10;i++){
+            sw_StartMachineFind(i);
+        }
+    }
+    function sw_StopMachineFind(params, callback_name){
+      params = {
+        sequenceId: 3,
+        cmd: "sw_StopMachineFind",
+        data: {},
+        callback_name: "",
+      };
+
+      window.wx.postMessage(JSON.stringify(params));
+    }
+
+    function sw_StartMachineFind(id, callback_name){
+      input_data = {
+        protocols: [
+          "mdns",
+        ],
+
+        mdns_service_names:[
+          "snapmaker",
+          "prusalink",
+          "raop"
+        ],
+
+        last_time: 100000000000,
+      }
+      
+      params = {
+        sequenceId: id,
+        cmd: "sw_StartMachineFind",
+        data: input_data,
+        callback_name: "on_machine_list_arrived",
+      }
+
+      window.wx.postMessage(JSON.stringify(params));
+    }
+
+    function on_machine_list_arrived(response){
+      document.write(response);
+    }
+
+
+    function test_sswcp(input, test_callback){
+      param = {
+        sequenceId: 1,
+        cmd: "test",
+        data: input,
+        callback_name: test_callback,
+      };
+      window.wx.postMessage(JSON.stringify(param));
+    }
+
+    function test_callback(response){
+      console.log(response);
+    }
+
+    function test_sswcp_async(input, test_callback){
+      param = {
+        sequenceId: 1,
+        cmd: "test_async",
+        data: input,
+        callback_name: test_callback,
+      };
+      window.wx.postMessage(JSON.stringify(param));
+    }
+
+    function test_async_callback(response){
+      console.log(response);
+    }
+    </script>
+    hello world
+</body>
+</html>
