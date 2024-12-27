@@ -131,12 +131,6 @@ void SSWCP_MachineFind_Instance::sw_GetMachineFindSupportInfo()
 void SSWCP_MachineFind_Instance::sw_StartMachineFind()
 {
     try {
-        if (!m_param_data.count("protocols") || (!m_param_data["protocols"].is_string() && !m_param_data["protocols"].is_array())) {
-            // 错误处理 用户输入错误
-
-            finish_job();
-            return;
-        }
 
         std::vector<string> protocols;
 
@@ -145,32 +139,17 @@ void SSWCP_MachineFind_Instance::sw_StartMachineFind()
             last_time = m_param_data["last_time"].get<float>();
         }
 
-        if (m_param_data["protocols"].is_string()) {
-            protocols.push_back(m_param_data["protocols"].get<std::string>());
-        } else {
-            for (size_t i = 0; i < m_param_data["protocols"].size(); ++i) {
-                protocols.push_back(m_param_data["protocols"][i].get<std::string>());
-            }
-        }
+        // 目前只支持通过mdns协议搜索snapmaker,prusalink，之后可以再扩充
+        protocols.push_back("mdns");
 
         for (size_t i = 0; i < protocols.size(); ++i) {
             if (protocols[i] == "mdns") {
-                if (!m_param_data.count("mdns_service_names") ||
-                    (!m_param_data["mdns_service_names"].is_string() && !m_param_data["mdns_service_names"].is_array())) {
-                    // 错误处理 用户输入错误
-
-                    finish_job();
-                    return;
-                }
                 std::vector<std::string> mdns_service_names;
 
-                if (m_param_data["mdns_service_names"].is_string()) {
-                    mdns_service_names.push_back(m_param_data["mdns_service_names"].get<std::string>());
-                } else {
-                    for (size_t i = 0; i < m_param_data["mdns_service_names"].size(); ++i) {
-                        mdns_service_names.push_back(m_param_data["mdns_service_names"][i].get<std::string>());
-                    }
-                }
+                mdns_service_names.push_back("snapmaker");
+                mdns_service_names.push_back("prusalink");
+                mdns_service_names.push_back("rdlink");
+                mdns_service_names.push_back("raop");
 
                 m_engines.clear();
                 for (size_t i = 0; i < mdns_service_names.size(); ++i) {
