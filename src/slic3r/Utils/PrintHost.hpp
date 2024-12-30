@@ -71,6 +71,8 @@ public:
 
     static PrintHost* get_print_host(DynamicPrintConfig *config);
 
+    virtual bool send_gcodes(const std::vector<std::string>& codes, std::string& extraInfo) { return false; }
+
     //Support for cloud webui login
     virtual bool is_cloud() const { return false; }
     virtual bool is_logged_in() const { return false; }

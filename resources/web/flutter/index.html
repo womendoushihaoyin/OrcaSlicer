@@ -37,6 +37,27 @@
   <script src="flutter_bootstrap.js" async></script>
   <script>
     // SSWCP函数 
+    function sw_SendGCodes(str, callback_name){
+      params = {
+        header: {
+          sequenceId: 4,
+        },
+        
+        payload:{
+          cmd: "sw_SendGCodes",
+          callback_name: callback_name,
+          params:{
+            codes: ["T0", "T1", "T2", "T3", "T0"],
+          }
+        }
+        
+        
+      };
+      window.wx.postMessage(JSON.stringify(params));
+    }
+    function on_gcode_sent(response){
+      console.log(response);
+    }
     function sw_StopMachineFind(params, callback_name){
       params = {
         sequenceId: 3,
@@ -49,16 +70,18 @@
     }
 
     function sw_StartMachineFind(parmas, callback_name){
-      input_data = {
-        last_time: 100000000000,
-      }
       
       params = {
-        sequenceId: 2,
-        cmd: "sw_StartMachineFind",
-        data: input_data,
-        callback_name: "on_machine_list_arrived",
-      }
+        header:{
+          sequenceId: 2,
+        },
+        payload:{
+          cmd: "sw_StartMachineFind",
+            params: {
+                event_id: "send_machine_list",
+            },
+        }
+      };
 
       window.wx.postMessage(JSON.stringify(params));
     }
@@ -70,10 +93,14 @@
 
     function test_sswcp(input, test_callback){
       param = {
-        sequenceId: 1,
-        cmd: "test",
-        data: input,
-        callback_name: test_callback,
+        header:{
+          sequenceId: 1,
+        },
+        payload:{
+          cmd: "test",
+          params: input,
+          callback_name: test_callback,
+        },
       };
       window.wx.postMessage(JSON.stringify(param));
     }

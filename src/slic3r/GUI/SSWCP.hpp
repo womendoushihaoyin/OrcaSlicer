@@ -23,12 +23,12 @@ public:
         COMMON,
         MACHINE_FIND,
         MACHINE_CONNECT,
-        MACHINE_MANAGE,
+        MACHINE_OPTION,
     };
 
 public:
-    SSWCP_Instance(std::string cmd, int sequenceId, const json& data, std::string callback_name, wxWebView* webview)
-        : m_cmd(cmd), m_sequence_id(sequenceId), m_webview(webview), m_callback_name(callback_name), m_param_data(data)
+    SSWCP_Instance(std::string cmd, const json& header, const json& data, std::string callback_name, wxWebView* webview)
+        : m_cmd(cmd), m_header(header), m_webview(webview), m_callback_name(callback_name), m_param_data(data)
     {}
 
     virtual ~SSWCP_Instance() {}
@@ -50,14 +50,15 @@ private:
 
 public:
     std::string m_cmd           = "";
-    int m_sequence_id = -1;
+    json        m_header;
     wxWebView* m_webview     = nullptr;
     std::string m_callback_name = "";
     json        m_param_data;
+    std::string m_event_id =      "";
 
     json m_res_data;
-    int  m_status = 0;
-    std::string m_error  = "";
+    int  m_status = 200;
+    std::string m_msg  = "OK";
 
 protected:
     INSTANCE_TYPE m_type = COMMON;
@@ -66,9 +67,12 @@ protected:
 class SSWCP_MachineFind_Instance : public SSWCP_Instance
 {
 public:
-    SSWCP_MachineFind_Instance(std::string cmd, int sequenceId, const json& data, std::string callback_name, wxWebView* webview)
-        : SSWCP_Instance(cmd, sequenceId, data, callback_name, webview)
+    SSWCP_MachineFind_Instance(std::string cmd, const json& header, const json& data, std::string callback_name, wxWebView* webview)
+        : SSWCP_Instance(cmd, header, data, callback_name, webview)
     {
+        if (data.count("event_id")) {
+            m_event_id = data["event_id"].get<std::string>();
+        }
         m_type = MACHINE_FIND;
     }
 
@@ -99,13 +103,31 @@ private:
     bool                                  m_stop = false;
 };
 
+class SSWCP_MachineOption_Instance : public SSWCP_Instance
+{
+public:
+    SSWCP_MachineOption_Instance(std::string cmd, const json& header, const json& data, std::string callback_name, wxWebView* webview)
+        : SSWCP_Instance(cmd, header, data, callback_name, webview)
+    {
+        m_type = MACHINE_OPTION;
+    }
+
+    void process() override;
+
+private:
+    void sw_SendGCodes();
+
+private:
+    std::thread m_work_thread;
+};
+
 class SSWCP
 {
 public:
     static void handle_web_message(std::string message, wxWebView* webview);
 
     static std::shared_ptr<SSWCP_Instance> create_sswcp_instance(
-        std::string cmd, int sequenceId, const json& data, std::string callback_name, wxWebView* webview);
+        std::string cmd, const json& header, const json& data, std::string callback_name, wxWebView* webview);
 
     static void delete_target(SSWCP_Instance* target);
 
@@ -113,8 +135,8 @@ public:
     
 private:
 
-    static std::unordered_set<std::string> m_machine_find_cmd_list;
-
+    static std::unordered_set<std::string>                                      m_machine_find_cmd_list;
+    static std::unordered_set<std::string>                                      m_machine_option_cmd_list;
     static std::unordered_map<SSWCP_Instance*, std::shared_ptr<SSWCP_Instance>> m_instance_list;
 }; 
 

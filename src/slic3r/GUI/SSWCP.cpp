@@ -19,6 +19,8 @@
 
 #include <slic3r/GUI/Widgets/WebView.hpp>
 
+#include "MoonRaker.hpp"
+
 namespace pt = boost::property_tree;
 
 using namespace nlohmann;
@@ -36,17 +38,23 @@ void SSWCP_Instance::process() {
 
 
 void SSWCP_Instance::send_to_js() {
-    if (m_callback_name == "") {
-        return;
+
+    json response, payload;
+    response["header"]     = m_header;
+    
+    if (m_event_id != "") {
+        json header;
+        header["event_id"] = m_event_id;
+        response["header"] = header;
     }
 
-    json response;
-    response["sequenceId"] = m_sequence_id;
-    response["status"]     = m_status;
-    response["err"]        = m_error;
-    response["data"]       = m_res_data;
+    payload["status"]     = m_status;
+    payload["msg"]        = m_msg;
+    payload["data"]       = m_res_data;
 
-    std::string str_res = m_callback_name + "(" + response.dump() + ");";
+    response["payload"] = payload;
+
+    std::string str_res = "window.postMessage(" + response.dump() + ");";
 
     if (m_webview) {
         wxGetApp().CallAfter([this, str_res]() {
@@ -163,15 +171,16 @@ void SSWCP_MachineFind_Instance::sw_StartMachineFind()
                     m_engines[i] = Bonjour(mdns_service_names[i])
                                      .set_txt_keys(std::move(txt_keys))
                                      .set_retries(3)
-                                     .set_timeout(last_time >= 0.0 ? last_time/1000 : 10)
+                                     .set_timeout(last_time >= 0.0 ? last_time/1000 : 20)
                                      .on_reply([this, unique_key](BonjourReply&& reply) {
                                          if(is_stop()){
                                             return;
                                          }
                                          json machine_data;
-                                         machine_data["service_name"] = reply.service_name;
+                                         machine_data["name"] = reply.service_name;
                                          machine_data["hostname"] = reply.hostname;
                                          machine_data["ip"]       = reply.ip.to_string();
+                                         machine_data["port"]     = reply.port;
                                          if (reply.txt_data.count("protocol")) {
                                              machine_data["protocol"] = reply.txt_data["protocol"];
                                          }
@@ -181,9 +190,16 @@ void SSWCP_MachineFind_Instance::sw_StartMachineFind()
                                          if (reply.txt_data.count(unique_key)) {
                                              machine_data["unique_key"]   = unique_key;
                                              machine_data["unique_value"] = reply.txt_data[unique_key];
+                                             machine_data[unique_key]     = machine_data["unique_value"];
                                          }
 
-                                         this->add_machine_to_list(machine_data);
+                                         json machine_object;
+                                         if (machine_data.count("unique_value")) {
+                                             machine_object[reply.txt_data[unique_key]] = machine_data;
+                                         } else {
+                                             machine_object[reply.ip.to_string()] = machine_data;
+                                         }
+                                         this->add_machine_to_list(machine_object);
                                          
                                      })
                                      .on_complete([this]() {
@@ -218,19 +234,22 @@ void SSWCP_MachineFind_Instance::sw_StopMachineFind()
 
 void SSWCP_MachineFind_Instance::add_machine_to_list(const json& machine_info)
 {
-    std::string ip = machine_info["ip"].get<std::string>();
-    bool        need_send = false;
-    m_machine_list_mtx.lock();
-    if (!m_machine_list.count(ip)) {
-        m_machine_list[ip] = machine_info;
-        m_res_data.push_back(machine_info);
-        need_send          = true;
-    }
-    m_machine_list_mtx.unlock();
+    for (const auto& [key, value] : machine_info.items()) {
+        std::string ip        = value["ip"].get<std::string>();
+        bool        need_send = false;
+        m_machine_list_mtx.lock();
+        if (!m_machine_list.count(ip)) {
+            m_machine_list[ip] = machine_info;
+            m_res_data.push_back(machine_info);
+            need_send = true;
+        }
+        m_machine_list_mtx.unlock();
 
-    if (need_send) {
-        send_to_js();
+        if (need_send) {
+            send_to_js();
+        }
     }
+    
     
 }
 
@@ -242,6 +261,55 @@ void SSWCP_MachineFind_Instance::onOneEngineEnd()
     }
 }
 
+
+// SSWCP_MachineOption_Instance
+void SSWCP_MachineOption_Instance::process()
+{
+    if (m_cmd == "sw_SendGCodes") {
+        sw_SendGCodes();
+    }
+}
+
+
+void SSWCP_MachineOption_Instance::sw_SendGCodes() {
+    try {
+        if (m_param_data.count("codes")) {
+            std::shared_ptr<PrintHost> host(PrintHost::get_print_host(&wxGetApp().preset_bundle->printers.get_edited_preset().config));
+            std::vector<std::string>   str_codes;
+
+            if (m_param_data["codes"].is_array()) {
+                json codes = m_param_data["codes"];
+                for (size_t i = 0; i < codes.size(); ++i) {
+                    str_codes.push_back(codes[i].get<std::string>());
+                }
+            } else if (m_param_data["codes"].is_string()) {
+                str_codes.push_back(m_param_data["codes"].get<std::string>());
+            }
+
+
+            if (!host) {
+                // 错误处理
+                finish_job();
+            } else {
+                m_work_thread = 
+                    std::thread([this, str_codes, host]() {
+                        std::string extraInfo = "";
+                        bool res = host->send_gcodes(str_codes, extraInfo);
+                        if (res) {
+                            send_to_js();
+                        } else {
+                            // 错误处理
+                        }
+                    });
+            }
+        } else {
+            // 错误处理
+            finish_job();
+        }
+    } catch (const std::exception&) {}
+}
+
+
 std::unordered_map<SSWCP_Instance*, std::shared_ptr<SSWCP_Instance>> SSWCP::m_instance_list;
 
 
@@ -251,13 +319,21 @@ std::unordered_set<std::string> SSWCP::m_machine_find_cmd_list = {
     "sw_StopMachineFind",
 };
 
+std::unordered_set<std::string> SSWCP::m_machine_option_cmd_list = {
+    "sw_SendGCodes",
+};
+
 std::shared_ptr<SSWCP_Instance> SSWCP::create_sswcp_instance(
-    std::string cmd, int sequenceId, const json& data, std::string callback_name, wxWebView* webview)
+    std::string cmd, const json& header, const json& data, std::string callback_name, wxWebView* webview)
 {
     if (m_machine_find_cmd_list.count(cmd)) {
-        return std::shared_ptr<SSWCP_Instance>(new SSWCP_MachineFind_Instance(cmd, sequenceId, data, callback_name, webview));
-    } else {
-        return std::shared_ptr<SSWCP_Instance>(new SSWCP_Instance(cmd, sequenceId, data, callback_name, webview));
+        return std::shared_ptr<SSWCP_Instance>(new SSWCP_MachineFind_Instance(cmd, header, data, callback_name, webview));
+    }
+    else if (m_machine_option_cmd_list.count(cmd)) {
+        return std::shared_ptr<SSWCP_Instance>(new SSWCP_MachineOption_Instance(cmd, header, data, callback_name, webview));
+    }
+    else {
+        return std::shared_ptr<SSWCP_Instance>(new SSWCP_Instance(cmd, header, data, callback_name, webview));
     }
 }
 
@@ -270,17 +346,29 @@ void SSWCP::handle_web_message(std::string message, wxWebView* webview) {
 
         json j_message = json::parse(message);
 
-        if (j_message.empty() || !j_message.count("sequenceId") || !j_message.count("cmd") || !j_message.count("data") || !j_message.count("callback_name")) {
-            // todo:返回错误处理
+        if (j_message.empty() || !j_message.count("header") || !j_message.count("payload") || !j_message["payload"].count("cmd")) {
             return;
         }
 
-        int         sequenceId    = j_message["sequenceId"].get<int>();
-        std::string cmd        = j_message["cmd"].get<std::string>();
-        json        data       = j_message["data"];
-        std::string callback_name = j_message["callback_name"].get<std::string>();
+        json        header        = j_message["header"];
+        json        payload       = j_message["payload"];
 
-        std::shared_ptr<SSWCP_Instance> instance = create_sswcp_instance(cmd, sequenceId, data, callback_name, webview);
+        std::string cmd = "";
+        json        params;
+        std::string callback_name = "";
+
+        if (payload.count("cmd")) {
+            cmd = payload["cmd"].get<std::string>();
+        }
+        if (payload.count("params")) {
+            params = payload["params"];
+        }
+
+        if (payload.count("callback_name")) {
+            callback_name = payload["callback_name"].get<std::string>();
+        }
+
+        std::shared_ptr<SSWCP_Instance> instance = create_sswcp_instance(cmd, header, params, callback_name, webview);
         if (instance) {
             m_instance_list[instance.get()] = instance;
             instance->process();

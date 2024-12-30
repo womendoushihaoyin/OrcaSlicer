@@ -229,6 +229,29 @@ bool Moonraker::test_with_resolved_ip(wxString& msg) const
 }
 #endif // WIN32
 
+bool Moonraker::send_gcodes(const std::vector<std::string>& codes, std::string& extraInfo)
+{
+    bool res = true;
+    std::string param = "?script=";
+    for (const auto code : codes) {
+        param += "\n";
+        param += code;
+    }
+    auto url = make_url("printer/gcode/script");
+    auto http = Http::post(std::move(url));
+
+    http.form_add("script", param)
+        .on_error([&](std::string body, std::string error, unsigned status) {
+            res = false;    
+        })
+        .on_complete([&](std::string body, unsigned){
+            res = true;
+        })
+        .perform_sync();
+
+    return res;
+}
+
 bool Moonraker::test(wxString& msg) const
 {
     // Since the request is performed synchronously here,
@@ -236,7 +259,7 @@ bool Moonraker::test(wxString& msg) const
     const char* name = get_name();
 
     bool res = true;
-    auto url = make_url("api/version");
+    auto url = make_url("printer/info");
 
     BOOST_LOG_TRIVIAL(info) << boost::format("%1%: Get version at: %2%") % name % url;
     // Here we do not have to add custom "Host" header - the url contains host filled by user and libCurl will set the header by itself.
@@ -251,28 +274,28 @@ bool Moonraker::test(wxString& msg) const
         .on_complete([&, this](std::string body, unsigned) {
             BOOST_LOG_TRIVIAL(debug) << boost::format("%1%: Got version: %2%") % name % body;
 
-            try {
-                std::stringstream ss(body);
-                pt::ptree         ptree;
-                pt::read_json(ss, ptree);
+            //try {
+            //    std::stringstream ss(body);
+            //    pt::ptree         ptree;
+            //    pt::read_json(ss, ptree);
 
-                if (!ptree.get_optional<std::string>("api")) {
-                    res = false;
-                    return;
-                }
+            //    if (!ptree.get_optional<std::string>("api")) {
+            //        res = false;
+            //        return;
+            //    }
 
-                const auto text = ptree.get_optional<std::string>("text");
-                // test
-                //res             = validate_version_text(text);
+            //    const auto text = ptree.get_optional<std::string>("text");
+            //    // test
+            //    //res             = validate_version_text(text);
 
-                res = true;
-                if (!res) {
-                    msg = GUI::format_wxstr(_L("Mismatched type of print host: %s"), (text ? *text : name));
-                }
-            } catch (const std::exception&) {
-                res = false;
-                msg = "Could not parse server response";
-            }
+            //    res = true;
+            //    if (!res) {
+            //        msg = GUI::format_wxstr(_L("Mismatched type of print host: %s"), (text ? *text : name));
+            //    }
+            //} catch (const std::exception&) {
+            //    res = false;
+            //    msg = "Could not parse server response";
+            //}
         })
 #ifdef WIN32
         .ssl_revoke_best_effort(m_ssl_revoke_best_effort)
@@ -380,7 +403,7 @@ bool Moonraker::upload_inner_with_resolved_ip(PrintHostUpload                 up
     const char* name               = get_name();
     const auto  upload_filename    = upload_data.upload_path.filename();
     const auto  upload_parent_path = upload_data.upload_path.parent_path();
-    std::string url                = substitute_host(make_url("api/files/local"), resolved_addr.to_string());
+    std::string url                = substitute_host(make_url("server/files/upload"), resolved_addr.to_string());
     bool        result             = true;
 
     info_fn(L"resolve", boost::nowide::widen(url));
