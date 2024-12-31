@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <!--
+    If you are serving your web app in a path other than the root, change the
+    href value below to reflect the base path you are serving from.
+
+    The path provided below has to start and end with a slash "/" in order for
+    it to work correctly.
+
+    For more details:
+    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
+
+    This is a placeholder for base href that will be replaced by the value of
+    the `--base-href` argument provided to `flutter build`.
+
+  -->
+  <base href="/flutter/">
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="description" content="A new Flutter project.">
+
+  <!-- iOS meta tags & icons -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="web_flutter_module">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="favicon.png"/>
+
+  <title>web_flutter_module</title>
+  <link rel="manifest" href="manifest.json">
+</head>
+<body>
+  <script src="flutter_bootstrap.js" async></script>
+  <script>
+    // SSWCP函数 
+    function sw_SendGCodes(str, callback_name){
+      params = {
+        header: {
+          sequenceId: 4,
+        },
+        
+        payload:{
+          cmd: "sw_SendGCodes",
+          callback_name: callback_name,
+          params:{
+            codes: ["T0", "T1", "T2", "T3", "T0"],
+          }
+        }
+        
+        
+      };
+      window.wx.postMessage(JSON.stringify(params));
+    }
+    function on_gcode_sent(response){
+      console.log(response);
+    }
+    function sw_StopMachineFind(params, callback_name){
+      params = {
+        sequenceId: 3,
+        cmd: "sw_StopMachineFind",
+        data: {},
+        callback_name: "",
+      };
+
+      window.wx.postMessage(JSON.stringify(params));
+    }
+
+    function sw_StartMachineFind(parmas, callback_name){
+      
+      params = {
+        header:{
+          sequenceId: 2,
+        },
+        payload:{
+          cmd: "sw_StartMachineFind",
+            params: {
+                event_id: "send_machine_list",
+            },
+        }
+      };
+
+      window.wx.postMessage(JSON.stringify(params));
+    }
+
+    function on_machine_list_arrived(response){
+      console.log(response);
+    }
+
+
+    function test_sswcp(input, test_callback){
+      param = {
+        header:{
+          sequenceId: 1,
+        },
+        payload:{
+          cmd: "test",
+          params: input,
+          callback_name: test_callback,
+        },
+      };
+      window.wx.postMessage(JSON.stringify(param));
+    }
+
+    function test_callback(response){
+      console.log(response);
+    }
+
+    function test_sswcp_async(input, test_callback){
+      param = {
+        sequenceId: 1,
+        cmd: "test_async",
+        data: input,
+        callback_name: test_callback,
+      };
+      window.wx.postMessage(JSON.stringify(param));
+    }
+
+    function test_async_callback(response){
+      console.log(response);
+    }
+    // 定义一个 JS 函数
+    function receiveFromFlutter(data, callback) {
+      // 处理从 Flutter 传递过来的消息
+      // 这里可以根据实际情况处理消息
+      //message 为从 List
+      // console.log("Flutter Web  Function: [receiveFromFlutter] from Flutter: ", data);
+
+      var tSend={};
+      tSend['sequence_id']=Math.round(new Date() / 1000);
+      tSend['command']="homepage_login_or_register";
+      tSend['data']={};
+      tSend['data']['token']="AAAAA-VVVVV-SSSSS-UUUUU-YYYYY";
+      callback(JSON.stringify(tSend)); // 调用 JS 回调函数
+    }
+
+    function sendMessageToJs(data) {
+      //console.log("Flutter Web  Function: [sendMessageToJs] from Flutter: ", data);
+    }
+
+    function registerCallback(data) {
+      // console.log("Flutter Web  Function: [registerCallback] from Flutter: ", message);
+    }
+
+    function getToken(callback) {
+      console.log("Flutter Web  Function: [getToken] from Flutter: ");
+      var token = "AAAAA-VVVVV-SSSSS-UUUUU-YYYYY";
+      // 获取用户 token
+      // 这里可以根据实际情况获取 token
+      callback(token); // 调用 JS 回调函数
+      return token;
+    }
+
+    function unregisterCallback(data) {
+      console.log("Flutter Web  Function: [unregisterCallback] from Flutter: ", message);
+    }
+
+    
+
+    // 注册 Flutter 传递过来的消息处理函数 或者直接使用 window.postMessage 发送消息
+    window.sswcp.sendMessageToFlutter = function (message) {
+      // console.log("window.sendMessageToFlutter: " + message);
+      window.postMessage(message, '*'); // 调用 window.postMessage 传递消息给 flutter
+    }
+
+    window.addEventListener('message', function (event) {
+      // console.log("window.addEventListener: " + event.data + " from " + event.message);
+
+    }); // 监听 flutter 传递过来的消息
+
+  </script>
+</body>
+</html>

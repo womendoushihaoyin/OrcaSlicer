@@ -13,7 +13,6 @@
 
     This is a placeholder for base href that will be replaced by the value of
     the `--base-href` argument provided to `flutter build`.
-
   -->
   <base href="/flutter/">
 
@@ -24,153 +23,126 @@
   <!-- iOS meta tags & icons -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="web_flutter_module">
+  <meta name="apple-mobile-web-app-title" content="web">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>web_flutter_module</title>
+  <title>web</title>
   <link rel="manifest" href="manifest.json">
 </head>
 <body>
   <script src="flutter_bootstrap.js" async></script>
+
   <script>
-    // SSWCP函数 
-    function sw_SendGCodes(str, callback_name){
-      params = {
-        header: {
-          sequenceId: 4,
-        },
-        
-        payload:{
-          cmd: "sw_SendGCodes",
-          callback_name: callback_name,
-          params:{
-            codes: ["T0", "T1", "T2", "T3", "T0"],
+
+    function getDeviceData() {
+      var devices = { 
+          '90F3A2F30063C233': {
+            'ip': '172.18.1.33',
+            'port': '1883',
+            'name': 'lava-90F-233',
+            'sn': '90F3A2F30063C233',
+          },
+          '9BD4E436F33D0B56': {
+            'ip': '172.18.0.46',
+            'port': '1883',
+            'name': 'lava-9BD-B56',
+            'sn': '9BD4E436F33D0B56'
+          },
+          'BE667E5F8A060BDF': {
+            'ip': '172.18.1.91',
+            'port': '1883',
+            'name': 'lava-BE6-BDF',
+            'sn': 'BE667E5F8A060BDF'
+          },
+          'BC0810C948A828C0': {
+            'ip': '172.18.0.62',
+            'port': '1883',
+            'name': 'lava-BC0-8C0',
+            'sn': 'BC0810C948A828C0'
+          },
+          '58317961E7DBEF34': {
+            'ip': '172.18.1.54',
+            'port': '1883',
+            'name': 'lava-583-F34',
+            'sn': '58317961E7DBEF34'
+          },
+          'A4C0111397B11BBB': {
+            'ip': '172.18.0.65',
+            'port': '1883',
+            'name': 'lava-A4C-BBB',
+            'sn': 'A4C0111397B11BBB'
           }
-        }
-        
-        
       };
-      window.wx.postMessage(JSON.stringify(params));
-    }
-    function on_gcode_sent(response){
-      console.log(response);
-    }
-    function sw_StopMachineFind(params, callback_name){
-      params = {
-        sequenceId: 3,
-        cmd: "sw_StopMachineFind",
-        data: {},
-        callback_name: "",
-      };
-
-      window.wx.postMessage(JSON.stringify(params));
+      return devices;
     }
 
-    function sw_StartMachineFind(parmas, callback_name){
+    var j_header;
+
+    // 接收来自于 Flutter 的消息
+    function onMessageFromFlutter(headerJson, payloadJson) {
       
-      params = {
-        header:{
-          sequenceId: 2,
-        },
-        payload:{
-          cmd: "sw_StartMachineFind",
-            params: {
-                event_id: "send_machine_list",
+      try {
+        // 反序列化 header 和 payload
+        const header = JSON.parse(headerJson);
+        const payload = JSON.parse(payloadJson);
+
+        j_header = header;
+
+        // console.log("Deserialized Header:", header);
+        // console.log("Deserialized Payload:", payload);
+        // console.log("Web receiveFromFlutter header: " + header.map + ", payload: ", payload.toString());
+        if (payload['cmd'] == 'sw_StartMachineFind') {
+          // 开始机器发现
+          var devices = getDeviceData(header, payload);
+          var tSend = {
+            "header": header,
+            "payload": {
+              'cmd': payload['cmd'],
+             'data': payload['data'],
             },
+          };
+
+          var mokeData={
+            "header": header,
+            "payload": {
+             'code': 200,
+              'data': devices,
+             'msg': 'ok',
+            }
+          };
+          // console.log("Web sendToFlutter header: " + JSON.stringify(mokeData) );
+          // 延迟 2 秒后调用回调函数
+          setTimeout(() => {
+          // callback(JSON.stringify(mokeData));
+          // window.postMessage(JSON.stringify(mokeData), '*'); // 调用 window.postMessage 传递消息给 flutter
+          }, 2000);
         }
-      };
-
-      window.wx.postMessage(JSON.stringify(params));
+        
+      window.wx.postMessage(JSON.stringify(tSend));
+      } catch (error) {
+        console.error("Error parsing JSON:", error);
+      }
     }
 
-    function on_machine_list_arrived(response){
-      console.log(response);
+    function test(res) {
+      window.postMessage(JSON.stringify(res), '*'); // 调用 window.postMessage 传递消息给 flutter
     }
 
-
-    function test_sswcp(input, test_callback){
-      param = {
-        header:{
-          sequenceId: 1,
-        },
-        payload:{
-          cmd: "test",
-          params: input,
-          callback_name: test_callback,
-        },
-      };
-      window.wx.postMessage(JSON.stringify(param));
-    }
-
-    function test_callback(response){
-      console.log(response);
-    }
-
-    function test_sswcp_async(input, test_callback){
-      param = {
-        sequenceId: 1,
-        cmd: "test_async",
-        data: input,
-        callback_name: test_callback,
-      };
-      window.wx.postMessage(JSON.stringify(param));
-    }
-
-    function test_async_callback(response){
-      console.log(response);
-    }
-    // 定义一个 JS 函数
-    function receiveFromFlutter(data, callback) {
-      // 处理从 Flutter 传递过来的消息
-      // 这里可以根据实际情况处理消息
-      //message 为从 List
-      // console.log("Flutter Web  Function: [receiveFromFlutter] from Flutter: ", data);
-
-      var tSend={};
-      tSend['sequence_id']=Math.round(new Date() / 1000);
-      tSend['command']="homepage_login_or_register";
-      tSend['data']={};
-      tSend['data']['token']="AAAAA-VVVVV-SSSSS-UUUUU-YYYYY";
-      callback(JSON.stringify(tSend)); // 调用 JS 回调函数
-    }
-
-    function sendMessageToJs(data) {
-      //console.log("Flutter Web  Function: [sendMessageToJs] from Flutter: ", data);
-    }
-
-    function registerCallback(data) {
-      // console.log("Flutter Web  Function: [registerCallback] from Flutter: ", message);
-    }
-
-    function getToken(callback) {
-      console.log("Flutter Web  Function: [getToken] from Flutter: ");
-      var token = "AAAAA-VVVVV-SSSSS-UUUUU-YYYYY";
-      // 获取用户 token
-      // 这里可以根据实际情况获取 token
-      callback(token); // 调用 JS 回调函数
-      return token;
-    }
-
-    function unregisterCallback(data) {
-      console.log("Flutter Web  Function: [unregisterCallback] from Flutter: ", message);
-    }
-
-    
-
-    // 注册 Flutter 传递过来的消息处理函数 或者直接使用 window.postMessage 发送消息
-    window.sswcp.sendMessageToFlutter = function (message) {
+    // 发送消息给Flutter
+    window.sendMessageToFlutter = function (message) {
       // console.log("window.sendMessageToFlutter: " + message);
       window.postMessage(message, '*'); // 调用 window.postMessage 传递消息给 flutter
     }
 
+
     window.addEventListener('message', function (event) {
-      // console.log("window.addEventListener: " + event.data + " from " + event.message);
-
-    }); // 监听 flutter 传递过来的消息
-
+      console.log("testtesttesttesttesttesttesttesttesttesttesttesttesttesttest");
+      console.log(event.data);
+    });
   </script>
+
 </body>
 </html>

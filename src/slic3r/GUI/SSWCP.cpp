@@ -42,19 +42,21 @@ void SSWCP_Instance::send_to_js() {
     json response, payload;
     response["header"]     = m_header;
     
-    if (m_event_id != "") {
+    /*if (m_event_id != "") {
         json header;
         header["event_id"] = m_event_id;
         response["header"] = header;
-    }
+    }*/
 
-    payload["status"]     = m_status;
+    payload["code"]     = m_status;
     payload["msg"]        = m_msg;
     payload["data"]       = m_res_data;
 
     response["payload"] = payload;
 
-    std::string str_res = "window.postMessage(" + response.dump() + ");";
+    std::string str_res = "window.postMessage(JSON.stringify(" + response.dump() + "), '*');";
+    
+    // std::string str_res = "test(" + response.dump() + ");";
 
     if (m_webview) {
         wxGetApp().CallAfter([this, str_res]() {
@@ -178,7 +180,7 @@ void SSWCP_MachineFind_Instance::sw_StartMachineFind()
                                          }
                                          json machine_data;
                                          machine_data["name"] = reply.service_name;
-                                         machine_data["hostname"] = reply.hostname;
+                                         // machine_data["hostname"] = reply.hostname;
                                          machine_data["ip"]       = reply.ip.to_string();
                                          machine_data["port"]     = reply.port;
                                          if (reply.txt_data.count("protocol")) {
@@ -195,6 +197,7 @@ void SSWCP_MachineFind_Instance::sw_StartMachineFind()
 
                                          json machine_object;
                                          if (machine_data.count("unique_value")) {
+                                             this->add_machine_to_list(machine_object);
                                              machine_object[reply.txt_data[unique_key]] = machine_data;
                                          } else {
                                              machine_object[reply.ip.to_string()] = machine_data;
@@ -240,7 +243,8 @@ void SSWCP_MachineFind_Instance::add_machine_to_list(const json& machine_info)
         m_machine_list_mtx.lock();
         if (!m_machine_list.count(ip)) {
             m_machine_list[ip] = machine_info;
-            m_res_data.push_back(machine_info);
+            // m_res_data.push_back(machine_info);
+            m_res_data[key] = value;
             need_send = true;
         }
         m_machine_list_mtx.unlock();
