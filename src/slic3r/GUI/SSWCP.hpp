@@ -27,7 +27,7 @@ public:
     };
 
 public:
-    SSWCP_Instance(std::string cmd, const json& header, const json& data, int event_id, wxWebView* webview)
+    SSWCP_Instance(std::string cmd, const json& header, const json& data, std::string event_id, wxWebView* webview)
         : m_cmd(cmd), m_header(header), m_webview(webview), m_event_id(event_id), m_param_data(data)
     {}
 
@@ -52,7 +52,7 @@ public:
     std::string m_cmd           = "";
     json        m_header;
     wxWebView* m_webview     = nullptr;
-    int         m_event_id = -1;
+    std::string m_event_id = "";
     json        m_param_data;
 
     json m_res_data;
@@ -66,7 +66,7 @@ protected:
 class SSWCP_MachineConnect_Instance : public SSWCP_Instance
 {
 public:
-    SSWCP_MachineConnect_Instance(std::string cmd, const json& header, const json& data, int event_id, wxWebView* webview)
+    SSWCP_MachineConnect_Instance(std::string cmd, const json& header, const json& data, std::string event_id, wxWebView* webview)
         : SSWCP_Instance(cmd, header, data, event_id, webview)
     {
         m_type = MACHINE_CONNECT;
@@ -88,7 +88,7 @@ private:
 class SSWCP_MachineFind_Instance : public SSWCP_Instance
 {
 public:
-    SSWCP_MachineFind_Instance(std::string cmd, const json& header, const json& data, int event_id, wxWebView* webview)
+    SSWCP_MachineFind_Instance(std::string cmd, const json& header, const json& data, std::string event_id, wxWebView* webview)
         : SSWCP_Instance(cmd, header, data, event_id, webview)
     {
         m_type = MACHINE_FIND;
@@ -124,7 +124,7 @@ private:
 class SSWCP_MachineOption_Instance : public SSWCP_Instance
 {
 public:
-    SSWCP_MachineOption_Instance(std::string cmd, const json& header, const json& data, int event_id, wxWebView* webview)
+    SSWCP_MachineOption_Instance(std::string cmd, const json& header, const json& data, std::string event_id, wxWebView* webview)
         : SSWCP_Instance(cmd, header, data, event_id, webview)
     {
         m_type = MACHINE_OPTION;
@@ -147,7 +147,7 @@ public:
     static void handle_web_message(std::string message, wxWebView* webview);
 
     static std::shared_ptr<SSWCP_Instance> create_sswcp_instance(
-        std::string cmd, const json& header, const json& data, int event_id, wxWebView* webview);
+        std::string cmd, const json& header, const json& data, std::string event_id, wxWebView* webview);
 
     static void delete_target(SSWCP_Instance* target);
 

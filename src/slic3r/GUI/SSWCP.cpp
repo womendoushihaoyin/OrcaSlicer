@@ -43,11 +43,7 @@ void SSWCP_Instance::send_to_js() {
     json response, payload;
     response["header"]     = m_header;
     
-    if (m_event_id != -1) {
-        json header;
-        header["event_id"] = m_event_id;
-        response["header"] = header;
-    }
+    
 
     payload["code"]     = m_status;
     payload["msg"]        = m_msg;
@@ -105,6 +101,14 @@ void SSWCP_Instance::sync_test() {
 // SSWCP_MachineFind_Instance
 
 void SSWCP_MachineFind_Instance::process() {
+    if (m_event_id != "") {
+        json header;
+        send_to_js();
+
+        m_header.clear();
+        m_header["event_id"] = m_event_id;
+    }
+
     if (m_cmd == "sw_StartMachineFind") {
         sw_StartMachineFind();
     } else if (m_cmd == "sw_GetMachineFindSupportInfo") {
@@ -495,7 +499,7 @@ std::unordered_set<std::string> SSWCP::m_machine_connect_cmd_list = {
 };
 
 std::shared_ptr<SSWCP_Instance> SSWCP::create_sswcp_instance(
-    std::string cmd, const json& header, const json& data, int event_id, wxWebView* webview)
+    std::string cmd, const json& header, const json& data, std::string event_id, wxWebView* webview)
 {
     if (m_machine_find_cmd_list.count(cmd)) {
         return std::shared_ptr<SSWCP_Instance>(new SSWCP_MachineFind_Instance(cmd, header, data, event_id, webview));
@@ -527,7 +531,7 @@ void SSWCP::handle_web_message(std::string message, wxWebView* webview) {
         json        payload       = j_message["payload"];
 
         std::string cmd = "";
-        int         event_id = -1;
+        std::string event_id = "";
         json        params;
 
         if (payload.count("cmd")) {
@@ -538,7 +542,7 @@ void SSWCP::handle_web_message(std::string message, wxWebView* webview) {
         }
 
         if (payload.count("event_id")) {
-            event_id = payload["event_id"].get<int>();
+            event_id = payload["event_id"].get<std::string>();
         }
 
          std::shared_ptr<SSWCP_Instance> instance = create_sswcp_instance(cmd, header, params, event_id, webview);
