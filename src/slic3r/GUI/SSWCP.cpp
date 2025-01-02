@@ -1,5 +1,6 @@
 #include "SSWCP.hpp"
 #include "GUI_App.hpp"
+#include "MainFrame.hpp"
 #include "nlohmann/json.hpp"
 #include <algorithm>
 #include <iterator>
@@ -42,11 +43,11 @@ void SSWCP_Instance::send_to_js() {
     json response, payload;
     response["header"]     = m_header;
     
-    /*if (m_event_id != "") {
+    if (m_event_id != -1) {
         json header;
         header["event_id"] = m_event_id;
         response["header"] = header;
-    }*/
+    }
 
     payload["code"]     = m_status;
     payload["msg"]        = m_msg;
@@ -272,8 +273,47 @@ void SSWCP_MachineOption_Instance::process()
     if (m_cmd == "sw_SendGCodes") {
         sw_SendGCodes();
     }
+    else if (m_cmd == "sw_GetMachineState") {
+        sw_GetMachineState();
+    }
 }
 
+void SSWCP_MachineOption_Instance::sw_GetMachineState() {
+    try {
+        if (m_param_data.count("items")) {
+            std::shared_ptr<PrintHost> host(PrintHost::get_print_host(&wxGetApp().preset_bundle->printers.get_edited_preset().config));
+            std::vector<std::string> str_items;
+
+            if (m_param_data["items"].is_array()) {
+                json items = m_param_data["items"];
+                for (size_t i = 0; i < items.size(); ++i) {
+                    str_items.push_back(items[i].get<std::string>());
+                }
+            } else if (m_param_data["items"].is_string()) {
+                str_items.push_back(m_param_data["items"].get<std::string>());
+            }
+
+            if (!host) {
+                // 错误处理
+                finish_job();
+            } else {
+                m_work_thread = std::thread([this, str_items, host]() {
+                    json response;
+                    bool        res      = host->get_machine_info(str_items, response);
+                    if (res) {
+                        m_res_data = response;
+                        send_to_js();
+                    } else {
+                        // 错误处理
+                    }
+                });
+            }
+        } else {
+            finish_job();
+        }
+
+    } catch (std::exception& e) {}
+}
 
 void SSWCP_MachineOption_Instance::sw_SendGCodes() {
     try {
@@ -304,6 +344,8 @@ void SSWCP_MachineOption_Instance::sw_SendGCodes() {
                         } else {
                             // 错误处理
                         }
+
+                        finish_job();
                     });
             }
         } else {
@@ -311,6 +353,124 @@ void SSWCP_MachineOption_Instance::sw_SendGCodes() {
             finish_job();
         }
     } catch (const std::exception&) {}
+}
+
+// SSWCP_MachineConnect_Instance
+void SSWCP_MachineConnect_Instance::process() {
+    if (m_cmd == "sw_Test_connect") {
+        sw_test_connect();
+    } else if (m_cmd == "sw_Connect") {
+        sw_connect();
+    } else if (m_cmd == "sw_DisConnect") {
+        sw_disconnect();
+    }
+}
+
+void SSWCP_MachineConnect_Instance::sw_test_connect() {
+    try {
+        if (m_param_data.count("ip")) {
+            std::string protocol = "moonraker";
+            
+            if (m_param_data.count("protcol")) {
+                protocol = m_param_data["protocol"].get<std::string>();
+            }
+                
+            std::string ip       = m_param_data["ip"].get<std::string>();
+            int         port     = -1;
+
+            if (m_param_data.count("port") && m_param_data["port"].is_number_integer()) {
+                port = m_param_data["port"].get<int>();
+            }
+
+            auto p_config = &(wxGetApp().preset_bundle->printers.get_edited_preset().config);
+
+            PrintHostType type = PrintHostType::htMoonRaker;
+            // todo : 增加输入与type的映射
+            
+            p_config->option<ConfigOptionEnum<PrintHostType>>("host_type")->value = type;
+            
+            p_config->set("print_host", ip + (port == -1 ? "" : std::to_string(port)));
+
+            std::shared_ptr<PrintHost> host(PrintHost::get_print_host(&wxGetApp().preset_bundle->printers.get_edited_preset().config));
+
+            if (!host) {
+                // 错误处理
+                finish_job();
+            } else {
+                m_work_thread = std::thread([this, host] {
+                    wxString msg;
+                    bool        res = host->test(msg);
+                    if (res) {
+                        send_to_js();
+                    } else {
+                        // 错误处理
+                        m_status = 1;
+                        m_msg    = msg.c_str();
+                        send_to_js();
+                    }
+                });
+            }
+        } else {
+            // 错误处理
+            finish_job();
+        }
+    } catch (const std::exception&) {}
+}
+
+void SSWCP_MachineConnect_Instance::sw_connect() {
+    try {
+        if (m_param_data.count("ip")) {
+            std::string ip = m_param_data["ip"].get<std::string>();
+
+            int port = -1;
+            if (m_param_data.count("port") && m_param_data["port"].is_number_integer()) {
+                port = m_param_data["port"].get<int>();
+            }
+
+            std::string protocol = "moonraker";
+            if (m_param_data.count("protocol") && m_param_data["protocol"].is_string()) {
+                protocol = m_param_data["protocol"].get<std::string>();
+            }
+
+            auto p_config = &(wxGetApp().preset_bundle->printers.get_edited_preset().config);
+
+            PrintHostType type = PrintHostType::htMoonRaker;
+            // todo : 增加输入与type的映射
+
+            p_config->option<ConfigOptionEnum<PrintHostType>>("host_type")->value = type;
+
+            p_config->set("print_host", ip + (port == -1 ? "" : std::to_string(port)));
+
+            std::shared_ptr<PrintHost> host(PrintHost::get_print_host(&wxGetApp().preset_bundle->printers.get_edited_preset().config));
+
+            if (!host) {
+                // 错误处理
+                finish_job();
+            } else {
+                m_work_thread = std::thread([this, host] {
+                    wxString msg = "";
+                    bool     res = host->test(msg);
+
+                    if (res) {
+                        wxGetApp().mainframe->load_printer_url("http://"+  host->get_host());
+                        // wxGetApp().mainframe->load_printer_url(host->, wxString apikey)
+                    } else {
+                        m_status = 1;
+                        m_msg    = msg.c_str();
+                        send_to_js();
+                    }
+                });
+            }
+
+        } else {
+            // 错误处理
+            finish_job();
+        }
+    } catch (std::exception& e) {}
+}
+
+void SSWCP_MachineConnect_Instance::sw_disconnect() {
+
 }
 
 
@@ -325,19 +485,28 @@ std::unordered_set<std::string> SSWCP::m_machine_find_cmd_list = {
 
 std::unordered_set<std::string> SSWCP::m_machine_option_cmd_list = {
     "sw_SendGCodes",
+    "sw_GetMachineState",
+};
+
+std::unordered_set<std::string> SSWCP::m_machine_connect_cmd_list = {
+    "sw_Test_connect",
+    "sw_Connect",
+    "sw_DisConnect",
 };
 
 std::shared_ptr<SSWCP_Instance> SSWCP::create_sswcp_instance(
-    std::string cmd, const json& header, const json& data, std::string callback_name, wxWebView* webview)
+    std::string cmd, const json& header, const json& data, int event_id, wxWebView* webview)
 {
     if (m_machine_find_cmd_list.count(cmd)) {
-        return std::shared_ptr<SSWCP_Instance>(new SSWCP_MachineFind_Instance(cmd, header, data, callback_name, webview));
+        return std::shared_ptr<SSWCP_Instance>(new SSWCP_MachineFind_Instance(cmd, header, data, event_id, webview));
     }
     else if (m_machine_option_cmd_list.count(cmd)) {
-        return std::shared_ptr<SSWCP_Instance>(new SSWCP_MachineOption_Instance(cmd, header, data, callback_name, webview));
+        return std::shared_ptr<SSWCP_Instance>(new SSWCP_MachineOption_Instance(cmd, header, data, event_id, webview));
+    } else if (m_machine_connect_cmd_list.count(cmd)) {
+        return std::shared_ptr<SSWCP_Instance>(new SSWCP_MachineConnect_Instance(cmd, header, data, event_id, webview));
     }
     else {
-        return std::shared_ptr<SSWCP_Instance>(new SSWCP_Instance(cmd, header, data, callback_name, webview));
+        return std::shared_ptr<SSWCP_Instance>(new SSWCP_Instance(cmd, header, data, event_id, webview));
     }
 }
 
@@ -358,8 +527,8 @@ void SSWCP::handle_web_message(std::string message, wxWebView* webview) {
         json        payload       = j_message["payload"];
 
         std::string cmd = "";
+        int         event_id = -1;
         json        params;
-        std::string callback_name = "";
 
         if (payload.count("cmd")) {
             cmd = payload["cmd"].get<std::string>();
@@ -368,11 +537,11 @@ void SSWCP::handle_web_message(std::string message, wxWebView* webview) {
             params = payload["params"];
         }
 
-        if (payload.count("callback_name")) {
-            callback_name = payload["callback_name"].get<std::string>();
+        if (payload.count("event_id")) {
+            event_id = payload["event_id"].get<int>();
         }
 
-        std::shared_ptr<SSWCP_Instance> instance = create_sswcp_instance(cmd, header, params, callback_name, webview);
+         std::shared_ptr<SSWCP_Instance> instance = create_sswcp_instance(cmd, header, params, event_id, webview);
         if (instance) {
             m_instance_list[instance.get()] = instance;
             instance->process();

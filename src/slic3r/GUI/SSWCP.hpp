@@ -27,8 +27,8 @@ public:
     };
 
 public:
-    SSWCP_Instance(std::string cmd, const json& header, const json& data, std::string callback_name, wxWebView* webview)
-        : m_cmd(cmd), m_header(header), m_webview(webview), m_callback_name(callback_name), m_param_data(data)
+    SSWCP_Instance(std::string cmd, const json& header, const json& data, int event_id, wxWebView* webview)
+        : m_cmd(cmd), m_header(header), m_webview(webview), m_event_id(event_id), m_param_data(data)
     {}
 
     virtual ~SSWCP_Instance() {}
@@ -52,9 +52,8 @@ public:
     std::string m_cmd           = "";
     json        m_header;
     wxWebView* m_webview     = nullptr;
-    std::string m_callback_name = "";
+    int         m_event_id = -1;
     json        m_param_data;
-    std::string m_event_id =      "";
 
     json m_res_data;
     int  m_status = 200;
@@ -64,15 +63,34 @@ protected:
     INSTANCE_TYPE m_type = COMMON;
 };
 
+class SSWCP_MachineConnect_Instance : public SSWCP_Instance
+{
+public:
+    SSWCP_MachineConnect_Instance(std::string cmd, const json& header, const json& data, int event_id, wxWebView* webview)
+        : SSWCP_Instance(cmd, header, data, event_id, webview)
+    {
+        m_type = MACHINE_CONNECT;
+    }
+
+    void process() override;
+
+private:
+    void sw_test_connect();
+
+    void sw_connect();
+
+    void sw_disconnect();
+
+private:
+    std::thread m_work_thread;
+};
+
 class SSWCP_MachineFind_Instance : public SSWCP_Instance
 {
 public:
-    SSWCP_MachineFind_Instance(std::string cmd, const json& header, const json& data, std::string callback_name, wxWebView* webview)
-        : SSWCP_Instance(cmd, header, data, callback_name, webview)
+    SSWCP_MachineFind_Instance(std::string cmd, const json& header, const json& data, int event_id, wxWebView* webview)
+        : SSWCP_Instance(cmd, header, data, event_id, webview)
     {
-        if (data.count("event_id")) {
-            m_event_id = data["event_id"].get<std::string>();
-        }
         m_type = MACHINE_FIND;
     }
 
@@ -106,8 +124,8 @@ private:
 class SSWCP_MachineOption_Instance : public SSWCP_Instance
 {
 public:
-    SSWCP_MachineOption_Instance(std::string cmd, const json& header, const json& data, std::string callback_name, wxWebView* webview)
-        : SSWCP_Instance(cmd, header, data, callback_name, webview)
+    SSWCP_MachineOption_Instance(std::string cmd, const json& header, const json& data, int event_id, wxWebView* webview)
+        : SSWCP_Instance(cmd, header, data, event_id, webview)
     {
         m_type = MACHINE_OPTION;
     }
@@ -116,6 +134,8 @@ public:
 
 private:
     void sw_SendGCodes();
+
+    void sw_GetMachineState();
 
 private:
     std::thread m_work_thread;
@@ -127,7 +147,7 @@ public:
     static void handle_web_message(std::string message, wxWebView* webview);
 
     static std::shared_ptr<SSWCP_Instance> create_sswcp_instance(
-        std::string cmd, const json& header, const json& data, std::string callback_name, wxWebView* webview);
+        std::string cmd, const json& header, const json& data, int event_id, wxWebView* webview);
 
     static void delete_target(SSWCP_Instance* target);
 
@@ -137,6 +157,7 @@ private:
 
     static std::unordered_set<std::string>                                      m_machine_find_cmd_list;
     static std::unordered_set<std::string>                                      m_machine_option_cmd_list;
+    static std::unordered_set<std::string>                                      m_machine_connect_cmd_list;
     static std::unordered_map<SSWCP_Instance*, std::shared_ptr<SSWCP_Instance>> m_instance_list;
 }; 
 

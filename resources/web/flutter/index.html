@@ -37,6 +37,67 @@
 
   <script>
 
+    function connect(){
+      var header = {
+        seqid:10003,
+      };
+
+      var tSend = {
+        "header": header,
+        "payload": {
+          "cmd": "sw_Connect",
+          "params": {
+            "ip": "172.18.1.47",
+            "protocol": "moonraker",
+          },
+          
+        },
+      };
+
+      window.wx.postMessage(JSON.stringify(tSend));
+    }
+
+    function test_connect(){
+      var header = {
+        seqid: 10001,
+      };
+
+      var tSend = {
+        "header": header,
+        "payload": {
+          "cmd": "sw_Test_connect",
+          "params": {
+            "ip": "172.18.1.90",
+            "protocol": "moonraker",
+          },
+          
+        },
+      };
+
+      window.wx.postMessage(JSON.stringify(tSend));
+    }
+
+    function get_machine_state(){
+      var header = {
+        seqid: 10000,
+      };
+
+      var tSend = {
+        "header": header,
+        "payload": {
+          'cmd': 'sw_GetMachineState',
+          'params': {
+            items:[
+              "extruder",
+            ],
+          }
+        },
+      };
+
+      window.wx.postMessage(JSON.stringify(tSend));
+
+    }
+
     function getDeviceData() {
       var devices = { 
           '90F3A2F30063C233': {
@@ -128,6 +189,7 @@
     }
 
     function test(res) {
+      console.log(res);
       window.postMessage(JSON.stringify(res), '*'); // 调用 window.postMessage 传递消息给 flutter
     }
 

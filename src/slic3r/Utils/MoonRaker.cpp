@@ -229,6 +229,39 @@ bool Moonraker::test_with_resolved_ip(wxString& msg) const
 }
 #endif // WIN32
 
+bool Moonraker::get_machine_info(const std::vector<std::string>& items, json& response) {
+    bool res = true;
+
+    std::string params = "";
+    for (size_t i = 0; i < items.size(); ++i) {
+        if (i == 0) {
+            params += "?";
+        } else {
+            params += "&";
+        }
+
+        params += items[i];
+    }
+
+    auto url = make_url("printer/objects/query" + params);
+    auto http = Http::get(std::move(url));
+
+    http.on_error([&](std::string body, std::string error, unsigned status) {
+            res = false;
+            try{
+                response = json::parse(body);
+            } catch (std::exception& e) {}
+        })
+        .on_complete([&](std::string body, unsigned) {
+            try {
+                response = json::parse(body);
+            } catch (std::exception& e) {}
+        })
+        .perform_sync();
+
+    return res;
+}
+
 bool Moonraker::send_gcodes(const std::vector<std::string>& codes, std::string& extraInfo)
 {
     bool res = true;
