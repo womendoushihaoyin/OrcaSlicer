@@ -28,7 +28,7 @@ public:
     wxString get_test_failed_msg (wxString &msg) const override;
     bool upload(PrintHostUpload upload_data, ProgressFn prorgess_fn, ErrorFn error_fn, InfoFn info_fn) const override;
     bool                       send_gcodes(const std::vector<std::string>& codes, std::string& extraInfo) override;
-    bool                       get_machine_info(const std::vector<std::string>& items, nlohmann::json& response) override;
+    bool                       get_machine_info(const std::vector<std::pair<std::string, std::string>>& targets, nlohmann::json& response) override;
     bool has_auto_discovery() const override { return true; }
     bool can_test() const override { return true; }
     PrintHostPostUploadActions get_post_upload_actions() const override { return PrintHostPostUploadAction::StartPrint; }

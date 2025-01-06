@@ -113,10 +113,13 @@
         const data = JSON.parse(jsonMessage);
         var header = data.header;
         var payload = data.payload;
-
         // 反序列化 header 和 payload
         header['event_id'] = payload['event_id']; 
-        header['cmd'] = payload['cmd']
+
+        if(header['event_id'] == null) {
+          alert(jsonMessage);
+        }
+
         // 开始机器发现
         var devices = getDeviceData();
         var mokeData={
@@ -129,9 +132,9 @@
         };
         console.log("ackResponse message: " + JSON.stringify(mokeData) );
         window.postMessage(JSON.stringify(mokeData), '*'); // 调用 window.postMessage 传递消息给 flutter
-        } catch (error) {
+      } catch (error) {
         console.error("Error parsing JSON:", error);
-        }
+      }
     }
 
     window.sendMessage = function (message) {
@@ -140,12 +143,11 @@
       // ackResponse(message);
       // 调用 window.postMessage 传递消息给 flutter
       window.wx &&  window.wx.postMessage(message); // 调用 window.postMessage 传递消息给 原生系统
-
       ///模拟收到响应结果5000
-      if(!window.wx) {
-        console.log('i cant find window.wx, so i simulate a return by postMessage')
-        // setTimeout(simulateResponse(message), 5000)
-      }
+      // if(!window.wx) {
+      //   console.log('i cant find window.wx, so i simulate a return by postMessage')
+      //   setTimeout(simulateResponse(message), 5000)
+      // }
     }
 
   </script>

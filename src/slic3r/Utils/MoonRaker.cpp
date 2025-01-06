@@ -229,22 +229,15 @@ bool Moonraker::test_with_resolved_ip(wxString& msg) const
 }
 #endif // WIN32
 
-bool Moonraker::get_machine_info(const std::vector<std::string>& items, json& response) {
+bool Moonraker::get_machine_info(const std::vector<std::pair<std::string, std::string>>& targets, json& response) {
     bool res = true;
 
-    std::string params = "";
-    for (size_t i = 0; i < items.size(); ++i) {
-        if (i == 0) {
-            params += "?";
-        } else {
-            params += "&";
-        }
+    auto url = make_url("printer/objects/query");
+    auto http = Http::post(std::move(url));
 
-        params += items[i];
+    for (const auto pair : targets) {
+        http.form_add(pair.first, pair.second);
     }
-
-    auto url = make_url("printer/objects/query" + params);
-    auto http = Http::get(std::move(url));
 
     http.on_error([&](std::string body, std::string error, unsigned status) {
             res = false;

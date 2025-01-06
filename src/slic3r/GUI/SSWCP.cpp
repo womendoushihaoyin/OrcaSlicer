@@ -284,26 +284,26 @@ void SSWCP_MachineOption_Instance::process()
 
 void SSWCP_MachineOption_Instance::sw_GetMachineState() {
     try {
-        if (m_param_data.count("items")) {
+        if (m_param_data.count("targets")) {
             std::shared_ptr<PrintHost> host(PrintHost::get_print_host(&wxGetApp().preset_bundle->printers.get_edited_preset().config));
-            std::vector<std::string> str_items;
+            std::vector<std::pair<std::string, std::string>> targets;
 
-            if (m_param_data["items"].is_array()) {
-                json items = m_param_data["items"];
-                for (size_t i = 0; i < items.size(); ++i) {
-                    str_items.push_back(items[i].get<std::string>());
+            json items = m_param_data["targets"];
+            for (auto& [key, value] : items.items()) {
+                if (value.is_null()) {
+                    targets.push_back({key, ""});
+                } else {
+                    targets.push_back({key, value.get<std::string>()});
                 }
-            } else if (m_param_data["items"].is_string()) {
-                str_items.push_back(m_param_data["items"].get<std::string>());
             }
 
             if (!host) {
                 // 错误处理
                 finish_job();
             } else {
-                m_work_thread = std::thread([this, str_items, host]() {
+                m_work_thread = std::thread([this, targets, host]() {
                     json response;
-                    bool        res      = host->get_machine_info(str_items, response);
+                    bool        res      = host->get_machine_info(targets, response);
                     if (res) {
                         m_res_data = response;
                         send_to_js();
@@ -541,7 +541,7 @@ void SSWCP::handle_web_message(std::string message, wxWebView* webview) {
             params = payload["params"];
         }
 
-        if (payload.count("event_id")) {
+        if (payload.count("event_id") && !payload["event_id"].is_null()) {
             event_id = payload["event_id"].get<std::string>();
         }
 

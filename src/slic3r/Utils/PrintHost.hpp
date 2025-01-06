@@ -74,7 +74,7 @@ public:
 
     virtual bool send_gcodes(const std::vector<std::string>& codes, std::string& extraInfo) { return false; }
 
-    virtual bool get_machine_info(const std::vector<std::string>& item, nlohmann::json& response) { return false; }
+    virtual bool get_machine_info(const std::vector<std::pair<std::string, std::string>>& targets, nlohmann::json& response) { return false; }
 
     //Support for cloud webui login
     virtual bool is_cloud() const { return false; }
