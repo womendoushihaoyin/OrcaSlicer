@@ -611,7 +611,7 @@ endif ()
 add_library(libslic3r_gui STATIC ${SLIC3R_GUI_SOURCES})
 target_include_directories(libslic3r_gui PRIVATE Utils)
 
-target_link_libraries(libslic3r_gui paho-mqtt3as-static)
+target_link_libraries(libslic3r_gui paho-mqttpp3-static)
 
 target_include_directories(libslic3r_gui PRIVATE ${PAHO_MQTT_CPP_PATH}/include)
 
