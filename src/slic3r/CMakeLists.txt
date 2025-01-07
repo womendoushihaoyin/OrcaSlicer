@@ -607,8 +607,24 @@ if (UNIX AND NOT APPLE)
     )
 endif ()
 
+
+# mqtt
+set(PAHO_MQTT_C_PATH ${CMAKE_CURRENT_SOURCE_DIR}/../mqtt/externals/paho-mqtt-c)
+set(PAHO_MQTT_CPP_PATH ${CMAKE_CURRENT_SOURCE_DIR}/../mqtt)
+
+add_subdirectory(${PAHO_MQTT_CPP_PATH})
+
+set(PAHO_BUILD_STATIC ON)
+set(PAHO_WITH_MQTT_C ON)
+
 add_library(libslic3r_gui STATIC ${SLIC3R_GUI_SOURCES})
 target_include_directories(libslic3r_gui PRIVATE Utils)
+
+target_link_libraries(libslic3r_gui paho-mqtt3as-static)
+
+target_include_directories(my_mqtt_app PRIVATE ${PAHO_MQTT_CPP_PATH}/include)
+
+target_include_directories(my_mqtt_app PRIVATE ${PAHO_MQTT_C_PATH}/src)
 
 if (WIN32)
     target_include_directories(libslic3r_gui PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../deps/WebView2/include)
@@ -683,3 +699,5 @@ endif ()
 
 # Add a definition so that we can tell we are compiling slic3r.
 target_compile_definitions(libslic3r_gui PRIVATE SLIC3R_CURRENTLY_COMPILING_GUI_MODULE)
+
+
