@@ -1,6 +1,15 @@
 cmake_minimum_required(VERSION 3.13)
 project(Snapmaker_Orca-native)
 
+# mqtt
+set(PAHO_MQTT_C_PATH ${CMAKE_CURRENT_SOURCE_DIR}/mqtt/externals/paho-mqtt-c)
+set(PAHO_MQTT_CPP_PATH ${CMAKE_CURRENT_SOURCE_DIR}/mqtt)
+
+set(PAHO_BUILD_STATIC ON)
+set(PAHO_WITH_MQTT_C ON)
+
+add_subdirectory(${PAHO_MQTT_CPP_PATH})
+
 add_subdirectory(build-utils)
 add_subdirectory(admesh)
 # add_subdirectory(avrdude)
@@ -29,15 +38,6 @@ if (SLIC3R_GUI)
     add_subdirectory(imguizmo)
     add_subdirectory(hidapi)
     include_directories(hidapi/include)
-
-    # mqtt
-    set(PAHO_MQTT_C_PATH ${CMAKE_CURRENT_SOURCE_DIR}/mqtt/externals/paho-mqtt-c)
-    set(PAHO_MQTT_CPP_PATH ${CMAKE_CURRENT_SOURCE_DIR}/mqtt)
-
-    set(PAHO_BUILD_STATIC ON)
-    set(PAHO_WITH_MQTT_C ON)
-
-    add_subdirectory(${PAHO_MQTT_CPP_PATH})
 
     if(WIN32)
         message(STATUS "WXWIN environment set to: $ENV{WXWIN}")
