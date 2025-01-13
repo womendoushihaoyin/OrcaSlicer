@@ -125,25 +125,23 @@ function HandleStudio( pVal )
   }
 }
 
-function GotoMenu( strMenu )
-{
-	let MenuList=$(".BtnItem");
-	let nAll=MenuList.length;
-	
-	for(let n=0;n<nAll;n++)
-	{
-		let OneBtn=MenuList[n];
-		
-		if( $(OneBtn).attr("menu")==strMenu )
-		{
-			$(".BtnItem").removeClass("BtnItemSelected");			
-			
-			$(OneBtn).addClass("BtnItemSelected");
-			
-			$("div[board]").hide();
-			$("div[board=\'"+strMenu+"\']").show();
-		}
-	}
+function GotoMenu(strMenu) {
+    let MenuList = $(".BtnItem");
+    let nAll = MenuList.length;
+    
+    for(let n = 0; n < nAll; n++) {
+        let OneBtn = MenuList[n];
+        
+        if($(OneBtn).attr("menu") == strMenu) {
+            $(".BtnItem").removeClass("BtnItemSelected");            
+            $(OneBtn).addClass("BtnItemSelected");
+            
+            // 隐藏所有board内容
+            $("div[board]").hide();
+            // 显示对应board内容
+            $("div[board='" + strMenu + "']").show();
+        }
+    }
 }
 
 function SetLoginInfo( strAvatar, strName ) 
@@ -505,6 +503,13 @@ function OpenOneStaffPickModel( ModelID )
 	SendWXMessage( JSON.stringify(tSend) );		
 }
 
+function OnAddDevice() {
+    var tSend = {};
+    tSend['sequence_id'] = Math.round(new Date() / 1000);
+    tSend['command'] = "homepage_add_device";
+    
+    SendWXMessage(JSON.stringify(tSend));
+}
 
 //---------------Global-----------------
 window.postMessage = HandleStudio;

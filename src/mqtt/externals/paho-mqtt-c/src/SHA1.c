@@ -74,7 +74,7 @@ static unsigned char pad[64] = {
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
 };
 
-int SHA1_Init_mqtt(SHA_CTX *ctx)
+int SHA1_Init(SHA_CTX *ctx)
 {
 	int ret = 0;
 	if ( ctx )
@@ -136,7 +136,7 @@ static void SHA1_ProcessBlock(SHA_CTX *ctx)
 		ctx->h[i] += blks[i];
 }
 
-int SHA1_Final_mqtt(unsigned char *md, SHA_CTX *ctx)
+int SHA1_Final(unsigned char *md, SHA_CTX *ctx)
 {
 	int i;
 	int ret = 0;
@@ -170,7 +170,7 @@ int SHA1_Final_mqtt(unsigned char *md, SHA_CTX *ctx)
 	return ret;
 }
 
-int SHA1_Update_mqtt(SHA_CTX *ctx, const void *data, size_t len)
+int SHA1_Update(SHA_CTX *ctx, const void *data, size_t len)
 {
 	while ( len > 0 )
 	{

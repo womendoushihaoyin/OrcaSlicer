@@ -772,3 +772,44 @@ body
 	cursor: pointer!important;
 	pointer-events: auto!important;
 }
+
+/* 设备管理样式 */
+#DeviceList {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    padding: 20px 0;
+}
+
+.DeviceAddIcon {
+    width: 184px;
+    height: 184px;
+    background-color: #E4E4E4;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    padding: 0;
+    object-fit: cover;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.DeviceAddIcon:hover {
+    background-color: #D0D0D0;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.DeviceItem {
+    width: 184px;
+    height: 184px;
+    border-radius: 8px;
+    background-color: #E4E4E4;
+    overflow: hidden;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.DeviceItem:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}

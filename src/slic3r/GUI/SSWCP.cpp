@@ -37,9 +37,30 @@ void SSWCP_Instance::process() {
     }
 }
 
+void SSWCP_Instance::set_Instance_illegal()
+{
+    m_illegal_mtx.lock();
+    m_illegal = true;
+    m_illegal_mtx.unlock();
+}
+
+bool SSWCP_Instance::is_Instance_illegal() {
+    m_illegal_mtx.lock();
+    bool res = m_illegal;
+    m_illegal_mtx.unlock();
+    
+    return res;
+}
+
+wxWebView* SSWCP_Instance::get_web_view() const {
+    return m_webview;
+}
 
 void SSWCP_Instance::send_to_js() {
     try {
+        if (is_Instance_illegal()) {
+            return;
+        }
         json response, payload;
         response["header"] = m_header;
 
@@ -158,9 +179,9 @@ void SSWCP_MachineFind_Instance::sw_StartMachineFind()
                 std::vector<std::string> mdns_service_names;
 
                 mdns_service_names.push_back("snapmaker");
-                mdns_service_names.push_back("prusalink");
-                mdns_service_names.push_back("rdlink");
-                mdns_service_names.push_back("raop");
+                //mdns_service_names.push_back("prusalink");
+                //mdns_service_names.push_back("rdlink");
+                //mdns_service_names.push_back("raop");
 
                 m_engines.clear();
                 for (size_t i = 0; i < mdns_service_names.size(); ++i) {
@@ -676,6 +697,14 @@ void SSWCP::stop_machine_find() {
     });
 }
 
+void SSWCP::on_webview_delete(wxWebView* view)
+{
+    for (auto& instance : m_instance_list) {
+        if (instance.second->get_web_view() == view) {
+            instance.second->set_Instance_illegal();
+        }
+    }
+}
 
 }}; // namespace Slic3r::GUI
 

@@ -21,6 +21,7 @@
 #include "slic3r/GUI/WebViewDialog.hpp"
 #include "slic3r/GUI/WebUserLoginDialog.hpp"
 #include "slic3r/GUI/WebSMUserLoginDialog.hpp"
+#include "slic3r/GUI/WebDeviceDialog.hpp"
 #include "slic3r/GUI/BindDialog.hpp"
 #include "slic3r/GUI/HMS.hpp"
 #include "slic3r/GUI/Jobs/UpgradeNetworkJob.hpp"
@@ -295,6 +296,9 @@ private:
     // login widget
     ZUserLogin*     login_dlg { nullptr };
     SMUserLogin*    sm_login_dlg{ nullptr };
+
+    // device dialog
+    WebDeviceDialog* web_device_dialog{ nullptr };
 
     VersionInfo version_info;
     VersionInfo privacy_version_info;

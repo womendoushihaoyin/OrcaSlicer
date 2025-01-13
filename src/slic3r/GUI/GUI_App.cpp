@@ -1104,6 +1104,19 @@ void GUI_App::shutdown()
         login_dlg = nullptr;
     }
 
+    if (sm_login_dlg != nullptr) {
+        BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(": destroy SMlogin dialog");
+        delete sm_login_dlg;
+        sm_login_dlg = nullptr;
+    }
+
+    if (web_device_dialog != nullptr) {
+        BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(": web device dialog");
+        delete web_device_dialog;
+        web_device_dialog = nullptr;
+    }
+   
+
     if (m_is_recreating_gui) return;
     m_is_closing = true;
     BOOST_LOG_TRIVIAL(info) << "GUI_App::shutdown exit";
@@ -3989,6 +4002,21 @@ std::string GUI_App::handle_web_request(std::string cmd)
                         wxGetApp().request_model_download(realurl);
                     }
                 }
+            }
+            else if (command_str.compare("homepage_add_device") == 0) {
+                CallAfter([this] {
+                    try {
+                        if (web_device_dialog)
+                            delete web_device_dialog;
+
+                        web_device_dialog = new WebDeviceDialog;
+                        
+                        web_device_dialog->run();
+                    } catch (std::exception&) {
+                        ;
+                    }
+                });
+                return "";
             }
         }
     }

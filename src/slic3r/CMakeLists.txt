@@ -281,6 +281,8 @@ set(SLIC3R_GUI_SOURCES
     GUI/WebUserLoginDialog.hpp
     GUI/WebSMUserLoginDialog.cpp
     GUI/WebSMUserLoginDialog.hpp
+    GUI/WebDeviceDialog.cpp
+    GUI/WebDeviceDialog.hpp
     GUI/ConfigManipulation.cpp
     GUI/ConfigManipulation.hpp
     GUI/Field.cpp

@@ -1321,10 +1321,19 @@ int WebSocket_upgrade( networkHandles *net )
 
 		/* calculate the expected websocket key, expected from server */
 		snprintf( ws_key, sizeof(ws_key), "%s%s", net->websocket_key, ws_guid );
-		SHA1_Init_mqtt( &ctx );
-		SHA1_Update_mqtt( &ctx, ws_key, strlen(ws_key));
-		SHA1_Final_mqtt( sha_hash, &ctx );
-		Base64_encode( ws_key, sizeof(ws_key), sha_hash, SHA1_DIGEST_LENGTH );
+#if !defined(OPENSSL)
+        SHA1_Init_mqtt(&ctx);
+        SHA1_Update_mqtt(&ctx, ws_key, strlen(ws_key));
+        SHA1_Final_mqtt(sha_hash, &ctx);
+        
+#else
+        SHA1_Init(&ctx);
+        SHA1_Update(&ctx, ws_key, strlen(ws_key));
+        SHA1_Final(sha_hash, &ctx);
+
+#endif // 
+
+		Base64_encode(ws_key, sizeof(ws_key), sha_hash, SHA1_DIGEST_LENGTH);
 
 		read_buf = WebSocket_getRawSocketData( net, 12u, &rcv, &rc);
 		if (rc == SOCKET_ERROR)

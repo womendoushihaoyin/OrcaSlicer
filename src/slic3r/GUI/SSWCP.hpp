@@ -44,6 +44,12 @@ public:
     virtual bool is_stop() { return false; }
     virtual void set_stop(bool stop) {}
 
+
+    virtual void set_Instance_illegal();
+    virtual bool is_Instance_illegal();
+
+    wxWebView* get_web_view() const;
+
 private:
     void sync_test();
     void async_test();
@@ -61,6 +67,10 @@ public:
 
 protected:
     INSTANCE_TYPE m_type = COMMON;
+
+private:
+    bool m_illegal = false;
+    std::mutex m_illegal_mtx;
 };
 
 class SSWCP_MachineConnect_Instance : public SSWCP_Instance
@@ -166,6 +176,8 @@ public:
     static void delete_target(SSWCP_Instance* target);
 
     static void stop_machine_find();
+
+    static void on_webview_delete(wxWebView* webview);
     
 private:
 
