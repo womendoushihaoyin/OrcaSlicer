@@ -39,32 +39,28 @@ void SSWCP_Instance::process() {
 
 
 void SSWCP_Instance::send_to_js() {
+    try {
+        json response, payload;
+        response["header"] = m_header;
 
-    json response, payload;
-    response["header"]     = m_header;
-    
-    
+        payload["code"] = m_status;
+        payload["msg"]  = m_msg;
+        payload["data"] = m_res_data;
 
-    payload["code"]     = m_status;
-    payload["msg"]        = m_msg;
-    payload["data"]       = m_res_data;
+        response["payload"] = payload;
 
-    response["payload"] = payload;
+        std::string str_res = "window.postMessage(JSON.stringify(" + response.dump() + "), '*');";
 
-    std::string str_res = "window.postMessage(JSON.stringify(" + response.dump() + "), '*');";
-    
-    // std::string str_res = "test(" + response.dump() + ");";
+        // std::string str_res = "test(" + response.dump() + ");";
 
-    if (m_webview) {
-        wxGetApp().CallAfter([this, str_res]() {
-            try {
-                WebView::RunScript(this->m_webview, str_res);
-            } 
-            catch (std::exception& e) {
-                
-            }
-        });
-    }
+        if (m_webview) {
+            wxGetApp().CallAfter([this, str_res]() {
+                try {
+                    WebView::RunScript(this->m_webview, str_res);
+                } catch (std::exception& e) {}
+            });
+        }
+    } catch (std::exception& e) {}
 }
 
 void SSWCP_Instance::finish_job() {
@@ -279,36 +275,87 @@ void SSWCP_MachineOption_Instance::process()
     }
     else if (m_cmd == "sw_GetMachineState") {
         sw_GetMachineState();
+    } else if (m_cmd == "sw_SubscribeMachineState") {
+        sw_SubscribeMachineState();
     }
+}
+
+void SSWCP_MachineOption_Instance::sw_SubscribeMachineState() {
+    try {
+        std::shared_ptr<PrintHost> host(PrintHost::get_print_host(&wxGetApp().preset_bundle->printers.get_edited_preset().config));
+
+        if (!host) {
+            m_status = 1;
+            m_msg    = "failure";
+            send_to_js();
+            finish_job();
+        }
+
+        host->async_subscribe_machine_info([this](const json& response) {
+            if (response.is_null() || response.empty()) {
+                m_status = -1;
+                m_msg    = "failure";
+                send_to_js();
+            } else {
+                m_res_data = response;
+                send_to_js();
+            }
+        });
+
+    } catch (std::exception& e) {}
 }
 
 void SSWCP_MachineOption_Instance::sw_GetMachineState() {
     try {
         if (m_param_data.count("targets")) {
             std::shared_ptr<PrintHost> host(PrintHost::get_print_host(&wxGetApp().preset_bundle->printers.get_edited_preset().config));
-            std::vector<std::pair<std::string, std::string>> targets;
+            std::vector<std::pair<std::string, std::vector<std::string>>> targets;
 
             json items = m_param_data["targets"];
             for (auto& [key, value] : items.items()) {
                 if (value.is_null()) {
-                    targets.push_back({key, ""});
+                    targets.push_back({key, {}});
                 } else {
-                    targets.push_back({key, value.get<std::string>()});
+                    std::vector<std::string> items;
+                    if (value.is_array()) {
+                        for (size_t i = 0; i < value.size(); ++i) {
+                            items.push_back(value[i].get<std::string>());
+                        }
+                    } else {
+                        items.push_back(value.get<std::string>());
+                    }
+                    targets.push_back({key, items});
                 }
             }
 
             if (!host) {
                 // 错误处理
+                m_status = -1;
+                m_msg    = "failure";
+                send_to_js();
                 finish_job();
             } else {
-                m_work_thread = std::thread([this, targets, host]() {
-                    json response;
-                    bool        res      = host->get_machine_info(targets, response);
-                    if (res) {
+                //m_work_thread = std::thread([this, targets, host]() {
+                //    json response;
+                //    bool        res      = host->get_machine_info(targets, response);
+                //    if (res) {
+                //        m_res_data = response;
+                //        send_to_js();
+                //    } else {
+                //        // 错误处理
+                //    }
+                //});
+
+                host->async_get_machine_info(targets, [this](const json& response) {
+                    if (response.is_null() || response.empty()) {
+                        m_status = -1;
+                        m_msg    = "failure";
+                        send_to_js();
+                        finish_job();
+                    } else {
                         m_res_data = response;
                         send_to_js();
-                    } else {
-                        // 错误处理
+                        finish_job();
                     }
                 });
             }
@@ -388,6 +435,7 @@ void SSWCP_MachineConnect_Instance::sw_test_connect() {
 
             auto p_config = &(wxGetApp().preset_bundle->printers.get_edited_preset().config);
 
+
             PrintHostType type = PrintHostType::htMoonRaker;
             // todo : 增加输入与type的映射
             
@@ -412,6 +460,8 @@ void SSWCP_MachineConnect_Instance::sw_test_connect() {
                         m_msg    = msg.c_str();
                         send_to_js();
                     }
+
+                    finish_job();
                 });
             }
         } else {
@@ -438,31 +488,59 @@ void SSWCP_MachineConnect_Instance::sw_connect() {
 
             auto p_config = &(wxGetApp().preset_bundle->printers.get_edited_preset().config);
 
-            PrintHostType type = PrintHostType::htMoonRaker;
+            PrintHostType type = PrintHostType::htMoonRaker_mqtt;
             // todo : 增加输入与type的映射
 
             p_config->option<ConfigOptionEnum<PrintHostType>>("host_type")->value = type;
 
-            p_config->set("print_host", ip + (port == -1 ? "" : std::to_string(port)));
+            p_config->set("print_host", ip + (port == -1 ? "" : ":" + std::to_string(port)));
 
             std::shared_ptr<PrintHost> host(PrintHost::get_print_host(&wxGetApp().preset_bundle->printers.get_edited_preset().config));
+
+            json connect_params;
+            if (m_param_data.count("sn") && m_param_data["sn"].is_string()) {
+                connect_params["sn"] = m_param_data["sn"].get<std::string>();
+            }
 
             if (!host) {
                 // 错误处理
                 finish_job();
             } else {
-                m_work_thread = std::thread([this, host] {
+                m_work_thread = std::thread([this, host, connect_params] {
+                    // moonraker_mqtt 如果没有sn码，需要http请求获取sn码
+
+                    //wxString msg = "";
+                    //bool     res = host->test(msg);
+
+                    //if (res) {
+                    //    wxGetApp().mainframe->load_printer_url("http://"+  host->get_host());
+                    //    // wxGetApp().mainframe->load_printer_url(host->, wxString apikey)
+                    //} else {
+                    //    m_status = 1;
+                    //    m_msg    = msg.c_str();
+                    //    send_to_js();
+                    //}
+
                     wxString msg = "";
-                    bool     res = host->test(msg);
+                    json     params;
+                    bool res = host->connect(msg, connect_params);
 
                     if (res) {
-                        wxGetApp().mainframe->load_printer_url("http://"+  host->get_host());
-                        // wxGetApp().mainframe->load_printer_url(host->, wxString apikey)
+                        // 后续应改成机器交互页的本地web服务器地址
+                        std::string ip_port = host->get_host();
+                        int         pos     = ip_port.find(':');
+                        if (pos != std::string::npos) {
+                            ip_port = ip_port.substr(0, pos);
+                        }
+                        wxGetApp().mainframe->load_printer_url("http://" + ip_port);
                     } else {
                         m_status = 1;
                         m_msg    = msg.c_str();
-                        send_to_js();
                     }
+
+                    send_to_js();
+                    finish_job();
+
                 });
             }
 
@@ -474,7 +552,22 @@ void SSWCP_MachineConnect_Instance::sw_connect() {
 }
 
 void SSWCP_MachineConnect_Instance::sw_disconnect() {
+    m_work_thread = std::thread([this](){
+        std::shared_ptr<PrintHost> host(PrintHost::get_print_host(&wxGetApp().preset_bundle->printers.get_edited_preset().config));
 
+        wxString msg = "";
+        bool res = host->disconnect(msg, {});
+
+        if (res) {
+            // todo: 交互页面删除
+        } else {
+            m_status = 1;
+            m_msg    = msg.c_str();
+        }
+
+        send_to_js();
+        finish_job();
+    });
 }
 
 
@@ -490,6 +583,7 @@ std::unordered_set<std::string> SSWCP::m_machine_find_cmd_list = {
 std::unordered_set<std::string> SSWCP::m_machine_option_cmd_list = {
     "sw_SendGCodes",
     "sw_GetMachineState",
+    "sw_SubscribeMachineState",
 };
 
 std::unordered_set<std::string> SSWCP::m_machine_connect_cmd_list = {

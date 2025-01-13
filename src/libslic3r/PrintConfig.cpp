@@ -75,6 +75,7 @@ static t_config_enum_values s_keys_map_PrinterTechnology {
 CONFIG_OPTION_ENUM_DEFINE_STATIC_MAPS(PrinterTechnology)
 
 static t_config_enum_values s_keys_map_PrintHostType {
+    { "moonraker_mqtt", htMoonRaker_mqtt},
     { "moonraker",      htMoonRaker},
     { "prusalink",      htPrusaLink },
     { "prusaconnect",   htPrusaConnect },
@@ -3424,7 +3425,7 @@ void PrintConfigDef::init_fff_params()
     def->enum_labels.push_back("SimplyPrint");
     def->mode = comAdvanced;
     def->cli = ConfigOptionDef::nocli;
-    def->set_default_value(new ConfigOptionEnum<PrintHostType>(htOctoPrint));
+    def->set_default_value(new ConfigOptionEnum<PrintHostType>(htMoonRaker_mqtt));
     
 
     def = this->add("nozzle_volume", coFloat);

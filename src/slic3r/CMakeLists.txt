@@ -494,6 +494,8 @@ set(SLIC3R_GUI_SOURCES
     GUI/TaskManager.hpp
     Utils/Http.cpp
     Utils/Http.hpp
+    Utils/MQTT.hpp
+    Utils/MQTT.cpp
     Utils/FixModelByWin10.cpp
     Utils/FixModelByWin10.hpp
     Utils/EmbossStyleManager.cpp

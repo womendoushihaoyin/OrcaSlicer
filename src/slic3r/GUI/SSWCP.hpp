@@ -72,6 +72,12 @@ public:
         m_type = MACHINE_CONNECT;
     }
 
+    ~SSWCP_MachineConnect_Instance()
+    {
+        if (m_work_thread.joinable())
+            m_work_thread.detach();
+    }
+
     void process() override;
 
 private:
@@ -130,12 +136,20 @@ public:
         m_type = MACHINE_OPTION;
     }
 
+    ~SSWCP_MachineOption_Instance()
+    {
+        if (m_work_thread.joinable())
+            m_work_thread.detach();
+    }
+
     void process() override;
 
 private:
     void sw_SendGCodes();
 
     void sw_GetMachineState();
+
+    void sw_SubscribeMachineState();
 
 private:
     std::thread m_work_thread;

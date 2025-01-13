@@ -50,9 +50,10 @@ PrintHost* PrintHost::get_print_host(DynamicPrintConfig *config)
 
     if (tech == ptFFF) {
         const auto opt = config->option<ConfigOptionEnum<PrintHostType>>("host_type");
-        const auto host_type = opt != nullptr ? opt->value : htOctoPrint;
+        const auto host_type = opt != nullptr ? opt->value : htMoonRaker_mqtt;
 
         switch (host_type) {
+            case htMoonRaker_mqtt: return new Moonraker_Mqtt(config);
             case htMoonRaker: return new Moonraker(config);
             case htOctoPrint: return new OctoPrint(config);
             case htDuet:      return new Duet(config);

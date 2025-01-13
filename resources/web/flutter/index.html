@@ -36,6 +36,57 @@
   <script src="flutter_bootstrap.js" async></script>
 
   <script>
+    function test_mqtt_subscribe() {
+      body = {
+        header:{
+          swquenceId: 202503,
+        },
+        payload:{
+          cmd: "sw_SubscribeMachineState",
+          params: {},
+          event_id: "subscribe1",
+        }
+      };
+
+      window.wx.postMessage(JSON.stringify(body));
+    }
+
+    function test_mqtt_machine_info(){
+      body  = {
+        header:{
+          sequenceId: 202502,
+        },
+        payload:{
+          cmd: "sw_GetMachineState",
+          params: {
+            "targets":{
+              "gcode_move": null,
+              "toolhead": ["position", "status"]
+            }
+          }
+        }
+      };
+      window.wx.postMessage(JSON.stringify(body));
+    }
+
+
+    function test_mqtt_connect() {
+      body = {
+        header:{
+          sequenceId: 202501,
+        },
+        payload:{
+          cmd: "sw_Connect",
+          params: {
+            ip: "172.18.1.46",
+            port: 1883,
+            sn: "61BC45A47ED2BE8E",
+          }
+        }
+      }
+      window.wx.postMessage(JSON.stringify(body));
+    }
+
 
     function getDeviceData() {
       var devices = { 

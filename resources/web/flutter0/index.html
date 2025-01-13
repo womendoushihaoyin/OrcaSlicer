@@ -36,6 +36,23 @@
   <script src="flutter_bootstrap.js" async></script>
 
   <script>
+    function test_mqtt_connect() {
+      body = {
+        header:{
+          sequenceId: 202501,
+        },
+        payload:{
+          cmd: "sw_Connect",
+          params: {
+            ip: "172.18.1.46",
+            port: 1883,
+            sn: "61BC45A47ED2BE8E",
+          }
+        }
+      }
+      window.wx.postMessage(JSON.stringify(body));
+    }
+
     // 接收来自于 Flutter 的消息
     function on_machine_list_arrived(response){
       console.log(response);

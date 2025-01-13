@@ -1,4 +1,5 @@
 #include "MoonRaker.hpp"
+#include "MQTT.hpp"
 
 #include <algorithm>
 #include <sstream>
@@ -11,7 +12,6 @@
 #include <boost/asio.hpp>
 #include <boost/algorithm/string/split.hpp>
 #include <boost/nowide/convert.hpp>
-
 #include <curl/curl.h>
 
 #include <wx/progdlg.h>
@@ -229,14 +229,21 @@ bool Moonraker::test_with_resolved_ip(wxString& msg) const
 }
 #endif // WIN32
 
-bool Moonraker::get_machine_info(const std::vector<std::pair<std::string, std::string>>& targets, json& response) {
+bool Moonraker::get_machine_info(const std::vector<std::pair<std::string, std::vector<std::string>>>& targets, json& response) {
     bool res = true;
 
     auto url = make_url("printer/objects/query");
     auto http = Http::post(std::move(url));
 
     for (const auto pair : targets) {
-        http.form_add(pair.first, pair.second);
+        std::string value = "";
+        for (size_t i = 0; i < pair.second.size(); ++i) {
+            if (i != 0) {
+                value += ",";
+            }
+            value += pair.second[i];
+        }
+        http.form_add(pair.first, value);
     }
 
     http.on_error([&](std::string body, std::string error, unsigned status) {
@@ -280,6 +287,17 @@ bool Moonraker::send_gcodes(const std::vector<std::string>& codes, std::string& 
 
 bool Moonraker::test(wxString& msg) const
 {
+    //// test
+    //MqttClient* mqttClient = new MqttClient("mqtt://172.18.0.9:1883", "OrcaClient", false);
+    //mqttClient->SetMessageCallback([](const std::string& topic, const std::string& payload) {
+    //    int a = 0;
+    //    int b = 0;
+    //});
+    //mqttClient->Connect();
+    //mqttClient->Subscribe("9BD4E436F33D0B56/response", 2);
+    //mqttClient->Subscribe("9BD4E436F33D0B56/status", 2);
+    //mqttClient->Publish("9BD4E436F33D0B56/request", "{\"jsonrpc\": \"2.0\",\"method\": \"server.info\",\"id\": 9546}", 1);
+    
     // Since the request is performed synchronously here,
     // it is ok to refer to `msg` from within the closure
     const char* name = get_name();
@@ -584,6 +602,246 @@ std::string Moonraker::make_url(const std::string& path) const
     } else {
         return (boost::format("http://%1%/%2%") % m_host % path).str();
     }
+}
+
+
+bool Moonraker::connect(wxString& msg, const nlohmann::json& params) {
+    return test(msg);
+}
+
+
+
+
+
+
+
+
+// Moonraker_mqtt
+
+MqttClient* Moonraker_Mqtt::m_mqtt_client = nullptr;
+
+std::string Moonraker_Mqtt::m_request_topic = "/request";
+std::string Moonraker_Mqtt::m_response_topic = "/response";
+std::string Moonraker_Mqtt::m_notification_topic = "/notification";
+std::string Moonraker_Mqtt::m_status_topic       = "/status";
+
+std::unordered_map<std::string, std::function<void(const nlohmann::json&)>> Moonraker_Mqtt::m_request_cb_map;
+std::timed_mutex Moonraker_Mqtt::m_cb_map_mtx;
+
+std::function<void(const nlohmann::json&)> Moonraker_Mqtt::m_status_cb = nullptr;
+
+std::string Moonraker_Mqtt::m_sn          = "";
+
+Moonraker_Mqtt::Moonraker_Mqtt(DynamicPrintConfig* config) : Moonraker(config) {
+    std::string host_info = config->option<ConfigOptionString>("print_host")->value;
+    if (!m_mqtt_client)
+        m_mqtt_client         = new MqttClient("mqtt://" + host_info, "orca", false);
+
+    
+}
+
+bool Moonraker_Mqtt::connect(wxString& msg, const nlohmann::json& params) {
+    if (m_mqtt_client->CheckConnected()) {
+        disconnect(msg, params);
+    }
+
+    std::string sn = "";
+    
+    if (!params.count("sn")) {
+        // 如果没有sn码，需要发http请求获取
+    } else {
+        sn = params["sn"].get<std::string>();
+    }
+
+    if (sn == "") {
+        return false;
+    }
+
+    m_sn = sn;
+
+    bool is_connect = m_mqtt_client->Connect();
+    bool response_subscribed = m_mqtt_client->Subscribe(m_sn + m_response_topic, 2);
+    m_mqtt_client->SetMessageCallback([this](const std::string& topic, const std::string& payload) {
+        this->on_mqtt_message_arrived(topic, payload);
+    });
+
+    return is_connect && response_subscribed;
+
+}
+
+
+bool Moonraker_Mqtt::disconnect(wxString& msg, const nlohmann::json& params) {
+    return m_mqtt_client->Disconnect();
+}
+
+void Moonraker_Mqtt::async_subscribe_machine_info(std::function<void(const nlohmann::json&)> callback)
+{
+    bool res = m_mqtt_client->Subscribe(m_sn + m_status_topic, 0);
+
+    if (!res || m_status_cb) {
+        callback(json::value_t::null);
+        return;
+    }
+
+    m_status_cb = callback;
+}
+
+void Moonraker_Mqtt::async_get_machine_info(const std::vector<std::pair<std::string, std::vector<std::string>>>& targets, std::function<void(const nlohmann::json& response)> callback)
+{
+    std::string method = "printer.objects.query";
+
+    json params;
+    params["objects"] = json::object();
+
+    for (size_t i = 0; i < targets.size(); ++i) {
+        if (targets[i].second.size() == 0) {
+            params["objects"][targets[i].first] = json::value_t::null;
+        } else {
+            params["objects"][targets[i].first] = json::array();
+
+            for (const auto& key : targets[i].second) {
+                params["objects"][targets[i].first].push_back(key);
+            }
+        }
+    }
+
+    if (!send_to_request(method, params, true, callback) && callback) {
+        callback(json::value_t::null);
+    }
+}
+
+
+bool Moonraker_Mqtt::send_to_request(const std::string& method, const json& params, bool need_response, std::function<void(const nlohmann::json& response)> callback) 
+{
+    json body;
+
+    body["jsonrpc"] = "2.0";
+    body["method"]  = method;
+    body["params"]  = params;
+
+    boost::uuids::uuid uuid = m_generator();
+
+    std::string str_uuid = boost::uuids::to_string(uuid);
+
+    if (need_response) {
+        if (!add_response_target(str_uuid, callback)) {
+            return false;
+        }
+        body["id"]                 = str_uuid;
+    }
+
+    if (m_mqtt_client) {
+        bool res = m_mqtt_client->Publish(m_sn + m_request_topic, body.dump(), 2);
+        if (!res) {
+            delete_response_target(str_uuid);
+        }
+        return res;
+    } else {
+        return false;
+    }
+}
+
+bool Moonraker_Mqtt::add_response_target(const std::string& id, std::function<void(const nlohmann::json& response)> callback) {
+    if (m_cb_map_mtx.try_lock_for(std::chrono::seconds(5))) {
+        m_request_cb_map[id] = callback;
+
+        m_cb_map_mtx.unlock();
+        return true;
+    }
+    return false;
+
+}
+
+void Moonraker_Mqtt::delete_response_target(const std::string& id) {
+    if (m_cb_map_mtx.try_lock_for(std::chrono::seconds(5))) {
+        if (m_request_cb_map.count(id)) {
+            m_request_cb_map.erase(id);
+        }
+        m_cb_map_mtx.unlock();
+    }
+    
+}
+
+std::function<void(const json&)> Moonraker_Mqtt::get_request_callback(const std::string& id)
+{
+    if (m_cb_map_mtx.try_lock_for(std::chrono::seconds(5))) {
+        if (m_request_cb_map.count(id)) {
+            auto result = m_request_cb_map[id];
+            m_cb_map_mtx.unlock();
+            return result;
+        } else {
+            m_cb_map_mtx.unlock();
+            return nullptr;
+        }
+    } 
+
+    return nullptr;
+}
+
+void Moonraker_Mqtt::on_mqtt_message_arrived(const std::string& topic, const std::string& payload)
+{
+    try {
+        if (topic.find(m_response_topic) != std::string::npos) {
+            on_response_arrived(payload);
+        } else if (topic.find(m_status_topic) != std::string::npos) {
+            on_status_arrived(payload);
+        } else if (topic.find(m_notification_topic) != std::string::npos) {
+            on_notification_arrived(payload);
+        } 
+        else {
+            return;
+        }
+
+    } catch (std::exception& e) {}
+}
+
+
+void Moonraker_Mqtt::on_response_arrived(const std::string& payload)
+{
+    try {
+        json body = json::parse(payload);
+
+        if (!body.count("id")) {
+            return;
+        }
+
+        std::string id = body["id"].get<std::string>();
+
+        auto cb = get_request_callback(id);
+        delete_response_target(id);
+
+        if (!cb) {
+            return;
+        }
+
+        if (!body.count("result")) {
+            cb(json::value_t::null);
+        } else {
+            cb(body["result"]);
+        }
+
+    } catch (std::exception& e) {}
+}
+
+void Moonraker_Mqtt::on_status_arrived(const std::string& payload)
+{
+    try {
+        json body = json::parse(payload);
+
+        // 待修改
+        if (!m_status_cb) {
+            return;
+        }
+
+        m_status_cb(body);
+
+    } catch (std::exception& e) {}
+}
+
+void Moonraker_Mqtt::on_notification_arrived(const std::string& payload)
+{
+    try {
+    } catch (std::exception& e) {}
 }
 
 } // namespace Slic3r

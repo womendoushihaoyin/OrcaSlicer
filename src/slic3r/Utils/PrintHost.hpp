@@ -74,7 +74,15 @@ public:
 
     virtual bool send_gcodes(const std::vector<std::string>& codes, std::string& extraInfo) { return false; }
 
-    virtual bool get_machine_info(const std::vector<std::pair<std::string, std::string>>& targets, nlohmann::json& response) { return false; }
+    virtual bool get_machine_info(const std::vector<std::pair<std::string, std::vector<std::string>>>& targets, nlohmann::json& response) { return false; }
+
+    virtual void async_get_machine_info(const std::vector<std::pair<std::string, std::vector<std::string>>>& targets, std::function<void(const nlohmann::json& response)>) {}
+
+    virtual void async_subscribe_machine_info(std::function<void(const nlohmann::json&)>) {}
+
+    virtual bool connect(wxString& msg, const nlohmann::json& params) { return false; }
+
+    virtual bool disconnect(wxString& msg, const nlohmann::json& params) { return true; }
 
     //Support for cloud webui login
     virtual bool is_cloud() const { return false; }
