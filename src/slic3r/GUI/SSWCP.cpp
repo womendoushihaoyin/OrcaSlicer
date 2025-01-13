@@ -291,6 +291,13 @@ void SSWCP_MachineFind_Instance::onOneEngineEnd()
 // SSWCP_MachineOption_Instance
 void SSWCP_MachineOption_Instance::process()
 {
+    if (m_event_id != "") {
+        json header;
+        send_to_js();
+
+        m_header.clear();
+        m_header["event_id"] = m_event_id;
+    }
     if (m_cmd == "sw_SendGCodes") {
         sw_SendGCodes();
     }

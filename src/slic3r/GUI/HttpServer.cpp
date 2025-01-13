@@ -261,7 +261,7 @@ std::string HttpServer::map_url_to_file_path(const std::string& url) {
         trimmed_url = "/index.html"; // 默认首页
     }
 
-    std::string base_path = resources_dir() + "/web"; // 根据你的需求定义
+    std::string base_path = resources_dir(); // 根据你的需求定义
     return base_path + trimmed_url; // 拼接成新的路径
 }
 

@@ -828,12 +828,19 @@ void Moonraker_Mqtt::on_status_arrived(const std::string& payload)
     try {
         json body = json::parse(payload);
 
+        json data;
+        if (body.count("params")) {
+            data = body["params"];
+        } else {
+            return;
+        }
+
         // 待修改
         if (!m_status_cb) {
             return;
         }
 
-        m_status_cb(body);
+        m_status_cb(data);
 
     } catch (std::exception& e) {}
 }
