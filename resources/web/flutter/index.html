@@ -36,6 +36,20 @@
   <script src="flutter_bootstrap.js" async></script>
 
   <script>
+    function test_mqtt_unsubscribe() {
+      body = {
+        header:{
+          swquenceId: 202519,
+        },
+        payload:{
+          cmd: "sw_StopMachineStateSubscription",
+          params: {},
+        }
+      };
+
+      window.wx.postMessage(JSON.stringify(body));
+    }
+
     function test_mqtt_subscribe() {
       body = {
         header:{
@@ -48,6 +62,44 @@
         }
       };
 
+      window.wx.postMessage(JSON.stringify(body));
+    }
+
+    function test_mqtt_subscribe_filter(){
+      body  = {
+        header:{
+          sequenceId: 202510,
+        },
+        payload:{
+          cmd: "sw_SetSubscribeFilter",
+          params: {
+            "targets":{
+              "gcode_move": null,
+              "toolhead": ["position", "status"]
+            }
+          }
+        }
+      };
+      window.wx.postMessage(JSON.stringify(body));
+    }
+
+    function test_mqtt_send_gcodes(){
+      body  = {
+        header:{
+          sequenceId: 202592,
+        },
+        payload:{
+          cmd: "sw_SendGCodes",
+          params: {
+            "script":[
+              "T0",
+              "T1",
+              "T2",
+              "T3",
+            ]
+          }
+        }
+      };
       window.wx.postMessage(JSON.stringify(body));
     }
 
@@ -69,6 +121,30 @@
       window.wx.postMessage(JSON.stringify(body));
     }
 
+    function test_mqtt_machine_objects(){
+      body = {
+        header:{
+          sequenceId: 202504,
+        },
+        payload:{
+          cmd: "sw_GetMachineObjects",
+        }
+      };
+      window.wx.postMessage(JSON.stringify(body));
+    }
+
+
+    function test_mqtt_disconnect() {
+      body = {
+        header:{
+          sequenceId: 202500,
+        },
+        payload:{
+          cmd: "sw_DisConnect",
+        }
+      }
+      window.wx.postMessage(JSON.stringify(body));
+    }
 
     function test_mqtt_connect() {
       body = {
@@ -78,9 +154,9 @@
         payload:{
           cmd: "sw_Connect",
           params: {
-            ip: "172.18.1.46",
+            ip: "172.18.1.66",
             port: 1883,
-            sn: "61BC45A47ED2BE8E",
+            sn: "BE667E5F8A060BDF",
           }
         }
       }

@@ -156,10 +156,11 @@ public:
 
 private:
     void sw_SendGCodes();
-
     void sw_GetMachineState();
-
     void sw_SubscribeMachineState();
+    void sw_UnSubscribeMachineState();
+    void sw_GetMachineObjects();
+    void sw_SetMachineSubscribeFilter();
 
 private:
     std::thread m_work_thread;

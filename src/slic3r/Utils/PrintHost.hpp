@@ -78,7 +78,16 @@ public:
 
     virtual void async_get_machine_info(const std::vector<std::pair<std::string, std::vector<std::string>>>& targets, std::function<void(const nlohmann::json& response)>) {}
 
+    virtual void async_get_machine_objects(std::function<void(const nlohmann::json& response)>) {}
+
+    virtual void async_set_machine_subscribe_filter(const std::vector<std::pair<std::string, std::vector<std::string>>>& targets,
+                                                    std::function<void(const nlohmann::json& response)>                  callback) {}
+
+    virtual void async_unsubscribe_machine_info(std::function<void(const nlohmann::json&)>) {}
+
     virtual void async_subscribe_machine_info(std::function<void(const nlohmann::json&)>) {}
+
+    virtual void async_send_gcodes(const std::vector<std::string>& scripts, std::function<void(const nlohmann::json&)>) {}
 
     virtual bool connect(wxString& msg, const nlohmann::json& params) { return false; }
 

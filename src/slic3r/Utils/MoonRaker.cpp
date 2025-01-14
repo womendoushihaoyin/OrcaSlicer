@@ -678,15 +678,81 @@ void Moonraker_Mqtt::async_subscribe_machine_info(std::function<void(const nlohm
 {
     bool res = m_mqtt_client->Subscribe(m_sn + m_status_topic, 0);
 
-    if (!res || m_status_cb) {
-        callback(json::value_t::null);
+    if (!res) {
+        if (m_status_cb) {
+            callback(json::value_t::null);
+        }
         return;
     }
 
     m_status_cb = callback;
+
+    callback(json::object());
 }
 
-void Moonraker_Mqtt::async_get_machine_info(const std::vector<std::pair<std::string, std::vector<std::string>>>& targets, std::function<void(const nlohmann::json& response)> callback)
+void Moonraker_Mqtt::async_send_gcodes(const std::vector<std::string>& scripts, std::function<void(const nlohmann::json&)> callback)
+{
+    std::string method = "printer.gcode.script";
+
+    std::string str_scripts = "";
+    for (size_t i = 0; i < scripts.size(); ++i) {
+        if (i != 0) {
+            str_scripts += "\n";
+        }
+        str_scripts += scripts[i];
+    }
+
+    json params;
+    params["script"] = str_scripts;
+    
+
+    if (!send_to_request(method, params, true, callback) && callback) {
+        callback(json::value_t::null);
+    }
+}
+
+void Moonraker_Mqtt::async_unsubscribe_machine_info(std::function<void(const nlohmann::json&)> callback)
+{
+    bool res = m_mqtt_client->Unsubscribe(m_sn + m_status_topic);
+
+    if (!res) {
+        if (m_status_cb) {
+            callback(json::value_t::null);
+        }
+        return;
+    }
+
+    callback(json::object());
+}
+
+void Moonraker_Mqtt::async_set_machine_subscribe_filter(const std::vector<std::pair<std::string, std::vector<std::string>>>& targets,
+                                                        std::function<void(const nlohmann::json& response)>                  callback)
+{
+    std::string method = "printer.objects.subscribe";
+
+    json params;
+    params["objects"] = json::object();
+
+    for (size_t i = 0; i < targets.size(); ++i) {
+        if (targets[i].second.size() == 0) {
+            params["objects"][targets[i].first] = json::value_t::null;
+        } else {
+            params["objects"][targets[i].first] = json::array();
+
+            for (const auto& key : targets[i].second) {
+                params["objects"][targets[i].first].push_back(key);
+            }
+        }
+    }
+
+    if (!send_to_request(method, params, true, callback) && callback) {
+        callback(json::value_t::null);
+    }
+}
+
+
+void Moonraker_Mqtt::async_get_machine_info(const std::vector<std::pair<std::string, std::vector<std::string>>>& targets, 
+                                          std::function<void(const nlohmann::json& response)> callback)
 {
     std::string method = "printer.objects.query";
 
@@ -710,6 +776,15 @@ void Moonraker_Mqtt::async_get_machine_info(const std::vector<std::pair<std::str
     }
 }
 
+void Moonraker_Mqtt::async_get_machine_objects(std::function<void(const nlohmann::json& response)> callback)
+{
+    std::string method = "printer.objects.list";
+    json params = json::object();  // 空参数对象
+
+    if (!send_to_request(method, params, true, callback) && callback) {
+        callback(json::value_t::null);
+    }
+}
 
 bool Moonraker_Mqtt::send_to_request(const std::string& method, const json& params, bool need_response, std::function<void(const nlohmann::json& response)> callback) 
 {

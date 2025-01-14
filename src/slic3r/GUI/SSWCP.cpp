@@ -188,7 +188,7 @@ void SSWCP_MachineFind_Instance::sw_StartMachineFind()
                     m_engines.push_back(nullptr);
                 }
 
-                Bonjour::TxtKeys txt_keys   = {"sn", "version"};
+                Bonjour::TxtKeys txt_keys   = {"sn", "version", "machine_type"};
                 std::string      unique_key = "sn";
 
                 for (size_t i = 0; i < m_engines.size(); ++i) {
@@ -217,6 +217,23 @@ void SSWCP_MachineFind_Instance::sw_StartMachineFind()
                                              machine_data[unique_key]     = machine_data["unique_value"];
                                          }
 
+                                         // 模拟一下
+                                         machine_data["cover"] = LOCALHOST_URL + std::to_string(PAGE_HTTP_PORT) +
+                                                                 "/profiles/Snapmaker/Snapmaker A350 Dual BKit_cover.png";
+
+                                         if (reply.txt_data.count("machine_type")) {
+                                             std::string machine_type      = reply.txt_data["machine_type"];
+                                             size_t      vendor_pos    = machine_type.find_first_of(" ");
+                                             if (vendor_pos != std::string::npos) {
+                                                 std::string vendor = machine_type.substr(0, vendor_pos);
+                                                 std::string machine_cover = LOCALHOST_URL + std::to_string(PAGE_HTTP_PORT) + "/profiles/" +
+                                                                             vendor + machine_type + "_cover.png";
+
+                                                 machine_data["cover"] = machine_cover;
+                                             }
+                                             
+
+                                         }
                                          json machine_object;
                                          if (machine_data.count("unique_value")) {
                                              this->add_machine_to_list(machine_object);
@@ -305,7 +322,38 @@ void SSWCP_MachineOption_Instance::process()
         sw_GetMachineState();
     } else if (m_cmd == "sw_SubscribeMachineState") {
         sw_SubscribeMachineState();
+    } else if (m_cmd == "sw_GetMachineObjects") {
+        sw_GetMachineObjects();
+    } else if (m_cmd == "sw_SetSubscribeFilter") {
+        sw_SetMachineSubscribeFilter();
+    } else if (m_cmd == "sw_StopMachineStateSubscription") {
+        sw_UnSubscribeMachineState();
     }
+}
+
+void SSWCP_MachineOption_Instance::sw_UnSubscribeMachineState() {
+    try {
+        std::shared_ptr<PrintHost> host(PrintHost::get_print_host(&wxGetApp().preset_bundle->printers.get_edited_preset().config));
+
+        if (!host) {
+            m_status = 1;
+            m_msg    = "failure";
+            send_to_js();
+            finish_job();
+        }
+
+        host->async_unsubscribe_machine_info([this](const json& response) {
+            if (response.is_null()) {
+                m_status = -1;
+                m_msg    = "failure";
+                send_to_js();
+            } else {
+                m_res_data = response;
+                send_to_js();
+            }
+        });
+
+    } catch (std::exception& e) {}
 }
 
 void SSWCP_MachineOption_Instance::sw_SubscribeMachineState() {
@@ -320,7 +368,7 @@ void SSWCP_MachineOption_Instance::sw_SubscribeMachineState() {
         }
 
         host->async_subscribe_machine_info([this](const json& response) {
-            if (response.is_null() || response.empty()) {
+            if (response.is_null()) {
                 m_status = -1;
                 m_msg    = "failure";
                 send_to_js();
@@ -396,10 +444,42 @@ void SSWCP_MachineOption_Instance::sw_GetMachineState() {
 
 void SSWCP_MachineOption_Instance::sw_SendGCodes() {
     try {
-        if (m_param_data.count("codes")) {
+        if (m_param_data.count("script")) {
             std::shared_ptr<PrintHost> host(PrintHost::get_print_host(&wxGetApp().preset_bundle->printers.get_edited_preset().config));
             std::vector<std::string>   str_codes;
+        
 
+            if (m_param_data["script"].is_array()) {
+                json codes = m_param_data["script"];
+                for (size_t i = 0; i < codes.size(); ++i) {
+                    str_codes.push_back(codes[i].get<std::string>());
+                }
+            } else if (m_param_data["script"].is_string()) {
+                str_codes.push_back(m_param_data["script"].get<std::string>());
+            }
+
+            if (!host) {
+                // 错误处理
+                m_status = -1;
+                m_msg    = "failure";
+                send_to_js();
+                finish_job();
+            } else {
+                host->async_send_gcodes(str_codes, [this](const json& response) {
+                    if (response.is_null() || response.empty()) {
+                        m_status = -1;
+                        m_msg    = "failure";
+                        send_to_js();
+                        finish_job();
+                    } else {
+                        m_res_data = response;
+                        send_to_js();
+                        finish_job();
+                    }
+                });
+            }
+
+        /*http 同步做法 
             if (m_param_data["codes"].is_array()) {
                 json codes = m_param_data["codes"];
                 for (size_t i = 0; i < codes.size(); ++i) {
@@ -430,15 +510,96 @@ void SSWCP_MachineOption_Instance::sw_SendGCodes() {
         } else {
             // 错误处理
             finish_job();
+         */
         }
+        
     } catch (const std::exception&) {}
+}
+
+void SSWCP_MachineOption_Instance::sw_SetMachineSubscribeFilter()
+{
+    try {
+        if (m_param_data.count("targets")) {
+            std::shared_ptr<PrintHost> host(PrintHost::get_print_host(&wxGetApp().preset_bundle->printers.get_edited_preset().config));
+            std::vector<std::pair<std::string, std::vector<std::string>>> targets;
+
+            json items = m_param_data["targets"];
+            for (auto& [key, value] : items.items()) {
+                if (value.is_null()) {
+                    targets.push_back({key, {}});
+                } else {
+                    std::vector<std::string> items;
+                    if (value.is_array()) {
+                        for (size_t i = 0; i < value.size(); ++i) {
+                            items.push_back(value[i].get<std::string>());
+                        }
+                    } else {
+                        items.push_back(value.get<std::string>());
+                    }
+                    targets.push_back({key, items});
+                }
+            }
+
+            if (!host) {
+                // 错误处理
+                m_status = -1;
+                m_msg    = "failure";
+                send_to_js();
+                finish_job();
+            } else {
+                host->async_set_machine_subscribe_filter(targets, [this](const json& response) {
+                    if (response.is_null() || response.empty()) {
+                        m_status = -1;
+                        m_msg    = "failure";
+                        send_to_js();
+                        finish_job();
+                    } else {
+                        m_res_data = response;
+                        send_to_js();
+                        finish_job();
+                    }
+                });
+            }
+        } else {
+            finish_job();
+        }
+
+    } catch (std::exception& e) {}
+}
+void SSWCP_MachineOption_Instance::sw_GetMachineObjects()
+{
+    try {
+        std::shared_ptr<PrintHost> host(PrintHost::get_print_host(&wxGetApp().preset_bundle->printers.get_edited_preset().config));
+            
+        if (!host) {
+            m_status = -1;
+            m_msg = "failure";
+            send_to_js();
+            finish_job();
+            return;
+        }
+
+        host->async_get_machine_objects([this](const json& response) {
+            if (response.is_null() || response.empty()) {
+                m_status = -1;
+                m_msg = "failure";
+                send_to_js();
+                finish_job();
+            } else {
+                m_res_data = response;
+                send_to_js();
+                finish_job();
+            }
+        });
+
+    } catch (std::exception& e) {}
 }
 
 // SSWCP_MachineConnect_Instance
 void SSWCP_MachineConnect_Instance::process() {
     if (m_cmd == "sw_Test_connect") {
         sw_test_connect();
-    } else if (m_cmd == "sw_Connect") {
+    } else if (m_cmd == "sw_SelectMachine") {
         sw_connect();
     } else if (m_cmd == "sw_DisConnect") {
         sw_disconnect();
@@ -553,15 +714,29 @@ void SSWCP_MachineConnect_Instance::sw_connect() {
                     json     params;
                     bool res = host->connect(msg, connect_params);
 
+                    std::string ip_port = host->get_host();
                     if (res) {
                         // 后续应改成机器交互页的本地web服务器地址
-                        std::string ip_port = host->get_host();
                         int         pos     = ip_port.find(':');
                         if (pos != std::string::npos) {
                             ip_port = ip_port.substr(0, pos);
                         }
                         wxGetApp().mainframe->load_printer_url("http://" + ip_port);
+
+                        MessageDialog msg_window(nullptr,
+                                                 ip_port + _L(" connected sucessfully !\n"),
+                                                 L("Machine Connected"), wxICON_QUESTION | wxOK);
+                        msg_window.ShowModal();
+
+                        auto dialog = wxGetApp().get_web_device_dialog();
+                        if (dialog) {
+                            dialog->Hide();
+                        }
                     } else {
+                        MessageDialog msg_window(nullptr, ip_port + _L(" connected unseccessfully !\n"), L("Failed"),
+                                                 wxICON_QUESTION | wxOK);
+                        msg_window.ShowModal();
+
                         m_status = 1;
                         m_msg    = msg.c_str();
                     }
@@ -612,11 +787,14 @@ std::unordered_set<std::string> SSWCP::m_machine_option_cmd_list = {
     "sw_SendGCodes",
     "sw_GetMachineState",
     "sw_SubscribeMachineState",
+    "sw_GetMachineObjects",
+    "sw_SetSubscribeFilter",
+    "sw_StopMachineStateSubscription",
 };
 
 std::unordered_set<std::string> SSWCP::m_machine_connect_cmd_list = {
     "sw_Test_connect",
-    "sw_Connect",
+    "sw_SelectMachine",
     "sw_DisConnect",
 };
 

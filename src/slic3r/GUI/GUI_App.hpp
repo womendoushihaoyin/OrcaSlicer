@@ -317,6 +317,7 @@ private:
     bool             m_show_gcode_window{true};
     boost::thread    m_check_network_thread;
   public:
+    wxDialog* get_web_device_dialog() { return web_device_dialog; }
       //try again when subscription fails
     void            on_start_subscribe_again(std::string dev_id);
     void            check_filaments_in_blacklist(std::string tag_supplier, std::string tag_material, bool& in_blacklist, std::string& action, std::string& info);

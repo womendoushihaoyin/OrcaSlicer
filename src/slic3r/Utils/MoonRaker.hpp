@@ -44,6 +44,11 @@ public:
     virtual bool disconnect(wxString& msg, const nlohmann::json& params) override { return true; }
     virtual void async_get_machine_info(const std::vector<std::pair<std::string, std::vector<std::string>>>& targets, std::function<void(const nlohmann::json& response)>) override  {}
     virtual void async_subscribe_machine_info(std::function<void(const nlohmann::json&)>) override {}
+    virtual void async_get_machine_objects(std::function<void(const nlohmann::json& response)>)override {}
+    virtual void async_set_machine_subscribe_filter(const std::vector<std::pair<std::string, std::vector<std::string>>>& targets,
+                                                    std::function<void(const nlohmann::json& response)>                  callback) override {}
+    virtual void async_unsubscribe_machine_info(std::function<void(const nlohmann::json&)>) override {}
+    virtual void async_send_gcodes(const std::vector<std::string>& scripts, std::function<void(const nlohmann::json&)>) override{}
 
 protected:
 #ifdef WIN32
@@ -80,6 +85,15 @@ public:
     virtual void async_get_machine_info(const std::vector<std::pair<std::string, std::vector<std::string>>>& targets, std::function<void(const nlohmann::json& response)> callback) override;
 
     virtual void async_subscribe_machine_info(std::function<void(const nlohmann::json&)>) override;
+
+    virtual void async_get_machine_objects(std::function<void(const nlohmann::json& response)> callback) override;
+
+    virtual void async_set_machine_subscribe_filter(const std::vector<std::pair<std::string, std::vector<std::string>>>& targets,
+                                                    std::function<void(const nlohmann::json& response)>                  callback) override;
+
+    virtual void async_unsubscribe_machine_info(std::function<void(const nlohmann::json&)>) override;
+
+    virtual void async_send_gcodes(const std::vector<std::string>& scripts, std::function<void(const nlohmann::json&)>) override;
 
 public:
     void on_mqtt_message_arrived(const std::string& topic, const std::string& payload);
