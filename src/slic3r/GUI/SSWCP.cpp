@@ -1,3 +1,4 @@
+// Implementation of web communication protocol for Slicer Studio
 #include "SSWCP.hpp"
 #include "GUI_App.hpp"
 #include "MainFrame.hpp"
@@ -28,7 +29,7 @@ using namespace nlohmann;
 
 namespace Slic3r { namespace GUI {
 
-// SSWCP_Instance
+// Base SSWCP_Instance implementation
 void SSWCP_Instance::process() {
     if (m_cmd == "test") {
         sync_test();
@@ -37,6 +38,7 @@ void SSWCP_Instance::process() {
     }
 }
 
+// Mark instance as invalid
 void SSWCP_Instance::set_Instance_illegal()
 {
     m_illegal_mtx.lock();
@@ -44,6 +46,7 @@ void SSWCP_Instance::set_Instance_illegal()
     m_illegal_mtx.unlock();
 }
 
+// Check if instance is invalid
 bool SSWCP_Instance::is_Instance_illegal() {
     m_illegal_mtx.lock();
     bool res = m_illegal;
@@ -52,10 +55,12 @@ bool SSWCP_Instance::is_Instance_illegal() {
     return res;
 }
 
+// Get associated webview
 wxWebView* SSWCP_Instance::get_web_view() const {
     return m_webview;
 }
 
+// Send response to JavaScript
 void SSWCP_Instance::send_to_js() {
     try {
         if (is_Instance_illegal()) {
@@ -72,25 +77,24 @@ void SSWCP_Instance::send_to_js() {
 
         std::string str_res = "window.postMessage(JSON.stringify(" + response.dump() + "), '*');";
 
-        // std::string str_res = "test(" + response.dump() + ");";
-
-        if (m_webview) {
-            wxGetApp().CallAfter([this, str_res]() {
+        if (m_webview && m_webview->GetRefData()) {
+            auto self = shared_from_this();
+            wxGetApp().CallAfter([self, str_res]() {
                 try {
-                    WebView::RunScript(this->m_webview, str_res);
+                    WebView::RunScript(self->m_webview, str_res);
                 } catch (std::exception& e) {}
             });
         }
     } catch (std::exception& e) {}
 }
 
+// Clean up instance
 void SSWCP_Instance::finish_job() {
     SSWCP::delete_target(this);
 }
 
+// Asynchronous test implementation
 void SSWCP_Instance::async_test() {
-    // 业务逻辑
-
     auto http = Http::get("http://172.18.1.69/");
     http.on_error([&](std::string body, std::string error, unsigned status) {
 
@@ -105,18 +109,24 @@ void SSWCP_Instance::async_test() {
     .perform();
 }
 
+// Synchronous test implementation
 void SSWCP_Instance::sync_test() {
-    // 业务逻辑
     m_res_data = m_param_data;
-
-    // send_to_js
     send_to_js();
-
     finish_job();
 }
 
-// SSWCP_MachineFind_Instance
+// Handle timeout event
+void SSWCP_Instance::on_timeout() {
+    m_status = -2;
+    m_msg = "timeout";
+    send_to_js();
+    finish_job();
+}
 
+// SSWCP_MachineFind_Instance implementation
+
+// Process machine find commands
 void SSWCP_MachineFind_Instance::process() {
     if (m_event_id != "") {
         json header;
@@ -135,6 +145,7 @@ void SSWCP_MachineFind_Instance::process() {
     }
 }
 
+// Set stop flag for machine discovery
 void SSWCP_MachineFind_Instance::set_stop(bool stop)
 {
     m_stop_mtx.lock();
@@ -142,6 +153,7 @@ void SSWCP_MachineFind_Instance::set_stop(bool stop)
     m_stop_mtx.unlock();
 }
 
+// Get machine discovery support info
 void SSWCP_MachineFind_Instance::sw_GetMachineFindSupportInfo()
 {
     // 2.0.0 只支持 mdns - snapmaker
@@ -160,6 +172,7 @@ void SSWCP_MachineFind_Instance::sw_GetMachineFindSupportInfo()
     send_to_js();
 }
 
+// Start machine discovery
 void SSWCP_MachineFind_Instance::sw_StartMachineFind()
 {
     try {
@@ -192,12 +205,16 @@ void SSWCP_MachineFind_Instance::sw_StartMachineFind()
                 std::string      unique_key = "sn";
 
                 for (size_t i = 0; i < m_engines.size(); ++i) {
+                    auto self = std::dynamic_pointer_cast<SSWCP_MachineFind_Instance>(shared_from_this());
+                    if(!self){
+                        continue;
+                    }
                     m_engines[i] = Bonjour(mdns_service_names[i])
                                      .set_txt_keys(std::move(txt_keys))
                                      .set_retries(3)
                                      .set_timeout(last_time >= 0.0 ? last_time/1000 : 20)
-                                     .on_reply([this, unique_key](BonjourReply&& reply) {
-                                         if(is_stop()){
+                                     .on_reply([self, unique_key](BonjourReply&& reply) {
+                                         if(self->is_stop()){
                                             return;
                                          }
                                          json machine_data;
@@ -236,17 +253,17 @@ void SSWCP_MachineFind_Instance::sw_StartMachineFind()
                                          }
                                          json machine_object;
                                          if (machine_data.count("unique_value")) {
-                                             this->add_machine_to_list(machine_object);
+                                             self->add_machine_to_list(machine_object);
                                              machine_object[reply.txt_data[unique_key]] = machine_data;
                                          } else {
                                              machine_object[reply.ip.to_string()] = machine_data;
                                          }
-                                         this->add_machine_to_list(machine_object);
+                                         self->add_machine_to_list(machine_object);
                                          
                                      })
-                                     .on_complete([this]() {
-                                         wxGetApp().CallAfter([this]() {
-                                             this->onOneEngineEnd();
+                                     .on_complete([self]() {
+                                         wxGetApp().CallAfter([self]() {
+                                             self->onOneEngineEnd();
                                          });
                                      })
                                      .lookup();
@@ -257,8 +274,7 @@ void SSWCP_MachineFind_Instance::sw_StartMachineFind()
             }
         }
 
-    } 
-    catch (std::exception& e) {}
+    } catch (std::exception& e) {}
 }
 
 void SSWCP_MachineFind_Instance::sw_StopMachineFind()
@@ -342,16 +358,28 @@ void SSWCP_MachineOption_Instance::sw_UnSubscribeMachineState() {
             finish_job();
         }
 
-        host->async_unsubscribe_machine_info([this](const json& response) {
+        auto self  = shared_from_this();
+        host->async_unsubscribe_machine_info([self](const json& response) {
             if (response.is_null()) {
-                m_status = -1;
-                m_msg    = "failure";
-                send_to_js();
-            } else {
-                m_res_data = response;
-                send_to_js();
+                self->m_status = -1;
+                self->m_msg    = "failure";
+                self->send_to_js();
+            }else if(response.count("error")){
+                if("error" == response["error"].get<std::string>()){
+                    self->m_status = -2;
+                    self->m_msg    = "timeout";
+                    self->send_to_js();
+                }
+            } 
+            else {
+                self->m_res_data = response;
+                self->send_to_js();
             }
+            self->finish_job();
         });
+
+        SSWCP::stop_subscribe_machine();
+
 
     } catch (std::exception& e) {}
 }
@@ -365,16 +393,25 @@ void SSWCP_MachineOption_Instance::sw_SubscribeMachineState() {
             m_msg    = "failure";
             send_to_js();
             finish_job();
+            return;
         }
 
-        host->async_subscribe_machine_info([this](const json& response) {
+        auto self = shared_from_this();
+        host->async_subscribe_machine_info([self](const json& response) {
             if (response.is_null()) {
-                m_status = -1;
-                m_msg    = "failure";
-                send_to_js();
-            } else {
-                m_res_data = response;
-                send_to_js();
+                self->m_status = -1;
+                self->m_msg    = "failure";
+                self->send_to_js();
+            }else if(response.count("error")){
+                if("error" == response["error"].get<std::string>()){
+                    self->m_status = -2;
+                    self->m_msg    = "timeout";
+                    self->send_to_js();
+                }
+            } 
+            else {
+                self->m_res_data = response;
+                self->send_to_js();
             }
         });
 
@@ -405,36 +442,32 @@ void SSWCP_MachineOption_Instance::sw_GetMachineState() {
             }
 
             if (!host) {
-                // 错误处理
                 m_status = -1;
                 m_msg    = "failure";
                 send_to_js();
                 finish_job();
-            } else {
-                //m_work_thread = std::thread([this, targets, host]() {
-                //    json response;
-                //    bool        res      = host->get_machine_info(targets, response);
-                //    if (res) {
-                //        m_res_data = response;
-                //        send_to_js();
-                //    } else {
-                //        // 错误处理
-                //    }
-                //});
-
-                host->async_get_machine_info(targets, [this](const json& response) {
-                    if (response.is_null() || response.empty()) {
-                        m_status = -1;
-                        m_msg    = "failure";
-                        send_to_js();
-                        finish_job();
-                    } else {
-                        m_res_data = response;
-                        send_to_js();
-                        finish_job();
-                    }
-                });
+                return;
             }
+
+            auto self = shared_from_this();
+            host->async_get_machine_info(targets, [self](const json& response) {
+                if (response.is_null()) {
+                    self->m_status = -1;
+                    self->m_msg    = "failure";
+                    self->send_to_js();
+                }else if(response.count("error")){
+                    if("error" == response["error"].get<std::string>()){
+                        self->m_status = -2;
+                        self->m_msg    = "timeout";
+                        self->send_to_js();
+                    }
+                } 
+                else {
+                    self->m_res_data = response;
+                    self->send_to_js();
+                }
+                self->finish_job();
+            });
         } else {
             finish_job();
         }
@@ -459,58 +492,32 @@ void SSWCP_MachineOption_Instance::sw_SendGCodes() {
             }
 
             if (!host) {
-                // 错误处理
                 m_status = -1;
                 m_msg    = "failure";
                 send_to_js();
                 finish_job();
-            } else {
-                host->async_send_gcodes(str_codes, [this](const json& response) {
-                    if (response.is_null() || response.empty()) {
-                        m_status = -1;
-                        m_msg    = "failure";
-                        send_to_js();
-                        finish_job();
-                    } else {
-                        m_res_data = response;
-                        send_to_js();
-                        finish_job();
+                return;
+            }
+
+            auto self = shared_from_this();
+            host->async_send_gcodes(str_codes, [self](const json& response) {
+                if (response.is_null()) {
+                    self->m_status = -1;
+                    self->m_msg    = "failure";
+                    self->send_to_js();
+                }else if(response.count("error")){
+                    if("error" == response["error"].get<std::string>()){
+                        self->m_status = -2;
+                        self->m_msg    = "timeout";
+                        self->send_to_js();
                     }
-                });
-            }
-
-        /*http 同步做法 
-            if (m_param_data["codes"].is_array()) {
-                json codes = m_param_data["codes"];
-                for (size_t i = 0; i < codes.size(); ++i) {
-                    str_codes.push_back(codes[i].get<std::string>());
+                } 
+                else {
+                    self->m_res_data = response;
+                    self->send_to_js();
                 }
-            } else if (m_param_data["codes"].is_string()) {
-                str_codes.push_back(m_param_data["codes"].get<std::string>());
-            }
-
-
-            if (!host) {
-                // 错误处理
-                finish_job();
-            } else {
-                m_work_thread = 
-                    std::thread([this, str_codes, host]() {
-                        std::string extraInfo = "";
-                        bool res = host->send_gcodes(str_codes, extraInfo);
-                        if (res) {
-                            send_to_js();
-                        } else {
-                            // 错误处理
-                        }
-
-                        finish_job();
-                    });
-            }
-        } else {
-            // 错误处理
-            finish_job();
-         */
+                self->finish_job();
+            });
         }
         
     } catch (const std::exception&) {}
@@ -547,17 +554,24 @@ void SSWCP_MachineOption_Instance::sw_SetMachineSubscribeFilter()
                 send_to_js();
                 finish_job();
             } else {
-                host->async_set_machine_subscribe_filter(targets, [this](const json& response) {
-                    if (response.is_null() || response.empty()) {
-                        m_status = -1;
-                        m_msg    = "failure";
-                        send_to_js();
-                        finish_job();
-                    } else {
-                        m_res_data = response;
-                        send_to_js();
-                        finish_job();
+                auto self = shared_from_this();
+                host->async_set_machine_subscribe_filter(targets, [self](const json& response) {
+                    if (response.is_null()) {
+                        self->m_status = -1;
+                        self->m_msg    = "failure";
+                        self->send_to_js();
+                    }else if(response.count("error")){
+                        if("error" == response["error"].get<std::string>()){
+                            self->m_status = -2;
+                            self->m_msg    = "timeout";
+                            self->send_to_js();
+                        }
+                    } 
+                    else {
+                        self->m_res_data = response;
+                        self->send_to_js();
                     }
+                    self->finish_job();
                 });
             }
         } else {
@@ -579,17 +593,24 @@ void SSWCP_MachineOption_Instance::sw_GetMachineObjects()
             return;
         }
 
-        host->async_get_machine_objects([this](const json& response) {
-            if (response.is_null() || response.empty()) {
-                m_status = -1;
-                m_msg = "failure";
-                send_to_js();
-                finish_job();
-            } else {
-                m_res_data = response;
-                send_to_js();
-                finish_job();
+        auto self = shared_from_this();
+        host->async_get_machine_objects([self](const json& response) {
+            if (response.is_null()) {
+                self->m_status = -1;
+                self->m_msg    = "failure";
+                self->send_to_js();
+            }else if(response.count("error")){
+                if("error" == response["error"].get<std::string>()){
+                    self->m_status = -2;
+                    self->m_msg    = "timeout";
+                    self->send_to_js();
+                }
+            } 
+            else {
+                self->m_res_data = response;
+                self->send_to_js();
             }
+            self->finish_job();
         });
 
     } catch (std::exception& e) {}
@@ -695,7 +716,8 @@ void SSWCP_MachineConnect_Instance::sw_connect() {
                 // 错误处理
                 finish_job();
             } else {
-                m_work_thread = std::thread([this, host, connect_params] {
+                auto self = shared_from_this();
+                m_work_thread = std::thread([self, host, connect_params] {
                     // moonraker_mqtt 如果没有sn码，需要http请求获取sn码
 
                     //wxString msg = "";
@@ -723,26 +745,31 @@ void SSWCP_MachineConnect_Instance::sw_connect() {
                         }
                         wxGetApp().mainframe->load_printer_url("http://" + ip_port);
 
-                        MessageDialog msg_window(nullptr,
+                        wxGetApp().CallAfter([ip_port](){
+                            MessageDialog msg_window(nullptr,
                                                  ip_port + _L(" connected sucessfully !\n"),
                                                  L("Machine Connected"), wxICON_QUESTION | wxOK);
-                        msg_window.ShowModal();
+                            msg_window.ShowModal();
 
-                        auto dialog = wxGetApp().get_web_device_dialog();
-                        if (dialog) {
-                            dialog->Hide();
-                        }
+                            auto dialog = wxGetApp().get_web_device_dialog();
+                            if (dialog) {
+                                dialog->EndModal(1);
+                            }
+                        });
+                        
                     } else {
-                        MessageDialog msg_window(nullptr, ip_port + _L(" connected unseccessfully !\n"), L("Failed"),
+                        wxGetApp().CallAfter([ip_port](){
+                            MessageDialog msg_window(nullptr, ip_port + _L(" connected unseccessfully !\n"), L("Failed"),
                                                  wxICON_QUESTION | wxOK);
-                        msg_window.ShowModal();
+                            msg_window.ShowModal();
+                        });
 
-                        m_status = 1;
-                        m_msg    = msg.c_str();
+                        self->m_status = 1;
+                        self->m_msg    = msg.c_str();
                     }
 
-                    send_to_js();
-                    finish_job();
+                    self->send_to_js();
+                    self->finish_job();
 
                 });
             }
@@ -755,7 +782,8 @@ void SSWCP_MachineConnect_Instance::sw_connect() {
 }
 
 void SSWCP_MachineConnect_Instance::sw_disconnect() {
-    m_work_thread = std::thread([this](){
+    auto self = shared_from_this();
+    m_work_thread = std::thread([self](){
         std::shared_ptr<PrintHost> host(PrintHost::get_print_host(&wxGetApp().preset_bundle->printers.get_edited_preset().config));
 
         wxString msg = "";
@@ -764,18 +792,18 @@ void SSWCP_MachineConnect_Instance::sw_disconnect() {
         if (res) {
             // todo: 交互页面删除
         } else {
-            m_status = 1;
-            m_msg    = msg.c_str();
+            self->m_status = 1;
+            self->m_msg    = msg.c_str();
         }
 
-        send_to_js();
-        finish_job();
+        self->send_to_js();
+        self->finish_job();
     });
 }
 
 
-std::unordered_map<SSWCP_Instance*, std::shared_ptr<SSWCP_Instance>> SSWCP::m_instance_list;
-
+TimeoutMap<SSWCP_Instance*, std::shared_ptr<SSWCP_Instance>> SSWCP::m_instance_list;
+constexpr std::chrono::milliseconds SSWCP::DEFAULT_INSTANCE_TIMEOUT;
 
 std::unordered_set<std::string> SSWCP::m_machine_find_cmd_list = {
     "sw_GetMachineFindSupportInfo",
@@ -798,26 +826,27 @@ std::unordered_set<std::string> SSWCP::m_machine_connect_cmd_list = {
     "sw_DisConnect",
 };
 
-std::shared_ptr<SSWCP_Instance> SSWCP::create_sswcp_instance(
-    std::string cmd, const json& header, const json& data, std::string event_id, wxWebView* webview)
+std::shared_ptr<SSWCP_Instance> SSWCP::create_sswcp_instance(std::string cmd, const json& header, const json& data, std::string event_id, wxWebView* webview)
 {
-    if (m_machine_find_cmd_list.count(cmd)) {
-        return std::shared_ptr<SSWCP_Instance>(new SSWCP_MachineFind_Instance(cmd, header, data, event_id, webview));
+    std::shared_ptr<SSWCP_Instance> instance;
+    
+    if (m_machine_find_cmd_list.find(cmd) != m_machine_find_cmd_list.end()) {
+        instance = std::make_shared<SSWCP_MachineFind_Instance>(cmd, header, data, event_id, webview);
+    } else if (m_machine_connect_cmd_list.find(cmd) != m_machine_connect_cmd_list.end()) {
+        instance = std::make_shared<SSWCP_MachineConnect_Instance>(cmd, header, data, event_id, webview);
+    } else if (m_machine_option_cmd_list.find(cmd) != m_machine_option_cmd_list.end()) {
+        instance = std::make_shared<SSWCP_MachineOption_Instance>(cmd, header, data, event_id, webview);
+    } else {
+        instance = std::make_shared<SSWCP_Instance>(cmd, header, data, event_id, webview);
     }
-    else if (m_machine_option_cmd_list.count(cmd)) {
-        return std::shared_ptr<SSWCP_Instance>(new SSWCP_MachineOption_Instance(cmd, header, data, event_id, webview));
-    } else if (m_machine_connect_cmd_list.count(cmd)) {
-        return std::shared_ptr<SSWCP_Instance>(new SSWCP_MachineConnect_Instance(cmd, header, data, event_id, webview));
-    }
-    else {
-        return std::shared_ptr<SSWCP_Instance>(new SSWCP_Instance(cmd, header, data, event_id, webview));
-    }
+    
+    return instance;
 }
 
+// Handle incoming web messages
 void SSWCP::handle_web_message(std::string message, wxWebView* webview) {
     try {
         if (!webview) {
-            // todo: 返回错误处理
             return;
         }
 
@@ -827,12 +856,12 @@ void SSWCP::handle_web_message(std::string message, wxWebView* webview) {
             return;
         }
 
-        json        header        = j_message["header"];
-        json        payload       = j_message["payload"];
+        json header = j_message["header"];
+        json payload = j_message["payload"];
 
         std::string cmd = "";
         std::string event_id = "";
-        json        params;
+        json params;
 
         if (payload.count("cmd")) {
             cmd = payload["cmd"].get<std::string>();
@@ -845,9 +874,13 @@ void SSWCP::handle_web_message(std::string message, wxWebView* webview) {
             event_id = payload["event_id"].get<std::string>();
         }
 
-         std::shared_ptr<SSWCP_Instance> instance = create_sswcp_instance(cmd, header, params, event_id, webview);
+        std::shared_ptr<SSWCP_Instance> instance = create_sswcp_instance(cmd, header, params, event_id, webview);
         if (instance) {
-            m_instance_list[instance.get()] = instance;
+            if (event_id != "") {
+                m_instance_list.add_infinite(instance.get(), instance);
+            } else {
+                m_instance_list.add(instance.get(), instance, DEFAULT_INSTANCE_TIMEOUT);
+            }
             instance->process();
         }
         //if (!m_func_map.count(cmd)) {
@@ -862,31 +895,80 @@ void SSWCP::handle_web_message(std::string message, wxWebView* webview) {
     }
 }
 
-
+// Delete instance from list
 void SSWCP::delete_target(SSWCP_Instance* target) {
     wxGetApp().CallAfter([target]() {
-        if (m_instance_list.count(target)) {
-            m_instance_list.erase(target);
-        }
+        m_instance_list.remove(target);
     });
 }
 
-
-void SSWCP::stop_machine_find() {
+// Stop all machine subscriptions
+void SSWCP::stop_subscribe_machine()
+{
     wxGetApp().CallAfter([]() {
-        for (auto& instance : m_instance_list) {
-            if (instance.second->getType() == SSWCP_MachineFind_Instance::MACHINE_FIND) {
-                instance.second->set_stop(true);
+        std::vector<SSWCP_Instance*> instances_to_stop;
+        
+        auto snapshot = m_instance_list.get_snapshot();
+
+        // Get all subscription instances to stop
+        for (const auto& instance : snapshot) {  
+            if (instance.second->getType() == SSWCP_MachineFind_Instance::MACHINE_OPTION && instance.second->m_cmd == "sw_SubscribeMachineState") {
+                instances_to_stop.push_back(instance.first);
+            }
+        }
+        
+        // Stop each instance
+        for (auto* instance : instances_to_stop) {
+            auto instance_ptr = m_instance_list.get(instance);
+            if (instance_ptr) {
+                (*instance_ptr)->finish_job();
             }
         }
     });
 }
 
+// Stop all machine discovery instances
+void SSWCP::stop_machine_find() {
+    wxGetApp().CallAfter([]() {
+        std::vector<SSWCP_Instance*> instances_to_stop;
+        
+        auto snapshot = m_instance_list.get_snapshot();
+
+        // Get all discovery instances to stop
+        for (const auto& instance : snapshot) {  
+            if (instance.second->getType() == SSWCP_MachineFind_Instance::MACHINE_FIND) {
+                instances_to_stop.push_back(instance.first);
+            }
+        }
+        
+        // Set stop flag for each instance
+        for (auto* instance : instances_to_stop) {
+            auto instance_ptr = m_instance_list.get(instance);
+            if (instance_ptr) {
+                (*instance_ptr)->set_stop(true);
+            }
+        }
+    });
+}
+
+// Handle webview deletion
 void SSWCP::on_webview_delete(wxWebView* view)
 {
-    for (auto& instance : m_instance_list) {
-        if (instance.second->get_web_view() == view) {
-            instance.second->set_Instance_illegal();
+    // Mark all instances associated with this webview as invalid
+    std::vector<SSWCP_Instance*> instances_to_invalidate;
+    
+    // Get all instances using this webview
+    for (const auto& instance : m_instance_list) {
+        if (instance.second->value->get_web_view() == view) {
+            instances_to_invalidate.push_back(instance.first);
+        }
+    }
+    
+    // Mark each instance as invalid
+    for (auto* instance : instances_to_invalidate) {
+        auto instance_ptr = m_instance_list.get(instance);
+        if (instance_ptr) {
+            (*instance_ptr)->set_Instance_illegal();
         }
     }
 }

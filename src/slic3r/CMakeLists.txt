@@ -533,6 +533,7 @@ set(SLIC3R_GUI_SOURCES
     Utils/NetworkAgent.hpp
     Utils/MoonRaker.cpp
     Utils/MoonRaker.hpp
+    Utils/TimeoutMap.hpp
     Utils/PrintHost.cpp
     Utils/PrintHost.hpp
     Utils/Serial.cpp
