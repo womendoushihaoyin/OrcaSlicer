@@ -9,9 +9,9 @@
 #include <functional>
 #include <type_traits>
 
-namespace Slic3r {
+#include "Moonraker.hpp"
 
-class Moonraker_Mqtt;
+namespace Slic3r {
 
 // Check if type is a shared_ptr
 template<typename T>
