@@ -9,7 +9,7 @@
 #include <functional>
 #include <type_traits>
 
-#include "Moonraker.hpp"
+#include "slic3r/Utils/Moonraker.hpp"
 
 namespace Slic3r {
 
