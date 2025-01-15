@@ -3395,6 +3395,7 @@ void PrintConfigDef::init_fff_params()
     def->tooltip = L("Snapmaker Orca can upload G-code files to a printer host. This field must contain "
                    "the kind of the host.");
     def->enum_keys_map = &ConfigOptionEnum<PrintHostType>::get_enum_values();
+    def->enum_values.push_back("moonraker_mqtt");
     def->enum_values.push_back("moonraker");
     def->enum_values.push_back("prusalink");
     def->enum_values.push_back("prusaconnect");
@@ -3409,6 +3410,7 @@ void PrintConfigDef::init_fff_params()
     def->enum_values.push_back("obico");
     def->enum_values.push_back("flashforge");
     def->enum_values.push_back("simplyprint");
+    def->enum_labels.push_back("MoonRaker On MQTT");
     def->enum_labels.push_back("MoonRaker");
     def->enum_labels.push_back("PrusaLink");
     def->enum_labels.push_back("PrusaConnect");
@@ -3425,7 +3427,7 @@ void PrintConfigDef::init_fff_params()
     def->enum_labels.push_back("SimplyPrint");
     def->mode = comAdvanced;
     def->cli = ConfigOptionDef::nocli;
-    def->set_default_value(new ConfigOptionEnum<PrintHostType>(htMoonRaker_mqtt));
+    def->set_default_value(new ConfigOptionEnum<PrintHostType>(htMoonRaker));
     
 
     def = this->add("nozzle_volume", coFloat);

@@ -620,9 +620,9 @@ void SSWCP_MachineOption_Instance::sw_GetMachineObjects()
 void SSWCP_MachineConnect_Instance::process() {
     if (m_cmd == "sw_Test_connect") {
         sw_test_connect();
-    } else if (m_cmd == "sw_SelectMachine") {
+    } else if (m_cmd == "sw_Connect") {
         sw_connect();
-    } else if (m_cmd == "sw_DisConnect") {
+    } else if (m_cmd == "sw_Disconnect") {
         sw_disconnect();
     }
 }
@@ -822,8 +822,8 @@ std::unordered_set<std::string> SSWCP::m_machine_option_cmd_list = {
 
 std::unordered_set<std::string> SSWCP::m_machine_connect_cmd_list = {
     "sw_Test_connect",
-    "sw_SelectMachine",
-    "sw_DisConnect",
+    "sw_Connect",
+    "sw_Disconnect",
 };
 
 std::shared_ptr<SSWCP_Instance> SSWCP::create_sswcp_instance(std::string cmd, const json& header, const json& data, std::string event_id, wxWebView* webview)
