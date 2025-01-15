@@ -11,6 +11,8 @@
 
 namespace Slic3r {
 
+class Moonraker_Mqtt;
+
 // Check if type is a shared_ptr
 template<typename T>
 struct is_shared_ptr : std::false_type {};
