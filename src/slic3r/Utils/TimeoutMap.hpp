@@ -25,6 +25,13 @@ struct has_on_timeout : std::false_type {};
 template<typename T>
 struct has_on_timeout<T, std::void_t<decltype(std::declval<T>().on_timeout())>> : std::true_type {};
 
+template<typename T, typename = void>
+struct has_timeout_callback : std::false_type {};
+
+template<typename T>
+struct has_timeout_callback<T, 
+    std::void_t<decltype(std::declval<T>().timeout_cb)>> : std::true_type {};
+
 // A thread-safe map container that automatically removes entries after a timeout period
 template<typename K, typename V>
 class TimeoutMap {
