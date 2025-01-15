@@ -1,3 +1,4 @@
+// Implementation of Moonraker printer host communication
 #include "MoonRaker.hpp"
 #include "MQTT.hpp"
 
@@ -32,21 +33,23 @@ namespace pt = boost::property_tree;
 namespace Slic3r {
 
 namespace {
+
 #ifdef WIN32
+// Helper function to extract host and port from URL
 std::string get_host_from_url(const std::string& url_in)
 {
     std::string url = url_in;
-    // add http:// if there is no scheme
+    // Add http:// if there is no scheme
     size_t double_slash = url.find("//");
     if (double_slash == std::string::npos)
         url = "http://" + url;
     std::string out  = url;
     CURLU*      hurl = curl_url();
     if (hurl) {
-        // Parse the input URL.
+        // Parse the input URL
         CURLUcode rc = curl_url_set(hurl, CURLUPART_URL, url.c_str(), 0);
         if (rc == CURLUE_OK) {
-            // Replace the address.
+            // Extract host and port
             char* host;
             rc = curl_url_get(hurl, CURLUPART_HOST, &host, 0);
             if (rc == CURLUE_OK) {
@@ -133,6 +136,8 @@ std::string substitute_host(const std::string& orig_addr, std::string sub_addr)
 #endif
 }
 #endif // WIN32
+
+// Helper function to URL encode a string
 std::string escape_string(const std::string& unescaped)
 {
     std::string ret_val;
@@ -147,6 +152,8 @@ std::string escape_string(const std::string& unescaped)
     }
     return ret_val;
 }
+
+// Helper function to URL encode each element of a filesystem path
 std::string escape_path_by_element(const boost::filesystem::path& path)
 {
     std::string             ret_val = escape_string(path.filename().string());
@@ -168,8 +175,8 @@ Moonraker::Moonraker(DynamicPrintConfig* config)
     , m_ssl_revoke_best_effort(config->opt_bool("printhost_ssl_ignore_revoke"))
 {}
 
+// Return the name of this print host type
 const char* Moonraker::get_name() const { return "Moonraker"; }
-
 #ifdef WIN32
 bool Moonraker::test_with_resolved_ip(wxString& msg) const
 {
@@ -354,14 +361,17 @@ bool Moonraker::test(wxString& msg) const
     return res;
 }
 
+// Return success message for connection test
 wxString Moonraker::get_test_ok_msg() const { return _(L("Connection to Moonraker works correctly.")); }
 
+// Return formatted error message for failed connection test
 wxString Moonraker::get_test_failed_msg(wxString& msg) const
 {
     return GUI::format_wxstr("%s: %s\n\n%s", _L("Could not connect to Moonraker"), msg,
                              _L("Note: Moonraker version at least 1.1.0 is required."));
 }
 
+// Upload a file to the printer
 bool Moonraker::upload(PrintHostUpload upload_data, ProgressFn prorgess_fn, ErrorFn error_fn, InfoFn info_fn) const
 {
 #ifndef WIN32
@@ -389,6 +399,8 @@ bool Moonraker::upload(PrintHostUpload upload_data, ProgressFn prorgess_fn, Erro
             })
             .resolve_sync();
     }
+
+    // Handle different resolution scenarios
     if (resolved_addr.empty()) {
         // no resolved addresses - try system resolving
         BOOST_LOG_TRIVIAL(error) << "PrusaSlicer failed to resolve hostname " << m_host
@@ -426,12 +438,10 @@ bool Moonraker::upload(PrintHostUpload upload_data, ProgressFn prorgess_fn, Erro
     return false;
 #endif // WIN32
 }
+
 #ifdef WIN32
-bool Moonraker::upload_inner_with_resolved_ip(PrintHostUpload                 upload_data,
-                                              ProgressFn                      prorgess_fn,
-                                              ErrorFn                         error_fn,
-                                              InfoFn                          info_fn,
-                                              const boost::asio::ip::address& resolved_addr) const
+// Upload file using resolved IP address
+bool Moonraker::upload_inner_with_resolved_ip(PrintHostUpload upload_data, ProgressFn prorgess_fn, ErrorFn error_fn, InfoFn info_fn, const boost::asio::ip::address& resolved_addr) const
 {
     info_fn(L"resolve", boost::nowide::widen(resolved_addr.to_string()));
 
@@ -493,6 +503,7 @@ bool Moonraker::upload_inner_with_resolved_ip(PrintHostUpload                 up
 }
 #endif // WIN32
 
+// Upload file using hostname
 bool Moonraker::upload_inner_with_host(PrintHostUpload upload_data, ProgressFn prorgess_fn, ErrorFn error_fn, InfoFn info_fn) const
 {
     const char* name = get_name();
@@ -577,11 +588,13 @@ bool Moonraker::upload_inner_with_host(PrintHostUpload upload_data, ProgressFn p
     return res;
 }
 
+// Validate version text to confirm printer type
 bool Moonraker::validate_version_text(const boost::optional<std::string>& version_text) const
 {
     return version_text ? boost::starts_with(*version_text, "Moonraker") : true;
 }
 
+// Set authentication headers for HTTP requests
 void Moonraker::set_auth(Http& http) const
 {
     http.header("X-Api-Key", m_apikey);
@@ -591,6 +604,7 @@ void Moonraker::set_auth(Http& http) const
     }
 }
 
+// Construct full URL for API endpoint
 std::string Moonraker::make_url(const std::string& path) const
 {
     if (m_host.find("http://") == 0 || m_host.find("https://") == 0) {
@@ -604,7 +618,7 @@ std::string Moonraker::make_url(const std::string& path) const
     }
 }
 
-
+// Basic connect implementation
 bool Moonraker::connect(wxString& msg, const nlohmann::json& params) {
     return test(msg);
 }
@@ -619,27 +633,22 @@ bool Moonraker::connect(wxString& msg, const nlohmann::json& params) {
 // Moonraker_mqtt
 
 MqttClient* Moonraker_Mqtt::m_mqtt_client = nullptr;
-
-std::string Moonraker_Mqtt::m_request_topic = "/request";
-std::string Moonraker_Mqtt::m_response_topic = "/response";
-std::string Moonraker_Mqtt::m_notification_topic = "/notification";
-std::string Moonraker_Mqtt::m_status_topic       = "/status";
-
-std::unordered_map<std::string, std::function<void(const nlohmann::json&)>> Moonraker_Mqtt::m_request_cb_map;
-std::timed_mutex Moonraker_Mqtt::m_cb_map_mtx;
-
+TimeoutMap<std::string, Moonraker_Mqtt::RequestCallback> Moonraker_Mqtt::m_request_cb_map;
 std::function<void(const nlohmann::json&)> Moonraker_Mqtt::m_status_cb = nullptr;
+std::string Moonraker_Mqtt::m_response_topic = "/response";
+std::string Moonraker_Mqtt::m_status_topic = "/status";
+std::string Moonraker_Mqtt::m_notification_topic = "/notification";
+std::string Moonraker_Mqtt::m_request_topic = "/request";
+std::string Moonraker_Mqtt::m_sn = "";
 
-std::string Moonraker_Mqtt::m_sn          = "";
 
 Moonraker_Mqtt::Moonraker_Mqtt(DynamicPrintConfig* config) : Moonraker(config) {
     std::string host_info = config->option<ConfigOptionString>("print_host")->value;
     if (!m_mqtt_client)
-        m_mqtt_client         = new MqttClient("mqtt://" + host_info, "orca", false);
-
-    
+        m_mqtt_client = new MqttClient("mqtt://" + host_info, "orca", true);
 }
 
+// Connect to MQTT broker
 bool Moonraker_Mqtt::connect(wxString& msg, const nlohmann::json& params) {
     if (m_mqtt_client->CheckConnected()) {
         disconnect(msg, params);
@@ -648,7 +657,7 @@ bool Moonraker_Mqtt::connect(wxString& msg, const nlohmann::json& params) {
     std::string sn = "";
     
     if (!params.count("sn")) {
-        // 如果没有sn码，需要发http请求获取
+        // Need to request SN via HTTP if not provided
     } else {
         sn = params["sn"].get<std::string>();
     }
@@ -666,14 +675,14 @@ bool Moonraker_Mqtt::connect(wxString& msg, const nlohmann::json& params) {
     });
 
     return is_connect && response_subscribed;
-
 }
 
-
+// Disconnect from MQTT broker
 bool Moonraker_Mqtt::disconnect(wxString& msg, const nlohmann::json& params) {
     return m_mqtt_client->Disconnect();
 }
 
+// Subscribe to printer status updates
 void Moonraker_Mqtt::async_subscribe_machine_info(std::function<void(const nlohmann::json&)> callback)
 {
     bool res = m_mqtt_client->Subscribe(m_sn + m_status_topic, 0);
@@ -686,10 +695,10 @@ void Moonraker_Mqtt::async_subscribe_machine_info(std::function<void(const nlohm
     }
 
     m_status_cb = callback;
-
     callback(json::object());
 }
 
+// Send G-code commands to printer
 void Moonraker_Mqtt::async_send_gcodes(const std::vector<std::string>& scripts, std::function<void(const nlohmann::json&)> callback)
 {
     std::string method = "printer.gcode.script";
@@ -704,29 +713,36 @@ void Moonraker_Mqtt::async_send_gcodes(const std::vector<std::string>& scripts, 
 
     json params;
     params["script"] = str_scripts;
-    
 
-    if (!send_to_request(method, params, true, callback) && callback) {
+    if (!send_to_request(method, params, true, callback, [callback](){
+        json res;
+        res["error"] = "timeout";
+        callback(res);
+    }) && callback) {
         callback(json::value_t::null);
     }
 }
 
+// Unsubscribe from printer status updates
 void Moonraker_Mqtt::async_unsubscribe_machine_info(std::function<void(const nlohmann::json&)> callback)
 {
     bool res = m_mqtt_client->Unsubscribe(m_sn + m_status_topic);
 
     if (!res) {
-        if (m_status_cb) {
+        if (callback) {
             callback(json::value_t::null);
         }
         return;
     }
 
+    m_status_cb = nullptr;
     callback(json::object());
 }
 
-void Moonraker_Mqtt::async_set_machine_subscribe_filter(const std::vector<std::pair<std::string, std::vector<std::string>>>& targets,
-                                                        std::function<void(const nlohmann::json& response)>                  callback)
+// Set filters for printer status subscription
+void Moonraker_Mqtt::async_set_machine_subscribe_filter(
+    const std::vector<std::pair<std::string, std::vector<std::string>>>& targets,
+    std::function<void(const nlohmann::json& response)> callback)
 {
     std::string method = "printer.objects.subscribe";
 
@@ -745,14 +761,19 @@ void Moonraker_Mqtt::async_set_machine_subscribe_filter(const std::vector<std::p
         }
     }
 
-    if (!send_to_request(method, params, true, callback) && callback) {
+    if (!send_to_request(method, params, true, callback, [callback](){
+        json res;
+        res["error"] = "timeout";
+        callback(res);
+    }) && callback) {
         callback(json::value_t::null);
     }
 }
 
-
-void Moonraker_Mqtt::async_get_machine_info(const std::vector<std::pair<std::string, std::vector<std::string>>>& targets, 
-                                          std::function<void(const nlohmann::json& response)> callback)
+// Query printer information
+void Moonraker_Mqtt::async_get_machine_info(
+    const std::vector<std::pair<std::string, std::vector<std::string>>>& targets,
+    std::function<void(const nlohmann::json& response)> callback)
 {
     std::string method = "printer.objects.query";
 
@@ -771,38 +792,51 @@ void Moonraker_Mqtt::async_get_machine_info(const std::vector<std::pair<std::str
         }
     }
 
-    if (!send_to_request(method, params, true, callback) && callback) {
+    if (!send_to_request(method, params, true, callback, [callback](){
+        json res;
+        res["error"] = "timeout";
+        callback(res);
+    }) && callback) {
         callback(json::value_t::null);
     }
 }
 
+// Get list of available printer objects
 void Moonraker_Mqtt::async_get_machine_objects(std::function<void(const nlohmann::json& response)> callback)
 {
     std::string method = "printer.objects.list";
-    json params = json::object();  // 空参数对象
+    json params = json::object();
 
-    if (!send_to_request(method, params, true, callback) && callback) {
+    if (!send_to_request(method, params, true, callback, [callback](){
+        json res;
+        res["error"] = "timeout";
+        callback(res);
+    }) && callback) {
         callback(json::value_t::null);
     }
 }
 
-bool Moonraker_Mqtt::send_to_request(const std::string& method, const json& params, bool need_response, std::function<void(const nlohmann::json& response)> callback) 
+// Send request to printer via MQTT
+bool Moonraker_Mqtt::send_to_request(
+    const std::string& method,
+    const json& params,
+    bool need_response,
+    std::function<void(const nlohmann::json& response)> callback,
+    std::function<void()> timeout_callback)
 {
     json body;
-
     body["jsonrpc"] = "2.0";
-    body["method"]  = method;
-    body["params"]  = params;
+    body["method"] = method;
+    body["params"] = params;
 
     boost::uuids::uuid uuid = m_generator();
-
     std::string str_uuid = boost::uuids::to_string(uuid);
 
     if (need_response) {
-        if (!add_response_target(str_uuid, callback)) {
+        if (!add_response_target(str_uuid, callback, timeout_callback)) {
             return false;
         }
-        body["id"]                 = str_uuid;
+        body["id"] = str_uuid;
     }
 
     if (m_mqtt_client) {
@@ -811,48 +845,37 @@ bool Moonraker_Mqtt::send_to_request(const std::string& method, const json& para
             delete_response_target(str_uuid);
         }
         return res;
-    } else {
-        return false;
-    }
-}
-
-bool Moonraker_Mqtt::add_response_target(const std::string& id, std::function<void(const nlohmann::json& response)> callback) {
-    if (m_cb_map_mtx.try_lock_for(std::chrono::seconds(5))) {
-        m_request_cb_map[id] = callback;
-
-        m_cb_map_mtx.unlock();
-        return true;
     }
     return false;
-
 }
 
+// Register callback for response to a request
+bool Moonraker_Mqtt::add_response_target(
+    const std::string& id,
+    std::function<void(const nlohmann::json&)> callback,
+    std::function<void()> timeout_callback,
+    std::chrono::milliseconds timeout)
+{
+    return m_request_cb_map.add(
+        id,
+        RequestCallback(std::move(callback), std::move(timeout_callback)),
+        timeout
+    );
+}
+
+// Remove registered callback
 void Moonraker_Mqtt::delete_response_target(const std::string& id) {
-    if (m_cb_map_mtx.try_lock_for(std::chrono::seconds(5))) {
-        if (m_request_cb_map.count(id)) {
-            m_request_cb_map.erase(id);
-        }
-        m_cb_map_mtx.unlock();
-    }
-    
+    m_request_cb_map.remove(id);
 }
 
+// Get and remove callback for a request
 std::function<void(const json&)> Moonraker_Mqtt::get_request_callback(const std::string& id)
 {
-    if (m_cb_map_mtx.try_lock_for(std::chrono::seconds(5))) {
-        if (m_request_cb_map.count(id)) {
-            auto result = m_request_cb_map[id];
-            m_cb_map_mtx.unlock();
-            return result;
-        } else {
-            m_cb_map_mtx.unlock();
-            return nullptr;
-        }
-    } 
-
-    return nullptr;
+    auto request_cb = m_request_cb_map.get_and_remove(id);
+    return request_cb ? request_cb->success_cb : nullptr;
 }
 
+// Handle incoming MQTT messages
 void Moonraker_Mqtt::on_mqtt_message_arrived(const std::string& topic, const std::string& payload)
 {
     try {
@@ -862,15 +885,14 @@ void Moonraker_Mqtt::on_mqtt_message_arrived(const std::string& topic, const std
             on_status_arrived(payload);
         } else if (topic.find(m_notification_topic) != std::string::npos) {
             on_notification_arrived(payload);
-        } 
+        }
         else {
             return;
         }
-
     } catch (std::exception& e) {}
 }
 
-
+// Handle response messages
 void Moonraker_Mqtt::on_response_arrived(const std::string& payload)
 {
     try {
@@ -898,6 +920,7 @@ void Moonraker_Mqtt::on_response_arrived(const std::string& payload)
     } catch (std::exception& e) {}
 }
 
+// Handle status update messages
 void Moonraker_Mqtt::on_status_arrived(const std::string& payload)
 {
     try {
@@ -910,7 +933,6 @@ void Moonraker_Mqtt::on_status_arrived(const std::string& payload)
             return;
         }
 
-        // 待修改
         if (!m_status_cb) {
             return;
         }
@@ -920,6 +942,7 @@ void Moonraker_Mqtt::on_status_arrived(const std::string& payload)
     } catch (std::exception& e) {}
 }
 
+// Handle notification messages
 void Moonraker_Mqtt::on_notification_arrived(const std::string& payload)
 {
     try {
