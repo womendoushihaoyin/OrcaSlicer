@@ -9,8 +9,6 @@
 #include <functional>
 #include <type_traits>
 
-#include "slic3r/Utils/Moonraker.hpp"
-
 namespace Slic3r {
 
 // Check if type is a shared_ptr
@@ -213,7 +211,7 @@ private:
             for (auto it = m_items.begin(); it != m_items.end();) {
                 if (!it->second->never_expire && it->second->expire_time <= now) {
                     // Handle timeout callbacks for different types
-                    if constexpr (std::is_same_v<V, Moonraker_Mqtt::RequestCallback>) {
+                    if constexpr (has_timeout_callback<V>::value) {
                         if (it->second->value.timeout_cb) {
                             it->second->value.timeout_cb();
                         }
