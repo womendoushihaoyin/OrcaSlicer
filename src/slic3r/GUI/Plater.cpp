@@ -1241,6 +1241,10 @@ void Sidebar::update_all_preset_comboboxes()
     auto p_mainframe = wxGetApp().mainframe;
     auto cfg = preset_bundle.printers.get_edited_preset().config;
 
+    const auto& appconfig = wxGetApp().app_config;
+
+    bool use_new_connection = appconfig->get("use_new_connect") == "true";
+
     if (preset_bundle.use_bbl_network()) {
         //only show connection button for not-BBL printer
         connection_btn->Hide();
@@ -1249,26 +1253,34 @@ void Sidebar::update_all_preset_comboboxes()
         //update print button default value for bbl or third-party printer
         p_mainframe->set_print_button_to_default(MainFrame::PrintSelectType::ePrintPlate);
     } else {
-        connection_btn->Show();
+        connection_btn->Hide();
         ams_btn->Hide();
         auto print_btn_type = MainFrame::PrintSelectType::eExportGcode;
-        wxString url = cfg.opt_string("print_host_webui").empty() ? cfg.opt_string("print_host") : cfg.opt_string("print_host_webui");
-        wxString apikey;
-        if(url.empty())
-            url = wxString::Format("file://%s/web/orca/missing_connection.html", from_u8(resources_dir()));
-        else {
-            if (!url.Lower().starts_with("http"))
-                url = wxString::Format("http://%s", url);
-            const auto host_type = cfg.option<ConfigOptionEnum<PrintHostType>>("host_type")->value;
-            if (cfg.has("printhost_apikey") && (host_type != htSimplyPrint))
-                apikey = cfg.opt_string("printhost_apikey");
-            print_btn_type = preset_bundle.is_bbl_vendor() ? MainFrame::PrintSelectType::ePrintPlate : MainFrame::PrintSelectType::eSendGcode;
+
+        if (!use_new_connection) {
+            connection_btn->Show();
+            wxString url = cfg.opt_string("print_host_webui").empty() ? cfg.opt_string("print_host") : cfg.opt_string("print_host_webui");
+            wxString apikey;
+            if (url.empty())
+                url = wxString::Format("file://%s/web/orca/missing_connection.html", from_u8(resources_dir()));
+            else {
+                if (!url.Lower().starts_with("http"))
+                    url = wxString::Format("http://%s", url);
+                const auto host_type = cfg.option<ConfigOptionEnum<PrintHostType>>("host_type")->value;
+                if (cfg.has("printhost_apikey") && (host_type != htSimplyPrint))
+                    apikey = cfg.opt_string("printhost_apikey");
+                print_btn_type = preset_bundle.is_bbl_vendor() ? MainFrame::PrintSelectType::ePrintPlate :
+                                                                 MainFrame::PrintSelectType::eSendGcode;
+            }
+
+            p_mainframe->load_printer_url(url, apikey);
+
+            p_mainframe->set_print_button_to_default(print_btn_type);
+        } else {
+            print_btn_type = preset_bundle.is_bbl_vendor() ? MainFrame::PrintSelectType::ePrintPlate :
+                                                             MainFrame::PrintSelectType::eSendGcode;
+            p_mainframe->set_print_button_to_default(print_btn_type);
         }
-
-        p_mainframe->load_printer_url(url, apikey);
-
-
-        p_mainframe->set_print_button_to_default(print_btn_type);
 
     }
 
@@ -1323,7 +1335,7 @@ void Sidebar::update_all_preset_comboboxes()
 
     // Orca:: show device tab based on vendor type
     
-    p_mainframe->show_device(preset_bundle.use_bbl_device_tab());
+    p_mainframe->show_device(preset_bundle.use_bbl_device_tab() && !use_new_connection);
     p_mainframe->m_tabpanel->SetSelection(p_mainframe->m_tabpanel->GetSelection());
 }
 
@@ -7207,7 +7219,8 @@ void Plater::priv::on_tab_selection_changing(wxBookCtrlEvent& e)
     sidebar_layout.show = new_sel == MainFrame::tp3DEditor || new_sel == MainFrame::tpPreview;
     update_sidebar();
     int old_sel = e.GetOldSelection();
-    if (wxGetApp().preset_bundle && wxGetApp().preset_bundle->use_bbl_device_tab() && new_sel == MainFrame::tpMonitor) {
+    if (wxGetApp().preset_bundle && wxGetApp().preset_bundle->use_bbl_device_tab() && new_sel == MainFrame::tpMonitor &&
+        wxGetApp().app_config->get("use_new_connect") != "true") {
         if (!wxGetApp().getAgent()) {
             e.Veto();
             BOOST_LOG_TRIVIAL(info) << boost::format("skipped tab switch from %1% to %2%, lack of network plugins") % old_sel % new_sel;

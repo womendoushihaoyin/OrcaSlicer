@@ -743,9 +743,14 @@ void SSWCP_MachineConnect_Instance::sw_connect() {
                         if (pos != std::string::npos) {
                             ip_port = ip_port.substr(0, pos);
                         }
-                        wxGetApp().mainframe->load_printer_url("http://" + ip_port);
 
                         wxGetApp().CallAfter([ip_port](){
+
+                            wxGetApp().app_config->set("use_new_connect", "true");
+                            wxGetApp().mainframe->plater()->sidebar().update_all_preset_comboboxes();
+
+                            wxGetApp().mainframe->load_printer_url("http://" + ip_port);
+
                             MessageDialog msg_window(nullptr,
                                                  ip_port + _L(" connected sucessfully !\n"),
                                                  L("Machine Connected"), wxICON_QUESTION | wxOK);
@@ -790,7 +795,13 @@ void SSWCP_MachineConnect_Instance::sw_disconnect() {
         bool res = host->disconnect(msg, {});
 
         if (res) {
-            // todo: 交互页面删除
+            wxGetApp().CallAfter([]() {
+                wxGetApp().app_config->set("use_new_connect", "false");
+                auto p_config = &(wxGetApp().preset_bundle->printers.get_edited_preset().config);
+                p_config->set("print_host", "");
+                wxGetApp().mainframe->plater()->sidebar().update_all_preset_comboboxes();
+            });
+            
         } else {
             self->m_status = 1;
             self->m_msg    = msg.c_str();
