@@ -692,6 +692,7 @@ void AppConfig::save()
 
     // Make sure the "no" category is written first.
     for (const auto& kvp : m_storage["app"]) {
+
         if (kvp.second == "true") {
             j["app"][kvp.first] = true;
             continue;
@@ -753,6 +754,11 @@ void AppConfig::save()
             continue;
         }
         for (const auto& kvp : category.second) {
+            // temporarily
+            if (kvp.first == "use_new_connect") {
+                j[category.first][kvp.first] = false;
+                continue;
+            }
             if (kvp.second == "true") {
                 j[category.first][kvp.first] = true;
                 continue;
