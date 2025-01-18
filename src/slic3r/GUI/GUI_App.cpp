@@ -9,6 +9,8 @@
 #include "libslic3r_version.h"
 #include "Downloader.hpp"
 
+#include "slic3r/GUI/WebUrlDialog.hpp"
+
 // Localization headers: include libslic3r version first so everything in this file
 // uses the slic3r/GUI version (the macros will take precedence over the functions).
 // Also, there is a check that the former is not included from slic3r module.
@@ -4017,6 +4019,14 @@ std::string GUI_App::handle_web_request(std::string cmd)
                     }
                 });
                 return "";
+            }
+            else if (command_str.compare("homepage_test_browser") == 0) {
+                CallAfter([this] {
+                    auto dialog = new WebUrlDialog();
+                    dialog->load_url("https://www.baidu.com");
+                    dialog->ShowModal();
+                    delete dialog;
+                });
             }
         }
     }

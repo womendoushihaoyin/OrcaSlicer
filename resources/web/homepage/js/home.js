@@ -1,6 +1,8 @@
 //var TestData={"sequence_id":"0","command":"get_recent_projects","response":[{"path":"D:\\work\\Models\\Toy\\3d-puzzle-cube-model_files\\3d-puzzle-cube.3mf","time":"2022\/3\/24 20:33:10"},{"path":"D:\\work\\Models\\Art\\Carved Stone Vase - remeshed+drainage\\Carved Stone Vase.3mf","time":"2022\/3\/24 17:11:51"},{"path":"D:\\work\\Models\\Art\\Kity & Cat\\Cat.3mf","time":"2022\/3\/24 17:07:55"},{"path":"D:\\work\\Models\\Toy\\鐩村墤.3mf","time":"2022\/3\/24 17:06:02"},{"path":"D:\\work\\Models\\Toy\\minimalistic-dual-tone-whistle-model_files\\minimalistic-dual-tone-whistle.3mf","time":"2022\/3\/22 21:12:22"},{"path":"D:\\work\\Models\\Toy\\spiral-city-model_files\\spiral-city.3mf","time":"2022\/3\/22 18:58:37"},{"path":"D:\\work\\Models\\Toy\\impossible-dovetail-puzzle-box-model_files\\impossible-dovetail-puzzle-box.3mf","time":"2022\/3\/22 20:08:40"}]};
 
 var m_HotModelList=null;
+var deviceClickCount = 0;
+var deviceClickTimer = null;
 
 function OnInit()
 {
@@ -511,6 +513,38 @@ function OnAddDevice() {
     SendWXMessage(JSON.stringify(tSend));
 }
 
+function OnTestBrowser(){
+	var tSend = {};
+    tSend['sequence_id'] = Math.round(new Date() / 1000);
+    tSend['command'] = "homepage_test_browser";
+    
+    SendWXMessage(JSON.stringify(tSend));
+}
+
 //---------------Global-----------------
 window.postMessage = HandleStudio;
+
+function onDeviceManagementClick(e) {
+    // 阻止事件冒泡,避免触发菜单切换
+    e.stopPropagation();
+    
+    deviceClickCount++;
+    
+    // 清除之前的定时器
+    if (deviceClickTimer) {
+        clearTimeout(deviceClickTimer);
+    }
+    
+    // 设置新的定时器,1秒后重置点击次数
+    deviceClickTimer = setTimeout(() => {
+        deviceClickCount = 0;
+    }, 1000);
+
+    // 检查是否达到三次点击
+    if (deviceClickCount >= 3) {
+        deviceClickCount = 0;
+        clearTimeout(deviceClickTimer);
+        OnTestBrowser();
+    }
+}
 
