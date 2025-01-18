@@ -235,8 +235,8 @@ void SSWCP_MachineFind_Instance::sw_StartMachineFind()
                                          }
 
                                          // 模拟一下
-                                         machine_data["cover"] = LOCALHOST_URL + std::to_string(PAGE_HTTP_PORT) +
-                                                                 "/profiles/Snapmaker/Snapmaker A350 Dual BKit_cover.png";
+                                        /* machine_data["cover"] = LOCALHOST_URL + std::to_string(PAGE_HTTP_PORT) +
+                                                                 "/profiles/Snapmaker/Snapmaker A350 Dual BKit_cover.png";*/
 
                                          if (reply.txt_data.count("machine_type")) {
                                              std::string machine_type      = reply.txt_data["machine_type"];
@@ -244,7 +244,7 @@ void SSWCP_MachineFind_Instance::sw_StartMachineFind()
                                              if (vendor_pos != std::string::npos) {
                                                  std::string vendor = machine_type.substr(0, vendor_pos);
                                                  std::string machine_cover = LOCALHOST_URL + std::to_string(PAGE_HTTP_PORT) + "/profiles/" +
-                                                                             vendor + machine_type + "_cover.png";
+                                                                             vendor + "/" + machine_type + "_cover.png";
 
                                                  machine_data["cover"] = machine_cover;
                                              }
