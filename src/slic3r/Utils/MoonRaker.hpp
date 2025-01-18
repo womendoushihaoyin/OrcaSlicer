@@ -162,6 +162,7 @@ private:
 
     // Printer serial number
     static std::string m_sn;
+    static std::mutex m_sn_mtx;
 
 private:
     boost::uuids::random_generator m_generator; // UUID generator for request IDs

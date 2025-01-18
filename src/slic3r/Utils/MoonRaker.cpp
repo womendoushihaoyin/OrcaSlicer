@@ -640,6 +640,7 @@ std::string Moonraker_Mqtt::m_status_topic = "/status";
 std::string Moonraker_Mqtt::m_notification_topic = "/notification";
 std::string Moonraker_Mqtt::m_request_topic = "/request";
 std::string Moonraker_Mqtt::m_sn = "";
+std::mutex Moonraker_Mqtt::m_sn_mtx;
 
 
 Moonraker_Mqtt::Moonraker_Mqtt(DynamicPrintConfig* config) : Moonraker(config) {
@@ -654,27 +655,14 @@ bool Moonraker_Mqtt::connect(wxString& msg, const nlohmann::json& params) {
         disconnect(msg, params);
     }
 
-    std::string sn = "";
-    
-    if (!params.count("sn")) {
-        // Need to request SN via HTTP if not provided
-    } else {
-        sn = params["sn"].get<std::string>();
-    }
-
-    if (sn == "") {
-        return false;
-    }
-
-    m_sn = sn;
-
     bool is_connect = m_mqtt_client->Connect();
-    bool response_subscribed = m_mqtt_client->Subscribe(m_sn + m_response_topic, 2);
+    bool notification_subscribed = m_mqtt_client->Subscribe("+" + m_notification_topic, 1);
+    bool response_subscribed = m_mqtt_client->Subscribe("+" + m_response_topic, 2);
     m_mqtt_client->SetMessageCallback([this](const std::string& topic, const std::string& payload) {
         this->on_mqtt_message_arrived(topic, payload);
     });
 
-    return is_connect && response_subscribed;
+    return is_connect && notification_subscribed && response_subscribed;
 }
 
 // Disconnect from MQTT broker
@@ -685,7 +673,13 @@ bool Moonraker_Mqtt::disconnect(wxString& msg, const nlohmann::json& params) {
 // Subscribe to printer status updates
 void Moonraker_Mqtt::async_subscribe_machine_info(std::function<void(const nlohmann::json&)> callback)
 {
-    bool res = m_mqtt_client->Subscribe(m_sn + m_status_topic, 0);
+    std::string main_layer = "+";
+    
+    m_sn_mtx.lock();
+    main_layer = m_sn;
+    m_sn_mtx.unlock();
+
+    bool res = m_mqtt_client->Subscribe(main_layer + m_status_topic, 0);
 
     if (!res) {
         if (m_status_cb) {
@@ -726,7 +720,13 @@ void Moonraker_Mqtt::async_send_gcodes(const std::vector<std::string>& scripts, 
 // Unsubscribe from printer status updates
 void Moonraker_Mqtt::async_unsubscribe_machine_info(std::function<void(const nlohmann::json&)> callback)
 {
-    bool res = m_mqtt_client->Unsubscribe(m_sn + m_status_topic);
+    std::string main_layer = "+";
+    
+    m_sn_mtx.lock();
+    main_layer = m_sn;
+    m_sn_mtx.unlock();
+
+    bool res = m_mqtt_client->Unsubscribe(main_layer + m_status_topic);
 
     if (!res) {
         if (callback) {
@@ -840,7 +840,18 @@ bool Moonraker_Mqtt::send_to_request(
     }
 
     if (m_mqtt_client) {
-        bool res = m_mqtt_client->Publish(m_sn + m_request_topic, body.dump(), 2);
+        std::string main_layer = "+";
+    
+        m_sn_mtx.lock();
+        main_layer = m_sn;
+        m_sn_mtx.unlock();
+
+        if(main_layer == "+"){
+            delete_response_target(str_uuid);
+            return false;
+        }
+
+        bool res = m_mqtt_client->Publish(main_layer + m_request_topic, body.dump(), 2);
         if (!res) {
             delete_response_target(str_uuid);
         }
@@ -884,6 +895,18 @@ void Moonraker_Mqtt::on_mqtt_message_arrived(const std::string& topic, const std
         } else if (topic.find(m_status_topic) != std::string::npos) {
             on_status_arrived(payload);
         } else if (topic.find(m_notification_topic) != std::string::npos) {
+            
+            size_t pos = topic.find("/notification");
+
+            if (pos != std::string::npos) {
+                std::string sn = topic.substr(0, pos);
+
+                m_sn_mtx.lock();
+                m_sn = sn;
+                m_sn_mtx.unlock();
+            }
+            
+
             on_notification_arrived(payload);
         }
         else {
