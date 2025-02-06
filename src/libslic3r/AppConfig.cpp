@@ -637,6 +637,10 @@ std::string AppConfig::load()
                 }
             }
         }
+
+        if (j.contains("devices")) {
+            m_device_list = j["devices"].get<std::vector<DeviceInfo>>();
+        }
     } catch(std::exception err) {
         BOOST_LOG_TRIVIAL(info) << format("parse app config \"%1%\", error: %2%", AppConfig::loading_path(), err.what());
 
@@ -794,6 +798,12 @@ void AppConfig::save()
     for (const auto& preset : m_printer_settings) {
         j["orca_presets"].push_back(preset.second);
     }
+
+    j["devices"] = m_device_list;
+    for (size_t i = 0; i < j["devices"].size(); ++i) {
+        j["devices"][i]["connecting"] = false;
+    }
+
     boost::nowide::ofstream c;
     c.open(path_pid, std::ios::out | std::ios::trunc);
     c << std::setw(4) << j << std::endl;
@@ -1354,6 +1364,50 @@ std::string AppConfig::profile_update_url() const
 bool AppConfig::exists()
 {
     return boost::filesystem::exists(config_path());
+}
+
+void AppConfig::save_device_info(const DeviceInfo& device)
+{
+    // 检查是否已存在该设备
+    auto it = std::find_if(m_device_list.begin(), m_device_list.end(),
+        [&device](const DeviceInfo& d) { return d.dev_id == device.dev_id; });
+    
+    if (it != m_device_list.end()) {
+        // 更新已存在的设备信息
+        *it = device;
+    } else {
+        // 添加新设备
+        m_device_list.push_back(device);
+    }
+    m_dirty = true;
+}
+
+void AppConfig::remove_device_info(const std::string& dev_id)
+{
+    auto it = std::find_if(m_device_list.begin(), m_device_list.end(),
+        [&dev_id](const DeviceInfo& d) { return d.dev_id == dev_id; });
+    
+    if (it != m_device_list.end()) {
+        m_device_list.erase(it);
+        m_dirty = true;
+    }
+}
+
+std::vector<DeviceInfo> AppConfig::get_devices() const
+{
+    return m_device_list;
+}
+
+bool AppConfig::get_device_info(const std::string& dev_id, DeviceInfo& info) const
+{
+    auto it = std::find_if(m_device_list.begin(), m_device_list.end(),
+        [&dev_id](const DeviceInfo& d) { return d.dev_id == dev_id; });
+    
+    if (it != m_device_list.end()) {
+        info = *it;
+        return true;
+    }
+    return false;
 }
 
 }; // namespace Slic3r

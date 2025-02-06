@@ -12,6 +12,7 @@ function OnInit()
 	SendMsg_GetLoginInfo();
 	SendMsg_GetRecentFile();
 	SendMsg_GetStaffPick();
+	SendMsg_GetLocalDevices();
 }
 
 //------最佳打开文件的右键菜单功能----------
@@ -94,6 +95,8 @@ function HandleStudio( pVal )
     ShowRecentFileList(pVal["response"]);
   } else if (strCmd == "studio_userlogin") {
     SetLoginInfo(pVal["data"]["avatar"], pVal["data"]["name"]);
+  } else if (strCmd == "local_devices_arrived") {
+	showLocalDevices(pVal["data"]);
   } else if (strCmd == "studio_useroffline") {
     SetUserOffline();
   } else if (strCmd == "studio_set_mallurl") {
@@ -256,6 +259,13 @@ function SendMsg_GetRecentFile()
 	SendWXMessage( JSON.stringify(tSend) );
 }
 
+function SendMsg_GetLocalDevices() {
+    var tSend = {};
+    tSend['sequence_id'] = Math.round(new Date() / 1000);
+    tSend['command'] = "get_local_devices";
+    
+    SendWXMessage(JSON.stringify(tSend));
+}
 
 function OnLoginOrRegister()
 {
@@ -546,5 +556,125 @@ function onDeviceManagementClick(e) {
         clearTimeout(deviceClickTimer);
         OnTestBrowser();
     }
+}
+
+function showLocalDevices(devices) {
+    const deviceList = document.getElementById('DeviceList');
+    // 保留第一个子元素(plus按钮),删除其他元素
+    while (deviceList.children.length > 1) {
+        deviceList.removeChild(deviceList.lastChild);
+    }
+    
+    // 遍历设备列表创建卡片
+    devices.forEach(device => {
+        const deviceCard = document.createElement('div');
+        deviceCard.className = 'DeviceCard';
+        
+        // 添加状态指示器
+        const statusDot = document.createElement('div');
+        statusDot.className = `DeviceStatus ${device.connecting ? 'connected' : 'disconnected'}`;
+        deviceCard.appendChild(statusDot);
+        
+        // 创建图片容器
+        const imgContainer = document.createElement('div');
+        imgContainer.className = 'DeviceImgContainer';
+        
+        // 创建图片元素
+        const img = document.createElement('img');
+        img.className = 'DeviceImg';
+        img.src = device.img || 'img/i3.png';
+        img.onerror = function() {
+            this.onerror = null;
+            this.src = 'img/i3.png';
+        };
+        
+        // 创建设备名称元素
+        const name = document.createElement('div');
+        name.className = 'DeviceName TextS1';
+        name.textContent = device.dev_name || 'Unknown Device';
+        
+        // 添加底部操作栏
+        const actions = document.createElement('div');
+        actions.className = 'DeviceActions';
+        
+        // 重命名按钮
+        const renameBtn = document.createElement('div');
+        renameBtn.className = 'DeviceAction';
+        renameBtn.innerHTML = '<span>重命名</span>';
+        renameBtn.onclick = (e) => {
+            e.stopPropagation();
+            OnRenameDevice(device);
+        };
+        
+        // 切换机型按钮
+        const switchBtn = document.createElement('div');
+        switchBtn.className = 'DeviceAction';
+        switchBtn.innerHTML = '<span>切换机型</span>';
+        switchBtn.onclick = (e) => {
+            e.stopPropagation();
+            OnSwitchModel(device);
+        };
+        
+        // 连接/断开按钮
+        const connectBtn = document.createElement('div');
+        connectBtn.className = 'DeviceAction';
+        if (device.connecting) {
+            connectBtn.innerHTML = '<span>断开</span>';
+            connectBtn.onclick = (e) => {
+                e.stopPropagation();
+                OnDisconnectDevice(device);
+            };
+        } else {
+            connectBtn.innerHTML = '<span>连接</span>';
+            connectBtn.onclick = (e) => {
+                e.stopPropagation();
+                OnConnectDevice(device);
+            };
+        }
+        
+        actions.appendChild(renameBtn);
+        actions.appendChild(switchBtn);
+        actions.appendChild(connectBtn);
+        deviceCard.appendChild(actions);
+        
+        // 组装卡片
+        imgContainer.appendChild(img);
+        deviceCard.appendChild(imgContainer);
+        deviceCard.appendChild(name);
+        deviceList.appendChild(deviceCard);
+    });
+}
+
+// 设备操作函数
+function OnRenameDevice(device) {
+    var tSend = {};
+    tSend['sequence_id'] = Math.round(new Date() / 1000);
+    tSend['command'] = "homepage_rename_device";
+    tSend['data'] = device;
+    SendWXMessage(JSON.stringify(tSend));
+}
+
+function OnSwitchModel(device) {
+    var tSend = {};
+    tSend['sequence_id'] = Math.round(new Date() / 1000);
+    tSend['command'] = "homepage_switch_model";
+    tSend['data'] = device;
+    SendWXMessage(JSON.stringify(tSend));
+}
+
+function OnConnectDevice(device) {
+    var tSend = {};
+    tSend['sequence_id'] = Math.round(new Date() / 1000);
+    tSend['command'] = "homepage_connect_device";
+    tSend['data'] = device;
+    SendWXMessage(JSON.stringify(tSend));
+}
+
+function OnDisconnectDevice(device) {
+    var tSend = {};
+    tSend['sequence_id'] = Math.round(new Date() / 1000);
+    tSend['command'] = "homepage_disconnect_device";
+    tSend['data'] = device;
+    SendWXMessage(JSON.stringify(tSend));
 }
 

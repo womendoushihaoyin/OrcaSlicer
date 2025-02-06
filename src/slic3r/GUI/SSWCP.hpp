@@ -216,6 +216,37 @@ private:
     static constexpr std::chrono::milliseconds DEFAULT_INSTANCE_TIMEOUT{80000}; // Default timeout (8s)
 }; 
 
+class MachineIPType
+{
+public:
+    static MachineIPType* getInstance();
+
+    void add_instance(const std::string& ip, const std::string& machine_type)
+    {
+        m_map_mtx.lock();
+        m_ip_type_map[ip] = machine_type;
+        m_map_mtx.unlock();
+    }
+
+    bool get_machine_type(const std::string& ip, std::string& output)
+    {
+        bool res = true;
+        m_map_mtx.lock();
+        if (m_ip_type_map.count(ip)) {
+            output = m_ip_type_map[ip];
+        } else {
+            res = false;
+        }
+        m_map_mtx.unlock();
+        return res;
+    }
+
+private:
+    std::mutex                                   m_map_mtx;
+    std::unordered_map<std::string, std::string> m_ip_type_map;
+
+};
+
 }};
 
 #endif

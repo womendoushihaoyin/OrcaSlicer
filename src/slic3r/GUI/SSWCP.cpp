@@ -240,6 +240,12 @@ void SSWCP_MachineFind_Instance::sw_StartMachineFind()
 
                                          if (reply.txt_data.count("machine_type")) {
                                              std::string machine_type      = reply.txt_data["machine_type"];
+
+                                             auto machine_ip_type = MachineIPType::getInstance();
+                                             if (machine_ip_type) {
+                                                 machine_ip_type->add_instance(reply.ip.to_string(), machine_type);
+                                             }
+
                                              size_t      vendor_pos    = machine_type.find_first_of(" ");
                                              if (vendor_pos != std::string::npos) {
                                                  std::string vendor = machine_type.substr(0, vendor_pos);
@@ -248,8 +254,12 @@ void SSWCP_MachineFind_Instance::sw_StartMachineFind()
 
                                                  machine_data["cover"] = machine_cover;
                                              }
-                                             
-
+                                         } else {
+                                             // test
+                                             auto machine_ip_type = MachineIPType::getInstance();
+                                             if (machine_ip_type) {
+                                                 machine_ip_type->add_instance(reply.ip.to_string(), "lava");
+                                             }
                                          }
                                          json machine_object;
                                          if (machine_data.count("unique_value")) {
@@ -740,19 +750,60 @@ void SSWCP_MachineConnect_Instance::sw_connect() {
                     if (res) {
                         // 后续应改成机器交互页的本地web服务器地址
                         int         pos     = ip_port.find(':');
+                        std::string ip  = "";
                         if (pos != std::string::npos) {
-                            ip_port = ip_port.substr(0, pos);
+                            ip = ip_port.substr(0, pos);
                         }
 
-                        wxGetApp().CallAfter([ip_port](){
+                        // 更新其他设备连接状态为断开
+                        auto devices = wxGetApp().app_config->get_devices();
+                        for (size_t i = 0; i < devices.size(); ++i) {
+                            if (devices[i].connecting) {
+                                devices[i].connecting = false;
+                                wxGetApp().app_config->save_device_info(devices[i]);
+                                break;
+                            }
+                        }
+
+                        wxGetApp().CallAfter([ip](){
 
                             wxGetApp().app_config->set("use_new_connect", "true");
                             wxGetApp().mainframe->plater()->sidebar().update_all_preset_comboboxes();
 
-                            wxGetApp().mainframe->load_printer_url("http://" + ip_port);
+                            wxGetApp().mainframe->load_printer_url("http://" + ip);  //到时全部加载本地交互页面
+
+                            // 绑定预设
+                            auto machine_ip_type = MachineIPType::getInstance();
+                            if (machine_ip_type) {
+                                std::string machine_type = "";
+                                if (machine_ip_type->get_machine_type(ip, machine_type)) {
+                                    // 已经存储过机型信息
+                                    DeviceInfo info;
+                                    info.ip          = ip;
+                                    info.dev_id      = ip;
+                                    info.dev_name    = ip;
+                                    info.connecting  = true;
+                                    info.model_name  = machine_type;
+                                    info.preset_name = machine_type + " (0.4 nozzle)";
+                                    wxGetApp().app_config->save_device_info(info);
+                                } else {
+                                    // 不能获得预设信息
+                                }
+                            }
+
+                            // 更新首页设备卡片
+                            auto devices = wxGetApp().app_config->get_devices();
+
+                            json param;
+                            param["command"]       = "local_devices_arrived";
+                            param["sequece_id"]    = "10001";
+                            param["data"]          = devices;
+                            std::string logout_cmd = param.dump();
+                            wxString    strJS      = wxString::Format("window.postMessage(%s)", logout_cmd);
+                            GUI::wxGetApp().run_script(strJS);
 
                             MessageDialog msg_window(nullptr,
-                                                 ip_port + _L(" connected sucessfully !\n"),
+                                                 ip + _L(" connected sucessfully !\n"),
                                                  L("Machine Connected"), wxICON_QUESTION | wxOK);
                             msg_window.ShowModal();
 
@@ -983,6 +1034,14 @@ void SSWCP::on_webview_delete(wxWebView* view)
         }
     }
 }
+
+
+MachineIPType* MachineIPType::getInstance()
+{
+    static MachineIPType mipt_instance;
+    return &mipt_instance;
+}
+
 
 }}; // namespace Slic3r::GUI
 

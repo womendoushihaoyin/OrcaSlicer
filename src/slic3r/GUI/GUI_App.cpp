@@ -3651,7 +3651,6 @@ void GUI_App::sm_get_login_info() {
         param["sequece_id"] = "10001";
         std::string logout_cmd = param.dump();
         wxString    strJS      = wxString::Format("window.postMessage(%s)", logout_cmd);
-        // strJS      = "receiveFromFlutter('123')";
         GUI::wxGetApp().run_script(strJS);
     } else {
         json param;
@@ -4014,6 +4013,23 @@ std::string GUI_App::handle_web_request(std::string cmd)
                         web_device_dialog = new WebDeviceDialog;
                         
                         web_device_dialog->run();
+                    } catch (std::exception&) {
+                        ;
+                    }
+                });
+                return "";
+            } else if (command_str.compare("get_local_devices") == 0) {
+                CallAfter([this] {
+                    try {
+                        auto devices = wxGetApp().app_config->get_devices();
+
+                        json param;
+                        param["command"]       = "local_devices_arrived";
+                        param["sequece_id"]    = "10001";
+                        param["data"]          = devices;
+                        std::string logout_cmd = param.dump();
+                        wxString    strJS      = wxString::Format("window.postMessage(%s)", logout_cmd);
+                        GUI::wxGetApp().run_script(strJS);
                     } catch (std::exception&) {
                         ;
                     }

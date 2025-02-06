@@ -799,17 +799,116 @@ body
     box-shadow: 0 4px 8px rgba(0,0,0,0.15);
 }
 
-.DeviceItem {
+.DeviceCard {
     width: 184px;
     height: 184px;
+    background: #FFFFFF;
     border-radius: 8px;
-    background-color: #E4E4E4;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
     overflow: hidden;
-    transition: all 0.3s ease;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
 }
 
-.DeviceItem:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+.DeviceImgContainer {
+    width: 144px;
+    height: 134px;  /* 稍微减小高度,为底部绿条留空间 */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 10px;
+}
+
+.DeviceImg {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+}
+
+.DeviceName {
+    width: 100%;
+    text-align: center;
+    padding: 0 8px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-bottom: 14px;  /* 增加底部边距,为绿条留空间 */
+}
+
+/* 状态指示器 */
+.DeviceStatus {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid white;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+}
+
+.DeviceStatus.connected {
+    background-color: #4CAF50;
+}
+
+.DeviceStatus.disconnected {
+    background-color: #FFC107;
+}
+
+/* 底部操作栏 */
+.DeviceActions {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 6px; /* 增加绿条粗细 */
+    background: #009688;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: all 0.3s ease;
+    gap: 8px;
+    padding: 0 10px;
+    cursor: pointer; /* 添加指针样式表明可交互 */
+}
+
+/* 操作按钮 */
+.DeviceAction {
+    opacity: 0;
+    color: white;
+    height: 24px;
+    width: 52px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 11px;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #009688; /* 改为实心绿色背景 */
+    transform: translateY(20px);
+}
+
+/* 操作按钮文字 */
+.DeviceAction span {
+    text-align: center;
+}
+
+/* hover效果 - 改为只在hover绿条时触发 */
+.DeviceActions:hover {
+    height: 32px;
+    background: transparent; /* hover时移除绿条背景 */
+}
+
+.DeviceActions:hover .DeviceAction {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.DeviceAction:hover {
+    background-color: #00b09b; /* 稍微亮一点的绿色 */
 }
