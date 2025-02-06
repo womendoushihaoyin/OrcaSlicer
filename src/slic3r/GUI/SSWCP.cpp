@@ -750,7 +750,7 @@ void SSWCP_MachineConnect_Instance::sw_connect() {
                     if (res) {
                         // 后续应改成机器交互页的本地web服务器地址
                         int         pos     = ip_port.find(':');
-                        std::string ip  = "";
+                        std::string ip  = ip_port;
                         if (pos != std::string::npos) {
                             ip = ip_port.substr(0, pos);
                         }
@@ -772,24 +772,31 @@ void SSWCP_MachineConnect_Instance::sw_connect() {
 
                             wxGetApp().mainframe->load_printer_url("http://" + ip);  //到时全部加载本地交互页面
 
-                            // 绑定预设
-                            auto machine_ip_type = MachineIPType::getInstance();
-                            if (machine_ip_type) {
-                                std::string machine_type = "";
-                                if (machine_ip_type->get_machine_type(ip, machine_type)) {
-                                    // 已经存储过机型信息
-                                    DeviceInfo info;
-                                    info.ip          = ip;
-                                    info.dev_id      = ip;
-                                    info.dev_name    = ip;
-                                    info.connecting  = true;
-                                    info.model_name  = machine_type;
-                                    info.preset_name = machine_type + " (0.4 nozzle)";
-                                    wxGetApp().app_config->save_device_info(info);
-                                } else {
-                                    // 不能获得预设信息
+                            // 是否为连接过的设备
+                            DeviceInfo query_info;
+                            if (wxGetApp().app_config->get_device_info(ip, query_info)) {
+                                query_info.connecting = true;
+                                wxGetApp().app_config->save_device_info(query_info);
+                            } else {
+                                auto machine_ip_type = MachineIPType::getInstance();
+                                if (machine_ip_type) {
+                                    std::string machine_type = "";
+                                    if (machine_ip_type->get_machine_type(ip, machine_type)) {
+                                        // 已经存储过机型信息
+                                        DeviceInfo info;
+                                        info.ip          = ip;
+                                        info.dev_id      = ip;
+                                        info.dev_name    = ip;
+                                        info.connecting  = true;
+                                        info.model_name  = machine_type;
+                                        info.preset_name = machine_type + " (0.4 nozzle)";
+                                        wxGetApp().app_config->save_device_info(info);
+                                    } else {
+                                        // 不能获得预设信息
+                                    }
                                 }
                             }
+                            
 
                             // 更新首页设备卡片
                             auto devices = wxGetApp().app_config->get_devices();
@@ -850,10 +857,34 @@ void SSWCP_MachineConnect_Instance::sw_disconnect() {
                 wxGetApp().app_config->set("use_new_connect", "false");
                 auto p_config = &(wxGetApp().preset_bundle->printers.get_edited_preset().config);
                 p_config->set("print_host", "");
+
+                auto devices = wxGetApp().app_config->get_devices();
+                for (size_t i = 0; i < devices.size(); ++i) {
+                    if (devices[i].connecting) {
+                        devices[i].connecting = false;
+                        wxGetApp().app_config->save_device_info(devices[i]);
+                        break;
+                    }
+                }
+
+                json param;
+                param["command"]       = "local_devices_arrived";
+                param["sequece_id"]    = "10001";
+                param["data"]          = devices;
+                std::string logout_cmd = param.dump();
+                wxString    strJS      = wxString::Format("window.postMessage(%s)", logout_cmd);
+                GUI::wxGetApp().run_script(strJS);
+
+                MessageDialog msg_window(nullptr, _L(" Disconnected sucessfully !\n"), L("Machine Disconnected"), wxICON_QUESTION | wxOK);
+                msg_window.ShowModal();
+
                 wxGetApp().mainframe->plater()->sidebar().update_all_preset_comboboxes();
             });
-            
+
         } else {
+            MessageDialog msg_window(nullptr, _L(" Disconnect Failed !\n"), L("Machine Disconnected"), wxICON_QUESTION | wxOK);
+            msg_window.ShowModal();
+
             self->m_status = 1;
             self->m_msg    = msg.c_str();
         }

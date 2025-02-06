@@ -87,47 +87,68 @@ function SetLoginPanelVisibility(visible) {
   }
 }
 
-function HandleStudio( pVal )
-{
-	let strCmd = pVal['command'];
-	
-	if (strCmd == "get_recent_projects") {
-    ShowRecentFileList(pVal["response"]);
-  } else if (strCmd == "studio_userlogin") {
-    SetLoginInfo(pVal["data"]["avatar"], pVal["data"]["name"]);
-  } else if (strCmd == "local_devices_arrived") {
-	showLocalDevices(pVal["data"]);
-  } else if (strCmd == "studio_useroffline") {
-    SetUserOffline();
-  } else if (strCmd == "studio_set_mallurl") {
-    SetMallUrl(pVal["data"]["url"]);
-  } else if (strCmd == "studio_clickmenu") {
-    let strName = pVal["data"]["menu"];
-
-    GotoMenu(strName);
-  } else if (strCmd == "network_plugin_installtip") {
-    let nShow = pVal["show"] * 1;
-
-    if (nShow == 1) {
-      $("#NoPluginTip").show();
-      $("#NoPluginTip").css("display", "flex");
-    } else {
-      $("#NoPluginTip").hide();
-    }
-  } else if (strCmd == "modelmall_model_advise_get") {
-    //alert('hot');
-    if (m_HotModelList != null) {
-      let SS1 = JSON.stringify(pVal["hits"]);
-      let SS2 = JSON.stringify(m_HotModelList);
-
-      if (SS1 == SS2) return;
+function HandleStudio(pVal) {
+    // connect and disconnect
+    try {
+        // 只解析sequenceId相关的判断
+        if(typeof pVal === 'string') {
+            const jsonData = JSON.parse(pVal);
+            if(jsonData && jsonData.header && typeof jsonData.header.sequenceId !== 'undefined'){
+                let sequenceId = jsonData.header.sequenceId;
+                if(sequenceId == 202500 || sequenceId == 202501){
+                    // 移除所有卡片的connecting类
+                    const cards = document.querySelectorAll('.DeviceCard.connecting');
+                    cards.forEach(card => {
+                        card.classList.remove('connecting');
+                    });
+                }
+            }
+            return; // 处理完连接状态就返回
+        }
+    } catch(e) {
+        console.error('Error parsing JSON:', e);
     }
 
-    m_HotModelList = pVal["hits"];
-    ShowStaffPick(m_HotModelList);
-  } else if (data.cmd === "SetLoginPanelVisibility") {
-    SetLoginPanelVisibility(data.visible);
-  }
+    // 其他命令的处理保持不变
+    let strCmd = pVal['command'];
+    
+    if (strCmd == "get_recent_projects") {
+        ShowRecentFileList(pVal["response"]);
+    } else if (strCmd == "studio_userlogin") {
+        SetLoginInfo(pVal["data"]["avatar"], pVal["data"]["name"]);
+    } else if (strCmd == "local_devices_arrived") {
+        showLocalDevices(pVal["data"]);
+    } else if (strCmd == "studio_useroffline") {
+        SetUserOffline();
+    } else if (strCmd == "studio_set_mallurl") {
+        SetMallUrl(pVal["data"]["url"]);
+    } else if (strCmd == "studio_clickmenu") {
+        let strName = pVal["data"]["menu"];
+
+        GotoMenu(strName);
+    } else if (strCmd == "network_plugin_installtip") {
+        let nShow = pVal["show"] * 1;
+
+        if (nShow == 1) {
+            $("#NoPluginTip").show();
+            $("#NoPluginTip").css("display", "flex");
+        } else {
+            $("#NoPluginTip").hide();
+        }
+    } else if (strCmd == "modelmall_model_advise_get") {
+        //alert('hot');
+        if (m_HotModelList != null) {
+            let SS1 = JSON.stringify(pVal["hits"]);
+            let SS2 = JSON.stringify(m_HotModelList);
+
+            if (SS1 == SS2) return;
+        }
+
+        m_HotModelList = pVal["hits"];
+        ShowStaffPick(m_HotModelList);
+    } else if (data.cmd === "SetLoginPanelVisibility") {
+        SetLoginPanelVisibility(data.visible);
+    }
 }
 
 function GotoMenu(strMenu) {
@@ -560,19 +581,33 @@ function onDeviceManagementClick(e) {
 
 function showLocalDevices(devices) {
     const deviceList = document.getElementById('DeviceList');
-    // 保留第一个子元素(plus按钮),删除其他元素
     while (deviceList.children.length > 1) {
         deviceList.removeChild(deviceList.lastChild);
     }
     
-    // 遍历设备列表创建卡片
     devices.forEach(device => {
         const deviceCard = document.createElement('div');
         deviceCard.className = 'DeviceCard';
+        deviceCard.setAttribute('data-ip', device.ip);
+        
+        // 添加加载动画容器
+        const spinner = document.createElement('div');
+        spinner.className = 'LoadingSpinner';
+        deviceCard.appendChild(spinner);
+        
+        // 添加删除按钮
+        const deleteBtn = document.createElement('div');
+        deleteBtn.className = 'DeviceDeleteBtn';
+        deleteBtn.onclick = (e) => {
+            e.stopPropagation();
+            handleDeviceDelete(device);
+        };
+        deviceCard.appendChild(deleteBtn);
         
         // 添加状态指示器
         const statusDot = document.createElement('div');
         statusDot.className = `DeviceStatus ${device.connecting ? 'connected' : 'disconnected'}`;
+        statusDot.setAttribute('data-status', device.connecting ? '已连接' : '未连接');
         deviceCard.appendChild(statusDot);
         
         // 创建图片容器
@@ -592,6 +627,7 @@ function showLocalDevices(devices) {
         const name = document.createElement('div');
         name.className = 'DeviceName TextS1';
         name.textContent = device.dev_name || 'Unknown Device';
+        name.title = device.dev_name || 'Unknown Device';
         
         // 添加底部操作栏
         const actions = document.createElement('div');
@@ -637,21 +673,83 @@ function showLocalDevices(devices) {
         actions.appendChild(connectBtn);
         deviceCard.appendChild(actions);
         
+        // 添加重命名输入框
+        const renameInput = document.createElement('div');
+        renameInput.className = 'RenameInput';
+        const input = document.createElement('textarea');
+        input.value = device.dev_name || 'Unknown Device';
+        input.rows = 3;
+
+        // 处理输入框事件
+        input.onkeydown = (e) => {
+            e.stopPropagation();
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                submitRename(device, input.value);
+            } else if (e.key === 'Escape') {
+                cancelRename(deviceCard);
+            }
+        };
+
+        input.onblur = () => {
+            cancelRename(deviceCard);
+        };
+
+        // 自动调整高度
+        input.oninput = () => {
+            input.style.height = 'auto';
+            input.style.height = input.scrollHeight + 'px';
+        };
+
+        renameInput.appendChild(input);
+        deviceCard.appendChild(renameInput);
+        
         // 组装卡片
         imgContainer.appendChild(img);
         deviceCard.appendChild(imgContainer);
         deviceCard.appendChild(name);
+        deviceCard.appendChild(deleteBtn);
         deviceList.appendChild(deviceCard);
     });
 }
 
 // 设备操作函数
 function OnRenameDevice(device) {
+    const deviceCard = document.querySelector(`.DeviceCard[data-ip="${device.ip}"]`);
+    if (!deviceCard) return;
+    
+    // 添加重命名状态类
+    deviceCard.classList.add('renaming');
+    
+    // 获取并聚焦输入框
+    const input = deviceCard.querySelector('.RenameInput textarea');
+    if (input) {
+        input.focus();
+        input.select();
+    }
+}
+
+function submitRename(device, newName) {
+    if (!newName.trim()) return;
+    
     var tSend = {};
     tSend['sequence_id'] = Math.round(new Date() / 1000);
     tSend['command'] = "homepage_rename_device";
-    tSend['data'] = device;
+    tSend['data'] = {
+        ...device,
+        dev_name: newName.trim()
+    };
     SendWXMessage(JSON.stringify(tSend));
+    
+    // 移除重命名状态
+    const deviceCard = document.querySelector(`.DeviceCard[data-ip="${device.ip}"]`);
+    if (deviceCard) {
+        deviceCard.classList.remove('renaming');
+    }
+}
+
+function cancelRename(deviceCard) {
+    deviceCard.classList.remove('renaming');
 }
 
 function OnSwitchModel(device) {
@@ -663,18 +761,119 @@ function OnSwitchModel(device) {
 }
 
 function OnConnectDevice(device) {
-    var tSend = {};
-    tSend['sequence_id'] = Math.round(new Date() / 1000);
-    tSend['command'] = "homepage_connect_device";
-    tSend['data'] = device;
-    SendWXMessage(JSON.stringify(tSend));
+    // 找到对应的设备卡片并添加connecting类
+    const deviceCard = document.querySelector(`.DeviceCard[data-ip="${device.ip}"]`);
+    if (deviceCard) {
+        deviceCard.classList.add('connecting');
+    }
+    
+    body = {
+        header:{
+            sequenceId: 202501,
+        },
+        payload:{
+            cmd: "sw_Connect",
+            params: {
+                ip: device.ip,
+                port: 1883,
+            }
+        }
+    }
+    window.wx.postMessage(JSON.stringify(body));
 }
 
 function OnDisconnectDevice(device) {
-    var tSend = {};
-    tSend['sequence_id'] = Math.round(new Date() / 1000);
-    tSend['command'] = "homepage_disconnect_device";
-    tSend['data'] = device;
-    SendWXMessage(JSON.stringify(tSend));
+	body = {
+        header:{
+          sequenceId: 202500,
+        },
+        payload:{
+          cmd: "sw_Disconnect",
+        }
+      }
+    window.wx.postMessage(JSON.stringify(body));
+}
+
+// 创建并显示对话框
+function showDialog(title, content, onConfirm, onCancel) {
+    // 创建遮罩层
+    const overlay = document.createElement('div');
+    overlay.className = 'ModalOverlay';
+    
+    // 创建对话框
+    const dialog = document.createElement('div');
+    dialog.className = 'DialogBox';
+    
+    // 添加标题
+    const titleDiv = document.createElement('div');
+    titleDiv.className = 'DialogTitle';
+    titleDiv.textContent = title;
+    
+    // 添加内容
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'DialogContent';
+    contentDiv.textContent = content;
+    
+    // 添加按钮
+    const buttonsDiv = document.createElement('div');
+    buttonsDiv.className = 'DialogButtons';
+    
+    // 取消按钮
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'DialogButton cancel';
+    cancelBtn.textContent = '取消';
+    cancelBtn.onclick = () => {
+        document.body.removeChild(overlay);
+        if (onCancel) onCancel();
+    };
+    
+    // 确认按钮
+    const confirmBtn = document.createElement('button');
+    confirmBtn.className = 'DialogButton confirm';
+    confirmBtn.textContent = '确认';
+    confirmBtn.onclick = () => {
+        document.body.removeChild(overlay);
+        if (onConfirm) onConfirm();
+    };
+    
+    // 组装对话框
+    buttonsDiv.appendChild(cancelBtn);
+    buttonsDiv.appendChild(confirmBtn);
+    dialog.appendChild(titleDiv);
+    dialog.appendChild(contentDiv);
+    dialog.appendChild(buttonsDiv);
+    overlay.appendChild(dialog);
+    
+    // 显示对话框
+    document.body.appendChild(overlay);
+}
+
+// 修改设备删除处理函数
+function handleDeviceDelete(device) {
+    if (device.connecting) {
+        showDialog(
+            '断开连接确认',
+            '该设备当前处于连接状态，需要先断开连接才能删除。是否断开连接？',
+            () => {
+                OnDisconnectDevice(device);
+            }
+        );
+    } else {
+        confirmAndDeleteDevice(device);
+    }
+}
+
+function confirmAndDeleteDevice(device) {
+    showDialog(
+        '删除设备确认',
+        '确定要删除该设备吗？删除后需要重新添加才能使用。',
+        () => {
+            var tSend = {};
+            tSend['sequence_id'] = Math.round(new Date() / 1000);
+            tSend['command'] = "homepage_delete_device";
+            tSend['data'] = device;
+            SendWXMessage(JSON.stringify(tSend));
+        }
+    );
 }
 
