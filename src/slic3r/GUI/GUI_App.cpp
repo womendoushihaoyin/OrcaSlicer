@@ -10,6 +10,7 @@
 #include "Downloader.hpp"
 
 #include "slic3r/GUI/WebUrlDialog.hpp"
+#include "slic3r/GUI/WebPresetDialog.hpp"
 
 #include "slic3r/GUI/SSWCP.hpp"
 
@@ -4008,10 +4009,14 @@ std::string GUI_App::handle_web_request(std::string cmd)
                 return "";
             } else if (command_str.compare("homepage_test_browser") == 0) {
                 CallAfter([this] {
-                    auto dialog = new WebUrlDialog();
+                    /*auto dialog = new WebUrlDialog();
                     dialog->load_url("https://www.baidu.com");
                     dialog->ShowModal();
-                    delete dialog;
+                    delete dialog;*/
+
+                    WebPresetDialog GuideDlg(this);
+                    GuideDlg.SetStartPage();
+                    GuideDlg.run();
                 });
             } else if (command_str.compare("homepage_delete_device") == 0) {
                 if (root.get_child_optional("data") != boost::none) {
@@ -4035,15 +4040,13 @@ std::string GUI_App::handle_web_request(std::string cmd)
                 if (root.get_child_optional("data") != boost::none) {
                     pt::ptree data_node = root.get_child("data");
                     if (data_node.get_child_optional("dev_id") && data_node.get_child_optional("dev_name")) {
-                        std::string dev_id = data_node.get_optional<std::string>("dev_id").value();
+                        std::string dev_id   = data_node.get_optional<std::string>("dev_id").value();
                         std::string dev_name = data_node.get_optional<std::string>("dev_name").value();
-                        
+
                         DeviceInfo info;
                         app_config->get_device_info(dev_id, info);
                         info.dev_name = dev_name;
                         app_config->save_device_info(info);
-
-
 
                         CallAfter([this] {
                             json param;
@@ -4056,10 +4059,20 @@ std::string GUI_App::handle_web_request(std::string cmd)
                         });
                     }
                 }
-            } 
-        } 
-      
-
+            } else if (command_str.compare("homepage_switch_model") == 0) {
+                if (root.get_child_optional("data") != boost::none) {
+                    pt::ptree data_node = root.get_child("data");
+                    if (data_node.get_child_optional("dev_id") && data_node.get_child_optional("dev_name")) {
+                        std::string dev_id   = data_node.get_optional<std::string>("dev_id").value();
+                        CallAfter([this, dev_id]() {
+                            WebPresetDialog dialog(this);
+                            dialog.m_device_id = dev_id;
+                            dialog.run();
+                        });
+                    }
+                }
+            }
+        }
         
     }
     catch (...) {

@@ -23,6 +23,8 @@
 
 #include "MoonRaker.hpp"
 
+#include "slic3r/GUI/WebPresetDialog.hpp"
+
 namespace pt = boost::property_tree;
 
 using namespace nlohmann;
@@ -782,6 +784,10 @@ void SSWCP_MachineConnect_Instance::sw_connect() {
                                 // 查询成功
                                 if (nozzle_diameters.empty()) {
                                     // todo: 让用户绑定喷嘴
+                                    auto dialog          = WebPresetDialog(&wxGetApp());
+                                    dialog.m_bind_nozzle = true;
+                                    dialog.m_device_id   = ip;
+                                    dialog.run();
                                 }
 
                                 
@@ -820,7 +826,7 @@ void SSWCP_MachineConnect_Instance::sw_connect() {
                                     if (machine_ip_type) {
                                         std::string machine_type = "";
                                         if (machine_ip_type->get_machine_type(ip, machine_type)) {
-                                            // 已经存储过机型信息
+                                            // 已经发现过的机型信息
                                             DeviceInfo info;
                                             info.ip          = ip;
                                             info.dev_id      = ip;
@@ -835,11 +841,18 @@ void SSWCP_MachineConnect_Instance::sw_connect() {
                                                 info.img = machine_cover;
                                             }
                                             // todo 绑定喷嘴
+                                            auto dialog        = WebPresetDialog(&wxGetApp());
+                                            dialog.m_bind_nozzle = true;
+                                            dialog.m_device_id = ip;
+                                            dialog.run();
 
                                             info.preset_name = machine_type + " (0.4 nozzle)";
+                                            info.nozzle_sizes = {"0.4"};
                                             wxGetApp().app_config->save_device_info(info);
                                         } else {
-                                            // 绑定预设
+                                            auto dialog        = WebPresetDialog(&wxGetApp());
+                                            dialog.m_device_id = ip;
+                                            dialog.run();
                                         }
                                     }
                                 }

@@ -277,6 +277,8 @@ set(SLIC3R_GUI_SOURCES
     GUI/WebDownPluginDlg.cpp
     GUI/WebGuideDialog.hpp
     GUI/WebGuideDialog.cpp
+    GUI/WebPresetDialog.hpp
+    GUI/WebPresetDialog.cpp
     GUI/WebUserLoginDialog.cpp
     GUI/WebUserLoginDialog.hpp
     GUI/WebSMUserLoginDialog.cpp
