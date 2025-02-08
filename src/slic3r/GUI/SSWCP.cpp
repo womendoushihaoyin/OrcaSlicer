@@ -772,30 +772,80 @@ void SSWCP_MachineConnect_Instance::sw_connect() {
 
                             wxGetApp().mainframe->load_printer_url("http://" + ip);  //到时全部加载本地交互页面
 
-                            // 是否为连接过的设备
-                            DeviceInfo query_info;
-                            if (wxGetApp().app_config->get_device_info(ip, query_info)) {
-                                query_info.connecting = true;
-                                wxGetApp().app_config->save_device_info(query_info);
-                            } else {
-                                auto machine_ip_type = MachineIPType::getInstance();
-                                if (machine_ip_type) {
-                                    std::string machine_type = "";
-                                    if (machine_ip_type->get_machine_type(ip, machine_type)) {
-                                        // 已经存储过机型信息
-                                        DeviceInfo info;
-                                        info.ip          = ip;
-                                        info.dev_id      = ip;
-                                        info.dev_name    = ip;
-                                        info.connecting  = true;
-                                        info.model_name  = machine_type;
-                                        info.preset_name = machine_type + " (0.4 nozzle)";
-                                        wxGetApp().app_config->save_device_info(info);
-                                    } else {
-                                        // 不能获得预设信息
+                            // 查询机器的机型和喷嘴信息
+                            std::string machine_type = "";
+                            std::vector<std::string> nozzle_diameters;
+
+                            std::shared_ptr<PrintHost> host(PrintHost::get_print_host(&wxGetApp().preset_bundle->printers.get_edited_preset().config));
+
+                            if (SSWCP::query_machine_info(host, machine_type, nozzle_diameters) && machine_type != "") {
+                                // 查询成功
+                                if (nozzle_diameters.empty()) {
+                                    // todo: 让用户绑定喷嘴
+                                }
+
+                                
+                                DeviceInfo info;
+                                info.ip = ip;
+                                info.dev_id = ip;
+                                info.dev_name = ip;
+                                info.connecting = true;
+                                info.model_name = machine_type;
+                                info.nozzle_sizes = nozzle_diameters;
+
+                                size_t      vendor_pos    = machine_type.find_first_of(" ");
+                                if (vendor_pos != std::string::npos) {
+                                    std::string vendor = machine_type.substr(0, vendor_pos);
+                                    std::string machine_cover = LOCALHOST_URL + std::to_string(PAGE_HTTP_PORT) + "/profiles/" +
+                                                                vendor + "/" + machine_type + "_cover.png";
+                                    info.img = machine_cover;
+                                }
+                                
+                                // 设置预设名称（使用第一个喷嘴尺寸）
+                                if (!nozzle_diameters.empty()) {
+                                    info.preset_name = machine_type + " (" + nozzle_diameters[0] + " nozzle)";
+                                } else {
+                                    info.preset_name = machine_type + " (0.4 nozzle)";  // 默认值
+                                }
+                                
+                                wxGetApp().app_config->save_device_info(info);
+                            }else{
+                                // 是否为连接过的设备
+                                DeviceInfo query_info;
+                                if (wxGetApp().app_config->get_device_info(ip, query_info)) {
+                                    query_info.connecting = true;
+                                    wxGetApp().app_config->save_device_info(query_info);
+                                } else {
+                                    auto machine_ip_type = MachineIPType::getInstance();
+                                    if (machine_ip_type) {
+                                        std::string machine_type = "";
+                                        if (machine_ip_type->get_machine_type(ip, machine_type)) {
+                                            // 已经存储过机型信息
+                                            DeviceInfo info;
+                                            info.ip          = ip;
+                                            info.dev_id      = ip;
+                                            info.dev_name    = ip;
+                                            info.connecting  = true;
+                                            info.model_name  = machine_type;
+                                            size_t vendor_pos = machine_type.find_first_of(" ");
+                                            if (vendor_pos != std::string::npos) {
+                                                std::string vendor        = machine_type.substr(0, vendor_pos);
+                                                std::string machine_cover = LOCALHOST_URL + std::to_string(PAGE_HTTP_PORT) + "/profiles/" +
+                                                                            vendor + "/" + machine_type + "_cover.png";
+                                                info.img = machine_cover;
+                                            }
+                                            // todo 绑定喷嘴
+
+                                            info.preset_name = machine_type + " (0.4 nozzle)";
+                                            wxGetApp().app_config->save_device_info(info);
+                                        } else {
+                                            // 绑定预设
+                                        }
                                     }
                                 }
                             }
+
+                            
                             
 
                             // 更新首页设备卡片
@@ -1066,6 +1116,75 @@ void SSWCP::on_webview_delete(wxWebView* view)
     }
 }
 
+// query the info of the machine
+bool SSWCP::query_machine_info(std::shared_ptr<PrintHost>& host, std::string& out_model, std::vector<std::string>& out_nozzle_diameters, int timeout_second)
+{
+    if (!host) return false;
+
+    // 创建同步等待的条件变量和互斥锁
+    std::condition_variable cv;
+    std::shared_ptr<std::mutex> mutex(new std::mutex);
+    std::weak_ptr<std::mutex>   cb_mutex = mutex;
+    bool received = false;
+    bool timeout = false;
+    json system_info;
+
+    // 发送查询请求
+    host->async_get_system_info(
+        [&, cb_mutex](const json& response) {
+            if (cb_mutex.expired()) {
+                return;
+            }
+            std::lock_guard<std::mutex> lock(*mutex);
+            if (!response.is_null() && !response.count("error")) {
+                system_info = response;
+            }
+            received = true;
+            cv.notify_one();
+        }
+    );
+
+    // 等待响应
+    {
+        std::unique_lock<std::mutex> lock(*mutex);
+        auto predicate = [&received]() { return received; };
+        timeout = !cv.wait_for(lock, std::chrono::seconds(timeout_second), predicate);
+    }
+
+    if (!timeout && !system_info.is_null()) {
+        // 成功获取到信息
+        if (system_info.contains("system_info")) {
+            auto& system_data = system_info["system_info"];
+            
+            if(system_data.contains("product_info")){
+                auto& product_info = system_data["product_info"];
+
+                // 获取机型
+                if(product_info.contains("machine_type")){
+                    out_model = product_info["machine_type"].get<std::string>();
+                }
+
+                // 获取喷嘴信息
+                if(product_info.contains("nozzle_diameter")){
+                    if(product_info["nozzle_diameter"].is_array()){
+                        for(const auto& nozzle : product_info["nozzle_diameter"]){
+                            out_nozzle_diameters.push_back(nozzle.get<std::string>());
+                        }
+                    }
+                    else {
+                        // 如果是单个值
+                        out_nozzle_diameters.push_back(
+                        product_info["nozzle_diameter"].get<std::string>());
+                    }
+                }
+            }
+
+            return true;
+        }
+    }
+    
+    return false;
+}
 
 MachineIPType* MachineIPType::getInstance()
 {

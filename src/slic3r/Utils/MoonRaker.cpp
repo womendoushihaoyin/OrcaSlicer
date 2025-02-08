@@ -801,6 +801,21 @@ void Moonraker_Mqtt::async_get_machine_info(
     }
 }
 
+// Get system info of the machine
+void Moonraker_Mqtt::async_get_system_info(std::function<void(const nlohmann::json& response)> callback)
+{
+    std::string method = "machine.system_info";
+    json params = json::object();
+
+    if (!send_to_request(method, params, true, callback, [callback](){
+        json res;
+        res["error"] = "timeout";
+        callback(res);
+    }) && callback) {
+        callback(json::value_t::null);
+    }
+}
+
 // Get list of available printer objects
 void Moonraker_Mqtt::async_get_machine_objects(std::function<void(const nlohmann::json& response)> callback)
 {

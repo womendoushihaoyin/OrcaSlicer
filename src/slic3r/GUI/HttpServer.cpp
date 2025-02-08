@@ -242,6 +242,8 @@ std::shared_ptr<HttpServer::Response> HttpServer::web_server_handle_request(cons
     BOOST_LOG_TRIVIAL(info) << "Handling file request for URL: " << url;
 
     std::string file_path = map_url_to_file_path(url);
+
+    BOOST_LOG_TRIVIAL(info) << "Handling file_path request for URL: " << file_path;
     return std::make_shared<ResponseFile>(file_path);
 }
 

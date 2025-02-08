@@ -12,6 +12,7 @@
 #include "nlohmann/json.hpp"
 #include "Bonjour.hpp"
 #include "slic3r/Utils/TimeoutMap.hpp"
+#include "slic3r/Utils/PrintHost.hpp"
 
 using namespace nlohmann;
 
@@ -207,6 +208,9 @@ public:
 
     // Handle webview deletion
     static void on_webview_delete(wxWebView* webview);
+
+    // query the info of the machine
+    static bool query_machine_info(std::shared_ptr<PrintHost>& host, std::string& out_model, std::vector<std::string>& out_nozzle_diameters, int timeout_second = 5);
     
 private:
     static std::unordered_set<std::string> m_machine_find_cmd_list;     // Machine find commands
