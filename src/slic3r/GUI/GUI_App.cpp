@@ -4067,6 +4067,28 @@ std::string GUI_App::handle_web_request(std::string cmd)
                         });
                     }
                 }
+            } else if (command_str.compare("create_project") == 0) {
+                if (root.get_child_optional("data") != boost::none) {
+                    pt::ptree data_node = root.get_child("data");
+                    if (data_node.get_child_optional("dev_id")) {
+                        std::string dev_id = data_node.get_optional<std::string>("dev_id").value();
+                        CallAfter([this, dev_id]() {
+                            DeviceInfo info;
+                            if (this->app_config->get_device_info(dev_id, info)) {
+                                if (info.preset_name != "") {
+                                    try {
+                                        wxGetApp().get_tab(Preset::TYPE_PRINTER)->select_preset(info.preset_name);
+                                        this->plater()->new_project();
+                                    } catch (std::exception& e) {
+                                        // 异常处理
+                                    }
+                                }
+                            } else {
+                                // 弹框提示
+                            }
+                        });
+                    }
+                }
             }
         }
         

@@ -884,12 +884,21 @@ void SSWCP_MachineConnect_Instance::sw_connect() {
 
                                             wxGetApp().app_config->save_device_info(info);
                                         } else {
+                                            DeviceInfo info;
+                                            info.ip           = ip;
+                                            info.dev_id       = ip;
+                                            info.dev_name     = ip;
+                                            info.connecting   = true;
+
+                                            wxGetApp().app_config->save_device_info(info);
                                             MessageDialog msg_window(nullptr,
                                                                      ip + _L(" The target machine model has not been detected. Please bind manually. "),
                                                                      L("Machine Bind"), wxICON_QUESTION | wxOK);
+                                            msg_window.ShowModal();
                                             auto dialog        = WebPresetDialog(&wxGetApp());
                                             dialog.m_device_id = ip;
                                             dialog.run();
+
                                         }
                                     }
                                 }

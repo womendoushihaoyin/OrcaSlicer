@@ -1146,3 +1146,30 @@ body
 .DeviceCard.renaming .DeviceDeleteBtn {
     opacity: 0.1;
 }
+
+/* 添加创建工程按钮样式 */
+.create-project-btn {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: #009688;
+    color: white;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    display: none;
+    z-index: 999;
+    font-size: 14px;
+    white-space: nowrap;
+}
+
+/* hover时显示按钮并降低图片透明度 */
+.DeviceImgContainer:hover .create-project-btn {
+    display: block;
+}
+
+.DeviceImgContainer:hover .DeviceImg {
+    opacity: 0.3;
+    transition: opacity 0.3s;
+}

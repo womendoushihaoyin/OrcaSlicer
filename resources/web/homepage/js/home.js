@@ -623,6 +623,15 @@ function showLocalDevices(devices) {
             this.src = 'img/i3.png';
         };
         
+        // 添加创建工程按钮
+        const createProjectBtn = document.createElement('div');
+        createProjectBtn.className = 'create-project-btn';
+        createProjectBtn.textContent = '创建工程';
+        createProjectBtn.onclick = (e) => {
+            e.stopPropagation();
+            createProject(device.ip);
+        };
+        
         // 创建设备名称元素
         const name = document.createElement('div');
         name.className = 'DeviceName TextS1';
@@ -706,6 +715,7 @@ function showLocalDevices(devices) {
         
         // 组装卡片
         imgContainer.appendChild(img);
+        imgContainer.appendChild(createProjectBtn);
         deviceCard.appendChild(imgContainer);
         deviceCard.appendChild(name);
         deviceCard.appendChild(deleteBtn);
@@ -875,5 +885,15 @@ function confirmAndDeleteDevice(device) {
             SendWXMessage(JSON.stringify(tSend));
         }
     );
+}
+
+function createProject(deviceId) {
+    var tSend = {};
+    tSend['sequence_id'] = Math.round(new Date() / 1000);
+    tSend['command'] = "create_project";
+    tSend['data'] = {
+        "dev_id": deviceId
+    };
+    SendWXMessage(JSON.stringify(tSend));
 }
 

@@ -29,6 +29,7 @@
 #include <libslic3r/miniz_extension.hpp>
 #include <libslic3r/Utils.hpp>
 #include "CreatePresetsDialog.hpp"
+#include "slic3r/GUI/Tab.hpp"
 
 using namespace nlohmann;
 
@@ -535,6 +536,9 @@ void WebPresetDialog::OnScriptMessage(wxWebViewEvent& evt)
                 std::string logout_cmd = param.dump();
                 wxString    strJS      = wxString::Format("window.postMessage(%s)", logout_cmd);
                 GUI::wxGetApp().run_script(strJS);
+
+                // test
+                // wxGetApp().get_tab(Preset::TYPE_PRINTER)->select_preset(info.preset_name);
             }
 
         } else if (strCmd == "save_userguide_filaments") {
