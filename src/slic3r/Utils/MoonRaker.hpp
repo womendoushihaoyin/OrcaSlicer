@@ -131,6 +131,8 @@ private:
     std::function<void(const nlohmann::json& response)> get_request_callback(const std::string& id);
     void delete_response_target(const std::string& id);
 
+    bool wait_for_sn(int timeout_seconds = 3);
+
     // MQTT message handlers
     void on_response_arrived(const std::string& payload);
     void on_status_arrived(const std::string& payload);

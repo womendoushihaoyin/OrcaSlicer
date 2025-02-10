@@ -421,27 +421,44 @@ void WebPresetDialog::OnScriptMessage(wxWebViewEvent& evt)
             m_Res["command"]     = "response_userguide_profile";
             m_Res["sequence_id"] = "10001";
 
+            json res_json = m_ProfileJson;
+
             // 把所有的选中信息取消，换成当前连接的机器
             std::string model_name = "";
             std::vector<std::string> nozzle_sizes;
             if (m_device_id != "") {
                 DeviceInfo info;
                 if (wxGetApp().app_config->get_device_info(m_device_id, info)) {
-                    if (info.model_name != "" && !info.nozzle_sizes.empty()) {
+                    if (info.model_name != "") {
+                        // test
+                        if (info.model_name == "lava") {
+                            info.model_name = "Snapmaker A250 BKit";
+                        }
                         model_name = info.model_name;
                         nozzle_sizes = info.nozzle_sizes;
                     }
                 }
             }
 
-            json res_json = m_ProfileJson;
+            
             if (res_json.count("model")) {
                 json& model = res_json["model"];
                 for (size_t i = 0; i < model.size(); ++i) {
                     json& item = model[i];
                     if (item.count("nozzle_selected")) {
-                        if (item["model"].get<std::string>() == model_name && !nozzle_sizes.empty()) {
-                            item["nozzle_selected"] = nozzle_sizes[0];
+                        if (item["model"].get<std::string>() == model_name) {
+                            if (!nozzle_sizes.empty()) {
+                                item["nozzle_selected"] = nozzle_sizes[0];
+                            } else {
+                                item["nozzle_selected"] = "";
+                            }
+                            
+                            if (m_bind_nozzle) {
+                                json cp_item = item;
+                                res_json["model"].clear();
+                                res_json["model"].push_back(cp_item);
+                                break;
+                            }
                         } else {
                             item["nozzle_selected"] = "";
                         }

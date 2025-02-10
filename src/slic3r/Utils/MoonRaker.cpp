@@ -656,8 +656,24 @@ bool Moonraker_Mqtt::connect(wxString& msg, const nlohmann::json& params) {
     }
 
     bool is_connect = m_mqtt_client->Connect();
-    bool notification_subscribed = m_mqtt_client->Subscribe("+" + m_notification_topic, 1);
-    bool response_subscribed = m_mqtt_client->Subscribe("+" + m_response_topic, 2);
+
+    std::string mainLayer = "";
+    if (params.count("sn")) {
+        mainLayer = params["sn"].get<std::string>();
+        if (mainLayer != "") {
+            m_sn_mtx.lock();
+            m_sn = mainLayer;
+            m_sn_mtx.unlock();
+        } else {
+            mainLayer = "+";
+        }
+    } else {
+        mainLayer = "+";
+    }
+
+
+    bool notification_subscribed = m_mqtt_client->Subscribe(mainLayer + m_notification_topic, 1);
+    bool response_subscribed = m_mqtt_client->Subscribe(mainLayer + m_response_topic, 2);
     m_mqtt_client->SetMessageCallback([this](const std::string& topic, const std::string& payload) {
         this->on_mqtt_message_arrived(topic, payload);
     });
@@ -857,20 +873,24 @@ bool Moonraker_Mqtt::send_to_request(
     if (m_mqtt_client) {
         std::string main_layer = "+";
     
-        m_sn_mtx.lock();
-        main_layer = m_sn;
-        m_sn_mtx.unlock();
+        if (wait_for_sn()) {
+            m_sn_mtx.lock();
+            main_layer = m_sn;
+            m_sn_mtx.unlock();
 
-        if(main_layer == "+"){
-            delete_response_target(str_uuid);
-            return false;
+            if (main_layer == "+" || main_layer == "") {
+                delete_response_target(str_uuid);
+                return false;
+            }
+
+            bool res = m_mqtt_client->Publish(main_layer + m_request_topic, body.dump(), 2);
+            if (!res) {
+                delete_response_target(str_uuid);
+            }
+            return res;
         }
 
-        bool res = m_mqtt_client->Publish(main_layer + m_request_topic, body.dump(), 2);
-        if (!res) {
-            delete_response_target(str_uuid);
-        }
-        return res;
+        
     }
     return false;
 }
@@ -985,6 +1005,29 @@ void Moonraker_Mqtt::on_notification_arrived(const std::string& payload)
 {
     try {
     } catch (std::exception& e) {}
+}
+
+// 添加一个辅助函数来等待SN
+bool Moonraker_Mqtt::wait_for_sn(int timeout_seconds)
+{
+    using namespace std::chrono;
+    auto start = steady_clock::now();
+
+    while (true) {
+        {
+            std::lock_guard<std::mutex> lock(m_sn_mtx);
+            if (!m_sn.empty()) {
+                return true;
+            }
+        }
+
+        auto now = steady_clock::now();
+        if (duration_cast<seconds>(now - start).count() >= timeout_seconds) {
+            return false;
+        }
+
+        std::this_thread::sleep_for(milliseconds(100));
+    }
 }
 
 } // namespace Slic3r

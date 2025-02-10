@@ -4009,14 +4009,10 @@ std::string GUI_App::handle_web_request(std::string cmd)
                 return "";
             } else if (command_str.compare("homepage_test_browser") == 0) {
                 CallAfter([this] {
-                    /*auto dialog = new WebUrlDialog();
+                    auto dialog = new WebUrlDialog();
                     dialog->load_url("https://www.baidu.com");
                     dialog->ShowModal();
-                    delete dialog;*/
-
-                    WebPresetDialog GuideDlg(this);
-                    GuideDlg.SetStartPage();
-                    GuideDlg.run();
+                    delete dialog;
                 });
             } else if (command_str.compare("homepage_delete_device") == 0) {
                 if (root.get_child_optional("data") != boost::none) {

@@ -310,11 +310,21 @@ void SSWCP_MachineFind_Instance::add_machine_to_list(const json& machine_info)
         m_machine_list_mtx.lock();
         if (!m_machine_list.count(ip)) {
             m_machine_list[ip] = machine_info;
-            // m_res_data.push_back(machine_info);
+            m_machine_list_mtx.unlock();
+
             m_res_data[key] = value;
             need_send = true;
+        } else {
+            m_machine_list_mtx.unlock();
         }
-        m_machine_list_mtx.unlock();
+        
+
+        m_res_data[key]["connected"] = false;
+
+        DeviceInfo info;
+        if (wxGetApp().app_config->get_device_info(ip, info) && info.connecting) {
+            m_res_data[key]["connected"] = true;
+        }
 
         if (need_send) {
             send_to_js();
@@ -783,7 +793,14 @@ void SSWCP_MachineConnect_Instance::sw_connect() {
                             if (SSWCP::query_machine_info(host, machine_type, nozzle_diameters) && machine_type != "") {
                                 // 查询成功
                                 if (nozzle_diameters.empty()) {
-                                    // todo: 让用户绑定喷嘴
+
+                                    MessageDialog msg_window(nullptr,
+                                                             ip + _L(" The target machine model has been detected as ") + machine_type +
+                                                                 "\n" + _L("Please bind the nozzle information\n"),
+                                                             L("Nozzle Bind"),
+                                                             wxICON_QUESTION | wxOK);
+                                    msg_window.ShowModal();
+
                                     auto dialog          = WebPresetDialog(&wxGetApp());
                                     dialog.m_bind_nozzle = true;
                                     dialog.m_device_id   = ip;
@@ -827,6 +844,11 @@ void SSWCP_MachineConnect_Instance::sw_connect() {
                                         std::string machine_type = "";
                                         if (machine_ip_type->get_machine_type(ip, machine_type)) {
                                             // 已经发现过的机型信息
+                                            // test
+                                            if (machine_type == "lava") {
+                                                machine_type = "Snapmaker A250 BKit";
+                                            }
+
                                             DeviceInfo info;
                                             info.ip          = ip;
                                             info.dev_id      = ip;
@@ -840,16 +862,31 @@ void SSWCP_MachineConnect_Instance::sw_connect() {
                                                                             vendor + "/" + machine_type + "_cover.png";
                                                 info.img = machine_cover;
                                             }
+
+                                            wxGetApp().app_config->save_device_info(info);
                                             // todo 绑定喷嘴
+
+                                            MessageDialog msg_window(nullptr,
+                                                                     ip + _L(" The target machine model has been detected as ") +
+                                                                         machine_type + "\n" + _L("Please bind the nozzle information\n"),
+                                                                     L("Nozzle Bind"), wxICON_QUESTION | wxOK);
+                                            msg_window.ShowModal();
                                             auto dialog        = WebPresetDialog(&wxGetApp());
                                             dialog.m_bind_nozzle = true;
                                             dialog.m_device_id = ip;
                                             dialog.run();
 
-                                            info.preset_name = machine_type + " (0.4 nozzle)";
-                                            info.nozzle_sizes = {"0.4"};
+                                            if (info.nozzle_sizes.empty())
+                                                info.nozzle_sizes.push_back("0.4");
+
+                                            info.preset_name = machine_type + " (" + info.nozzle_sizes[0] + " nozzle)";
+                                            
+
                                             wxGetApp().app_config->save_device_info(info);
                                         } else {
+                                            MessageDialog msg_window(nullptr,
+                                                                     ip + _L(" The target machine model has not been detected. Please bind manually. "),
+                                                                     L("Machine Bind"), wxICON_QUESTION | wxOK);
                                             auto dialog        = WebPresetDialog(&wxGetApp());
                                             dialog.m_device_id = ip;
                                             dialog.run();
