@@ -2077,6 +2077,18 @@ void GUI_App::update_http_extra_header()
         m_agent->set_extra_http_header(extra_headers);
 }
 
+void GUI_App::get_connect_host(std::shared_ptr<PrintHost>& output) {
+    m_cnt_hst_mtx.lock();
+    output = m_connected_host;
+    m_cnt_hst_mtx.unlock();
+}
+
+void GUI_App::set_connect_host(const std::shared_ptr<PrintHost>& input) {
+    m_cnt_hst_mtx.lock();
+    m_connected_host = input;
+    m_cnt_hst_mtx.unlock();
+}
+
 void GUI_App::on_start_subscribe_again(std::string dev_id)
 {
     auto start_subscribe_timer = new wxTimer(this, wxID_ANY);

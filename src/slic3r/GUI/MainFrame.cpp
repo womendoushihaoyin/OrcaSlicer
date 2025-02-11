@@ -1408,9 +1408,14 @@ bool MainFrame::can_send_gcode() const
 {
     if (m_plater && !m_plater->model().objects.empty())
     {
-        auto cfg = wxGetApp().preset_bundle->printers.get_edited_preset().config;
-        if (const auto *print_host_opt = cfg.option<ConfigOptionString>("print_host"); print_host_opt)
-            return !print_host_opt->value.empty();
+        if (wxGetApp().app_config->get("use_new_connect") == "true") {
+            return true;
+        } else {
+            auto cfg = wxGetApp().preset_bundle->printers.get_edited_preset().config;
+            if (const auto* print_host_opt = cfg.option<ConfigOptionString>("print_host"); print_host_opt)
+                return !print_host_opt->value.empty();
+        }
+        
     }
     return true;
 }

@@ -614,6 +614,10 @@ std::string Moonraker::make_url(const std::string& path) const
             return (boost::format("%1%/%2%") % m_host % path).str();
         }
     } else {
+        if (m_host.find(":1883") != std::string::npos) {
+            std::string http_host = m_host.substr(0, m_host.find(":1883"));
+            return (boost::format("http://%1%/%2%") % http_host % path).str();
+        }
         return (boost::format("http://%1%/%2%") % m_host % path).str();
     }
 }

@@ -537,8 +537,7 @@ void WebPresetDialog::OnScriptMessage(wxWebViewEvent& evt)
                 wxString    strJS      = wxString::Format("window.postMessage(%s)", logout_cmd);
                 GUI::wxGetApp().run_script(strJS);
 
-                // test
-                // wxGetApp().get_tab(Preset::TYPE_PRINTER)->select_preset(info.preset_name);
+                wxGetApp().mainframe->plater()->sidebar().update_all_preset_comboboxes();
             }
 
         } else if (strCmd == "save_userguide_filaments") {

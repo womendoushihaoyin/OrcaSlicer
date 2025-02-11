@@ -316,7 +316,30 @@ private:
     HttpServer       m_page_http_server;
     bool             m_show_gcode_window{true};
     boost::thread    m_check_network_thread;
+
+    std::shared_ptr<PrintHost> m_connected_host = nullptr;
+    std::mutex                 m_cnt_hst_mtx;
+    DynamicPrintConfig              m_host_config;
+    std::mutex                 m_host_cfg_mtx;
+
   public:
+    DynamicPrintConfig*             get_host_config() {
+        DynamicPrintConfig* res = nullptr;
+        m_host_cfg_mtx.lock();
+        res = &m_host_config;
+        m_host_cfg_mtx.unlock();
+
+        return res;
+    }
+
+    void                       set_host_config(const DynamicPrintConfig& config)
+    {
+        m_host_cfg_mtx.lock();
+        m_host_config = config;
+        m_host_cfg_mtx.unlock();
+    }
+    void      get_connect_host(std::shared_ptr<PrintHost>& output);
+    void                       set_connect_host(const std::shared_ptr<PrintHost>& intput);
     wxDialog* get_web_device_dialog() { return web_device_dialog; }
       //try again when subscription fails
     void            on_start_subscribe_again(std::string dev_id);
