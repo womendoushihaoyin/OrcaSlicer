@@ -986,8 +986,11 @@ void SSWCP_MachineConnect_Instance::sw_disconnect() {
             });
 
         } else {
-            MessageDialog msg_window(nullptr, _L(" Disconnect Failed !\n"), L("Machine Disconnected"), wxICON_QUESTION | wxOK);
-            msg_window.ShowModal();
+            wxGetApp().CallAfter([]() {
+                MessageDialog msg_window(nullptr, _L(" Disconnect Failed !\n"), L("Machine Disconnected"), wxICON_QUESTION | wxOK);
+                msg_window.ShowModal(); 
+            });
+            
 
             self->m_status = 1;
             self->m_msg    = msg.c_str();
