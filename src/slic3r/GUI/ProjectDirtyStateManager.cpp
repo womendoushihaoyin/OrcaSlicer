@@ -61,7 +61,7 @@ void ProjectDirtyStateManager::reset_initial_presets()
 {
     m_initial_presets.fill(std::string{});
     GUI_App &app = wxGetApp();
-    auto&    presets = app.get_selected_presets();
+    const auto& presets = app.get_selected_presets();
     for (const auto &[type, name] : presets) { 
         if (type == Preset::Type::TYPE_FILAMENT) {
             m_initial_filament_presets_names = wxGetApp().preset_bundle->filament_presets;
