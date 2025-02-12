@@ -78,6 +78,7 @@ void WebDeviceDialog::load_url(wxString &url)
 
 bool WebDeviceDialog::run()
 {
+    this->load_url(m_device_url);
     if (this->ShowModal() == wxID_OK) {
         return true;
     }

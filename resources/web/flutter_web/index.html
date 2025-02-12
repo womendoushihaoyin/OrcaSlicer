@@ -363,37 +363,37 @@
       var devices = { 
           '90F3A2F30063C233': {
             'ip': '172.18.1.33',
-            'port': '1883',
+            'port': 1883,
             'name': 'lava-90F-233',
             'sn': '90F3A2F30063C233',
           },
           '9BD4E436F33D0B56': {
             'ip': '172.18.0.46',
-            'port': '1883',
+            'port': 1883,
             'name': 'lava-9BD-B56',
             'sn': '9BD4E436F33D0B56'
           },
           'BE667E5F8A060BDF': {
             'ip': '172.18.1.91',
-            'port': '1883',
+            'port': 1883,
             'name': 'lava-BE6-BDF',
             'sn': 'BE667E5F8A060BDF'
           },
           'BC0810C948A828C0': {
             'ip': '172.18.0.62',
-            'port': '1883',
+            'port': 1883,
             'name': 'lava-BC0-8C0',
             'sn': 'BC0810C948A828C0'
           },
           '58317961E7DBEF34': {
             'ip': '172.18.1.54',
-            'port': '1883',
+            'port': 1883,
             'name': 'lava-583-F34',
             'sn': '58317961E7DBEF34'
           },
           'A4C0111397B11BBB': {
             'ip': '172.18.0.65',
-            'port': '1883',
+            'port': 1883,
             'name': 'lava-A4C-BBB',
             'sn': 'A4C0111397B11BBB'
           }
@@ -465,10 +465,10 @@
       // 调用 window.postMessage 传递消息给 flutter
       window.wx &&  window.wx.postMessage(message); // 调用 window.postMessage 传递消息给 原生系统
       ///模拟收到响应结果5000
-      // if(!window.wx) {
-      //   console.log('i cant find window.wx, so i simulate a return by postMessage')
-      //   setTimeout(simulateResponse(message), 5000)
-      // }
+      if(!window.wx) {
+        console.log('i cant find window.wx, so i simulate a return by postMessage')
+        setTimeout(simulateResponse(message), 5000)
+      }
     }
 
   </script>

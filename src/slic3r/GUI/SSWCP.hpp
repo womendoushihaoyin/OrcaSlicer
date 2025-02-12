@@ -113,6 +113,8 @@ private:
     void sw_connect();
     void sw_disconnect();
 
+    void sw_get_connect_machine();
+
 private:
     std::thread m_work_thread;  // Worker thread
 };

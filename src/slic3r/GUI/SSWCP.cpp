@@ -949,6 +949,24 @@ void SSWCP_MachineConnect_Instance::sw_connect() {
     } catch (std::exception& e) {}
 }
 
+void SSWCP_MachineConnect_Instance::sw_get_connect_machine() {
+    try {
+        auto devices = wxGetApp().app_config->get_devices();
+        for (const auto& device : devices) {
+            if (device.connecting) {
+                m_res_data = device.connecting;
+                break;
+            }
+        }
+
+        send_to_js();
+        finish_job();
+    }
+    catch (std::exception& e) {
+
+    }
+}
+
 void SSWCP_MachineConnect_Instance::sw_disconnect() {
     auto self = shared_from_this();
     m_work_thread = std::thread([self](){
