@@ -154,7 +154,7 @@ public:
 
 private:
     // Static MQTT client and related variables
-    static MqttClient* m_mqtt_client;
+    static std::shared_ptr<MqttClient> m_mqtt_client;
     static TimeoutMap<std::string, RequestCallback> m_request_cb_map;
     static std::function<void(const nlohmann::json&)> m_status_cb;
 

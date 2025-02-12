@@ -22,8 +22,14 @@ WebDeviceDialog::WebDeviceDialog()
     // 语言判断
     wxString strlang = wxGetApp().current_language_code_safe();
     wxString target_url = m_device_url;
-    if (strlang != "")
-        target_url += "?lang=" + strlang;
+    if (strlang != "") {
+        if (target_url.find("?") != std::string::npos) {
+            target_url += "&lang=" + strlang;
+        } else {
+            target_url += "?lang=" + strlang;
+        }
+    }
+        
 
     m_browser = WebView::CreateWebView(this, target_url);
     if (m_browser == nullptr) {

@@ -776,7 +776,8 @@ void SSWCP_MachineConnect_Instance::sw_connect() {
                             std::string machine_type = "";
                             std::vector<std::string> nozzle_diameters;
 
-                            std::shared_ptr<PrintHost> host(PrintHost::get_print_host(&wxGetApp().preset_bundle->printers.get_edited_preset().config));
+                            std::shared_ptr<PrintHost> host = nullptr;
+                            wxGetApp().get_connect_host(host);
 
                             if (SSWCP::query_machine_info(host, machine_type, nozzle_diameters) && machine_type != "") {
                                 // 查询成功
@@ -920,7 +921,8 @@ void SSWCP_MachineConnect_Instance::sw_connect() {
                             wxGetApp().mainframe->plater()->sidebar().update_all_preset_comboboxes();
                             wxGetApp().mainframe->m_print_enable = true;
                             wxGetApp().mainframe->update_slice_print_status(MainFrame::eEventPlateUpdate);
-                            wxGetApp().mainframe->load_printer_url("http://" + ip);  //到时全部加载本地交互页面
+                            //wxGetApp().mainframe->load_printer_url("http://" + ip);  //到时全部加载本地交互页面
+                            wxGetApp().mainframe->load_printer_url("http://localhost:13619/web/flutter_web/index.html?path=device_control");  //到时全部加载本地交互页面
                         });
                         
                     } else {

@@ -636,7 +636,7 @@ bool Moonraker::connect(wxString& msg, const nlohmann::json& params) {
 
 // Moonraker_mqtt
 
-MqttClient* Moonraker_Mqtt::m_mqtt_client = nullptr;
+std::shared_ptr<MqttClient> Moonraker_Mqtt::m_mqtt_client = nullptr;
 TimeoutMap<std::string, Moonraker_Mqtt::RequestCallback> Moonraker_Mqtt::m_request_cb_map;
 std::function<void(const nlohmann::json&)> Moonraker_Mqtt::m_status_cb = nullptr;
 std::string Moonraker_Mqtt::m_response_topic = "/response";
@@ -649,8 +649,7 @@ std::mutex Moonraker_Mqtt::m_sn_mtx;
 
 Moonraker_Mqtt::Moonraker_Mqtt(DynamicPrintConfig* config) : Moonraker(config) {
     std::string host_info = config->option<ConfigOptionString>("print_host")->value;
-    if (!m_mqtt_client)
-        m_mqtt_client = new MqttClient("mqtt://" + host_info, "orca", true);
+    m_mqtt_client.reset(new MqttClient("mqtt://" + host_info, "orca", true));
 }
 
 // Connect to MQTT broker

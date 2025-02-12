@@ -4097,6 +4097,8 @@ std::string GUI_App::handle_web_request(std::string cmd)
                                 }
                             } else {
                                 // 弹框提示
+                                MessageDialog msg_window(nullptr, _L("Your machine info is not completed, please select the machine type!"), L("Create Failed"), wxICON_QUESTION | wxOK);
+                                msg_window.ShowModal();
                             }
                         });
                     }

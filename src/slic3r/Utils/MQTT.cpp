@@ -24,16 +24,59 @@ MqttClient::MqttClient(const std::string& server_address, const std::string& cli
 // @return: true if connection successful, false otherwise
 bool MqttClient::Connect()
 {
+    if (connected_) {
+        BOOST_LOG_TRIVIAL(warning) << "Already connected to MQTT server";
+        return true;
+    }
+
     try {
+        // 先确保之前的连接已完全断开
+        if (client_.is_connected()) {
+            try {
+                client_.disconnect()->wait();
+            } catch (...) {
+                // 忽略断开时的错误
+            }
+        }
+
         BOOST_LOG_TRIVIAL(info) << "Connecting to the MQTT server: " << server_address_;
+        
+        // 设置连接超时
+        connOpts_.set_connect_timeout(5);  // 5秒连接超时
+        
+        // 使用同步连接，等待连接结果
         mqtt::token_ptr conntok = client_.connect(connOpts_, nullptr, *this);
-        conntok->wait();  // Wait for connection completion
+        if (!conntok->wait_for(std::chrono::seconds(6))) {  // 给额外1秒缓冲
+            BOOST_LOG_TRIVIAL(error) << "Connection timeout";
+            connected_ = false;
+            return false;
+        }
+
+        // 验证连接状态
+        if (!client_.is_connected()) {
+            BOOST_LOG_TRIVIAL(error) << "Connection failed - client not connected";
+            connected_ = false;
+            return false;
+        }
+
         connected_ = true;
         BOOST_LOG_TRIVIAL(info) << "Successfully connected to MQTT server";
         return true;
-    } catch (const mqtt::exception& exc) {
+    }
+    catch (const mqtt::exception& exc) {
         connected_ = false;
         BOOST_LOG_TRIVIAL(error) << "Failed to connect to MQTT server '" << server_address_ << "': " << exc.what();
+        
+        // 确保清理任何可能的残留连接
+        try {
+            client_.disconnect()->wait();
+        } catch (...) {}
+        
+        return false;
+    }
+    catch (const std::exception& exc) {
+        connected_ = false;
+        BOOST_LOG_TRIVIAL(error) << "Unexpected error while connecting: " << exc.what();
         return false;
     }
 }
@@ -42,20 +85,36 @@ bool MqttClient::Connect()
 // @return: true if disconnection successful, false otherwise
 bool MqttClient::Disconnect()
 {
-    if (!connected_) {
+    if (!connected_ && !client_.is_connected()) {
         BOOST_LOG_TRIVIAL(warning) << "MQTT client already disconnected";
-        return false;
+        return true;  // 已经断开就返回成功
     }
 
     try {
         BOOST_LOG_TRIVIAL(info) << "Disconnecting from MQTT server...";
+        
+        // 设置断开连接超时
         mqtt::token_ptr disctok = client_.disconnect();
-        disctok->wait();
+        if (!disctok->wait_for(std::chrono::seconds(5))) {
+            BOOST_LOG_TRIVIAL(error) << "Disconnect timeout";
+            // 即使超时，我们也标记为已断开
+            connected_ = false;
+            return false;
+        }
+
         connected_ = false;
         BOOST_LOG_TRIVIAL(info) << "Successfully disconnected from MQTT server";
         return true;
-    } catch (const mqtt::exception& exc) {
+    }
+    catch (const mqtt::exception& exc) {
         BOOST_LOG_TRIVIAL(error) << "Error disconnecting from MQTT server: " << exc.what();
+        // 即使发生异常，也要标记为断开状态
+        connected_ = false;
+        return false;
+    }
+    catch (const std::exception& exc) {
+        BOOST_LOG_TRIVIAL(error) << "Unexpected error while disconnecting: " << exc.what();
+        connected_ = false;
         return false;
     }
 }
@@ -149,13 +208,18 @@ bool MqttClient::CheckConnected()
 // @param cause: Reason for connection loss
 void MqttClient::connection_lost(const std::string& cause)
 {
-    connected_ = false;
     BOOST_LOG_TRIVIAL(warning) << "MQTT connection lost";
     if (!cause.empty()) {
         BOOST_LOG_TRIVIAL(warning) << "Cause: " << cause;
     }
 
-    Disconnect();
+    // 确保更新连接状态
+    connected_ = false;
+    
+    // 清理连接
+    try {
+        client_.disconnect()->wait();
+    } catch (...) {}
 }
 
 // Callback when a message arrives
