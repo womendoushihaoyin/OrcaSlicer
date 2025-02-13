@@ -1270,8 +1270,11 @@ void Sidebar::update_all_preset_comboboxes()
             connection_btn->Show();
             wxString url = cfg.opt_string("print_host_webui").empty() ? cfg.opt_string("print_host") : cfg.opt_string("print_host_webui");
             wxString apikey;
-            if (url.empty())
-                url = wxString::Format("file://%s/web/orca/missing_connection.html", from_u8(resources_dir()));
+            if (url.empty()) {
+                // url = wxString::Format("file://%s/web/orca/missing_connection.html", from_u8(resources_dir()));
+                std::string base_url = LOCALHOST_URL + std::to_string(PAGE_HTTP_PORT);
+                url                  = wxString::Format("%s/web/orca/missing_connection.html", from_u8(base_url));
+            }
             else {
                 if (!url.Lower().starts_with("http"))
                     url = wxString::Format("http://%s", url);

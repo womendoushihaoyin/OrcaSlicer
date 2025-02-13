@@ -36,7 +36,7 @@ PrinterWebView::PrinterWebView(wxWindow *parent)
 
     m_browser->Bind(wxEVT_WEBVIEW_ERROR, &PrinterWebView::OnError, this);
     m_browser->Bind(wxEVT_WEBVIEW_LOADED, &PrinterWebView::OnLoaded, this);
-    Bind(wxEVT_WEBVIEW_SCRIPT_MESSAGE_RECEIVED, &PrinterWebView::OnScriptMessage, this, m_browser->GetId());
+    m_browser->Bind(wxEVT_WEBVIEW_SCRIPT_MESSAGE_RECEIVED, &PrinterWebView::OnScriptMessage, this, m_browser->GetId());
 
     SetSizer(topsizer);
 
@@ -81,6 +81,7 @@ void PrinterWebView::load_url(wxString& url, wxString apikey)
     m_apikey_sent = false;
     
     m_browser->LoadURL(url);
+    m_browser->Show();
     //m_browser->SetFocus();
     UpdateState();
 }
