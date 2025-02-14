@@ -773,7 +773,7 @@ void SSWCP_MachineConnect_Instance::sw_connect() {
                             }
                         }
 
-                        wxGetApp().CallAfter([ip](){
+                        wxGetApp().CallAfter([ip, connect_params](){
                             // 查询机器的机型和喷嘴信息
                             std::string machine_type = "";
                             std::vector<std::string> nozzle_diameters;
@@ -806,6 +806,10 @@ void SSWCP_MachineConnect_Instance::sw_connect() {
                                 info.connecting = true;
                                 info.model_name = machine_type;
                                 info.nozzle_sizes = nozzle_diameters;
+                                if (connect_params.count("sn") && connect_params["sn"].is_string()) {
+                                    info.sn = connect_params["sn"].get<std::string>();
+                                }
+
 
                                 size_t      vendor_pos    = machine_type.find_first_of(" ");
                                 if (vendor_pos != std::string::npos) {
@@ -835,10 +839,10 @@ void SSWCP_MachineConnect_Instance::sw_connect() {
                                         std::string machine_type = "";
                                         if (machine_ip_type->get_machine_type(ip, machine_type)) {
                                             // 已经发现过的机型信息
-                                            // test
-                                            if (machine_type == "lava") {
-                                                machine_type = "Snapmaker A250 BKit";
-                                            }
+                                            //// test
+                                            //if (machine_type == "lava") {
+                                            //    machine_type = "Snapmaker A250 BKit";
+                                            //}
 
                                             DeviceInfo info;
                                             info.ip          = ip;
@@ -846,6 +850,10 @@ void SSWCP_MachineConnect_Instance::sw_connect() {
                                             info.dev_name    = ip;
                                             info.connecting  = true;
                                             info.model_name  = machine_type;
+                                            if (connect_params.count("sn") && connect_params["sn"].is_string()) {
+                                                info.sn = connect_params["sn"].get<std::string>();
+                                            }
+
                                             size_t vendor_pos = machine_type.find_first_of(" ");
                                             if (vendor_pos != std::string::npos) {
                                                 std::string vendor        = machine_type.substr(0, vendor_pos);
@@ -880,7 +888,9 @@ void SSWCP_MachineConnect_Instance::sw_connect() {
                                             info.dev_id       = ip;
                                             info.dev_name     = ip;
                                             info.connecting   = true;
-
+                                            if (connect_params.count("sn") && connect_params["sn"].is_string()) {
+                                                info.sn = connect_params["sn"].get<std::string>();
+                                            }
                                             wxGetApp().app_config->save_device_info(info);
                                             MessageDialog msg_window(nullptr,
                                                                      ip + _L(" The target machine model has not been detected. Please bind manually. "),

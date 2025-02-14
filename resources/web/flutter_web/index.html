@@ -163,17 +163,18 @@
       window.wx.postMessage(JSON.stringify(body));
     }
 
-
+    var testtime = 1.0;
     function test_mqtt_subscribe_response_message_timer() {
       var timer = setInterval(function() {
-        test_mqtt_subscribe_response();
+        testtime += 1.0;
+        test_mqtt_subscribe_response(testtime);
       }, 2000);
-      setTimeout(function() {
-        clearInterval(timer);
-      }, 10000);
+      // setTimeout(function() {
+      //   clearInterval(timer);
+      // }, 10000);
     }
 
-    function test_mqtt_subscribe_response() {
+    function test_mqtt_subscribe_response(time) {
       var body =  {
                     "header": {
                         "event_id": "subscribe_machine_state"
@@ -192,7 +193,7 @@
                                     "pressure_advance": 0.015,
                                     "smooth_time": 0.04,
                                     "target": 230,
-                                    "temperature": 229.88
+                                    "temperature": time
                                 },
                                 "extruder1": {
                                     "can_extrude": false,
@@ -362,40 +363,18 @@
     function getDeviceData() {
       var devices = { 
           '90F3A2F30063C233': {
-            'ip': '172.18.1.33',
+            'ip': '172.18.1.34',
             'port': 1883,
             'name': 'lava-90F-233',
             'sn': '90F3A2F30063C233',
-          },
-          '9BD4E436F33D0B56': {
-            'ip': '172.18.0.46',
-            'port': 1883,
-            'name': 'lava-9BD-B56',
-            'sn': '9BD4E436F33D0B56'
-          },
-          'BE667E5F8A060BDF': {
-            'ip': '172.18.1.91',
-            'port': 1883,
-            'name': 'lava-BE6-BDF',
-            'sn': 'BE667E5F8A060BDF'
-          },
-          'BC0810C948A828C0': {
-            'ip': '172.18.0.62',
-            'port': 1883,
-            'name': 'lava-BC0-8C0',
-            'sn': 'BC0810C948A828C0'
-          },
-          '58317961E7DBEF34': {
-            'ip': '172.18.1.54',
-            'port': 1883,
-            'name': 'lava-583-F34',
-            'sn': '58317961E7DBEF34'
+            'connecting': true,
           },
           'A4C0111397B11BBB': {
-            'ip': '172.18.0.65',
+            'ip': '172.18.1.31',
             'port': 1883,
             'name': 'lava-A4C-BBB',
-            'sn': 'A4C0111397B11BBB'
+            'sn': 'A4C0111397B11BBB',
+            'connecting': false,
           }
       };
       return devices;
@@ -411,13 +390,39 @@
         // 反序列化 header 和 payload
         header['event_id'] = payload['event_id']; 
         header['cmd'] = payload['cmd']
+
         // 开始机器发现
-        var devices = getDeviceData();
+        var result;
+        if(header['cmd'] =='sw_StartMachineFind'){
+          result = getDeviceData();
+        } else if(header['cmd'] =='sw_GetMachineState'){
+          result = {
+            'ip': '172.18.1.34',
+            'port': 1883,
+            'name': 'lava-90F-233',
+            'sn': '172.18.1.34',
+            'connecting': true,
+          };
+        } else if(header['cmd'] =='sw_GetConnectedMachine'){
+          result = {
+            "dev_id":"172.18.1.39",
+            "dev_name":"172.18.1.39",
+            "img":"http://localhost:13619/profiles/Snapmaker/Snapmaker A250 BKit_cover.png",
+            "ip":"172.18.1.34",
+            "model_name":"Snapmaker A250 BKit",
+            "nozzle_sizes":["0.4"],
+            "preset_name":"Snapmaker A250 BKit (0.4 nozzle)",
+            "sn":"172.18.1.34",
+            "port": 1883,
+            "name": "Snapmaker A250 BKit",
+            "connecting":true,
+          }
+        }
         var mokeData={
           "header": header,
           "payload": {
             'code': 200,
-            'data': devices,
+            'data': result,
             'msg': 'ok',
           }
         };
@@ -437,22 +442,20 @@
         // 反序列化 header 和 payload
         header['event_id'] = payload['event_id']; 
 
-        if(header['event_id'] == null) {
-          alert(jsonMessage);
+        if(header['event_id'] != null) {
+          // alert(jsonMessage);
+          var mokeData={
+            "header": header,
+            "payload": {
+              'code': 200,
+              'data': null,
+              'msg': 'ok',
+            }
+          };
+          console.log("ackResponse message: " + JSON.stringify(mokeData) );
+          window.postMessage(JSON.stringify(mokeData), '*'); // 调用 window.postMessage 传递消息给 flutter
         }
-
-        // 开始机器发现
-        var devices = getDeviceData();
-        var mokeData={
-          "header": header,
-          "payload": {
-            'code': 200,
-            'data': null,
-            'msg': 'ok',
-          }
-        };
-        console.log("ackResponse message: " + JSON.stringify(mokeData) );
-        window.postMessage(JSON.stringify(mokeData), '*'); // 调用 window.postMessage 传递消息给 flutter
+        
       } catch (error) {
         console.error("Error parsing JSON:", error);
       }
@@ -460,13 +463,14 @@
 
     window.sendMessage = function (message) {
       console.log("I am proxy in html to send message to container: " + message);
-      //收到请求后，模拟收到响应结果
-      !window.wx && ackResponse(message);
+      
       // 调用 window.postMessage 传递消息给 flutter
       window.wx &&  window.wx.postMessage(message); // 调用 window.postMessage 传递消息给 原生系统
       ///模拟收到响应结果5000
       if(!window.wx) {
         console.log('i cant find window.wx, so i simulate a return by postMessage')
+        //收到请求后，模拟收到响应结果
+        ackResponse(message);
         setTimeout(simulateResponse(message), 5000)
       }
     }

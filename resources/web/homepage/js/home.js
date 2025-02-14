@@ -786,6 +786,7 @@ function OnConnectDevice(device) {
             params: {
                 ip: device.ip,
                 port: 1883,
+                sn: device.sn,
             }
         }
     }
