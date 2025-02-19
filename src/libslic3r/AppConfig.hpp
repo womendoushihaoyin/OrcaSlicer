@@ -293,6 +293,8 @@ public:
 	bool get_mouse_device_invert_roll(const std::string& name, bool& invert) const
 		{ return get_3dmouse_device_numeric_value(name, "invert_roll", invert); }
 
+	void update_filament_names(json& j);
+
 	static const std::string SECTION_FILAMENTS;
     static const std::string SECTION_MATERIALS;
     static const std::string SECTION_EMBOSS_STYLE;
@@ -335,6 +337,9 @@ private:
     std::vector<std::string>									m_filament_colors;
 
 	std::vector<PrinterCaliInfo>								m_printer_cali_infos;
+
+    // 添加耗材名称映射表
+    static const std::map<std::string, std::string> filament_name_map;
 };
 
 } // namespace Slic3r

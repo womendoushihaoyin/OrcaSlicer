@@ -460,6 +460,13 @@ private:
 
         std::string get_user_icon_url() { return m_login_user_icon_url; }
         void     set_user_icon_url(const std::string& url) { m_login_user_icon_url = url; }
+
+        void clear() {
+            m_login_user_name = "";
+            m_login_user_token = "";
+            m_login_user_icon_url = "";
+            m_login               = false;
+        }
     private:
         std::string m_login_user_name = "";
         std::string m_login_user_token = "";
