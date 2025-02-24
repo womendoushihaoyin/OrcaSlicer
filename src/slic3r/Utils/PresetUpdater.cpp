@@ -1068,7 +1068,7 @@ bool PresetUpdater::priv::install_bundles_rsrc(std::vector<std::string> bundles,
         // return false if name is end with .stl, case insensitive
         return boost::iends_with(name, ".stl") || boost::iends_with(name, ".png") || boost::iends_with(name, ".svg") ||
                boost::iends_with(name, ".jpeg") || boost::iends_with(name, ".jpg") || boost::iends_with(name, ".3mf");
-        }, false, true);
+        }, false, true, true);
 	}
 
 	return perform_updates(std::move(updates), snapshot);
@@ -1242,7 +1242,7 @@ Updates PresetUpdater::priv::get_config_updates(const Semver &old_slic3r_version
                 if (version_match && (vendor_ver < cache_ver)) {
 
                     Semver min_ver  = get_min_version_from_json(file_path);
-                    Semver soft_ver = Snapmaker_VERSION;
+                    Semver soft_ver = Semver(std::string(Snapmaker_VERSION));
 
                     bool legal = true;
                     legal      = min_ver <= soft_ver;
