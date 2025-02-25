@@ -108,7 +108,7 @@ struct Update
         , can_install(can_install)
 	{}
 
-    Update(fs::path &&source, fs::path &&target, const Version &version, std::string vendor, std::string changelog, std::string description, std::function<bool(const std::string)> file_filter,  bool forced = false, bool is_dir = false)
+    Update(fs::path &&source, fs::path &&target, const Version &version, std::string vendor, std::string changelog, std::string description, std::function<bool(const std::string)> file_filter,  bool forced = false, bool is_dir = false, bool can_install = true)
 		: source(std::move(source))
 		, target(std::move(target))
 		, version(version)
@@ -118,6 +118,7 @@ struct Update
         , file_filter(file_filter)
 		, forced_update(forced)
 		, is_directory(is_dir)
+        , can_install(can_install)
 	{}
 
 	//BBS: add directory support
