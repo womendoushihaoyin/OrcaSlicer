@@ -53,6 +53,31 @@ using boost::property_tree::ptree;
 
 namespace Slic3r {
 
+Semver get_min_version_from_json(std::string file_path)
+{
+    try {
+        boost::nowide::ifstream ifs(file_path);
+        json                    j;
+        ifs >> j;
+        if (!j.count(BBL_JSON_KEY_MIN_VERSION)) {
+            return Semver();
+        }
+        std::string version_str = j.at(BBL_JSON_KEY_MIN_VERSION);
+
+        auto config_version = Semver::parse(version_str);
+        if (!config_version) {
+            return Semver();
+        } else {
+            return *config_version;
+        }
+    }
+    catch (nlohmann::detail::parse_error& err) {
+        BOOST_LOG_TRIVIAL(error) << __FUNCTION__ << ": parse " << file_path
+                                 << " got a nlohmann::detail::parse_error, reason = " << err.what();
+        return Semver();
+    }
+}
+
 //BBS: add a function to load the version from xxx.json
 Semver get_version_from_json(std::string file_path)
 {

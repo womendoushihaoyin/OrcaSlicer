@@ -91,10 +91,12 @@ struct Update
 	//BBS: add directory support
 	bool is_directory {false};
 
+    bool can_install{true};
+
 	Update() {}
 	//BBS: add directory support
 	//BBS: use changelog string instead of url
-	Update(fs::path &&source, fs::path &&target, const Version &version, std::string vendor, std::string changelog, std::string description, bool forced = false, bool is_dir = false)
+	Update(fs::path &&source, fs::path &&target, const Version &version, std::string vendor, std::string changelog, std::string description, bool forced = false, bool is_dir = false, bool can_install = true)
 		: source(std::move(source))
 		, target(std::move(target))
 		, version(version)
@@ -103,9 +105,10 @@ struct Update
 		, descriptions(std::move(description))
 		, forced_update(forced)
 		, is_directory(is_dir)
+        , can_install(can_install)
 	{}
 
-    Update(fs::path &&source, fs::path &&target, const Version &version, std::string vendor, std::string changelog, std::string description, std::function<bool(const std::string)> file_filter,  bool forced = false, bool is_dir = false)
+    Update(fs::path &&source, fs::path &&target, const Version &version, std::string vendor, std::string changelog, std::string description, std::function<bool(const std::string)> file_filter,  bool forced = false, bool is_dir = false, bool can_install = true)
 		: source(std::move(source))
 		, target(std::move(target))
 		, version(version)
@@ -115,6 +118,7 @@ struct Update
         , file_filter(file_filter)
 		, forced_update(forced)
 		, is_directory(is_dir)
+        , can_install(can_install)
 	{}
 
 	//BBS: add directory support
@@ -664,7 +668,8 @@ void PresetUpdater::priv::sync_config()
     }
     AppConfig *app_config = GUI::wxGetApp().app_config;
 
-    auto profile_update_url = app_config->profile_update_url() + "/" + Snapmaker_VERSION;
+    // auto profile_update_url = app_config->profile_update_url() + "/" + Snapmaker_VERSION;
+    auto profile_update_url = app_config->profile_update_url();
     // parse the assets section and get the latest asset by comparing the name
 
     Http::get(profile_update_url)
@@ -1064,7 +1069,7 @@ bool PresetUpdater::priv::install_bundles_rsrc(std::vector<std::string> bundles,
         // return false if name is end with .stl, case insensitive
         return boost::iends_with(name, ".stl") || boost::iends_with(name, ".png") || boost::iends_with(name, ".svg") ||
                boost::iends_with(name, ".jpeg") || boost::iends_with(name, ".jpg") || boost::iends_with(name, ".3mf");
-        }, false, true);
+        }, false, true, true);
 	}
 
 	return perform_updates(std::move(updates), snapshot);
@@ -1226,20 +1231,41 @@ Updates PresetUpdater::priv::get_config_updates(const Semver &old_slic3r_version
                     oss<< ifs.rdbuf();
                     changelog = oss.str();
                     ifs.close();
+                    // 替换所有的 \\n 为 \n
+                    size_t pos = 0;
+                    while ((pos = changelog.find("\\n", pos)) != std::string::npos) {
+                        changelog.replace(pos, 2, "\n");
+                        pos += 1; // 移动到下一个可能的位置
+                    }
                 }
 
                 bool version_match = ((vendor_ver.maj() == cache_ver.maj()) && (vendor_ver.min() == cache_ver.min()));
                 if (version_match && (vendor_ver < cache_ver)) {
+
+                    Semver min_ver  = get_min_version_from_json(file_path);
+                    Semver soft_ver = Semver(std::string(Snapmaker_VERSION));
+
+                    bool legal = true;
+                    legal      = min_ver <= soft_ver;
+                    if (!legal) {
+                        wxString str = _L("needed, but current version is ");
+                        wxString str2 = _L("Bind with Pin Code");
+                        changelog += ("\nSnapmaker Orca " + min_ver.to_string() + " " + _L("needed, but current version is ") + 
+                                      soft_ver.to_string() + "\n")
+                                         .ToStdString();
+                    }
+
                     BOOST_LOG_TRIVIAL(info) << "[Orca Updater]:need to update settings from " << vendor_ver.to_string()
                                             << " to newer version " << cache_ver.to_string() << ", app version " << SLIC3R_VERSION;
                     Version version;
                     version.config_version = cache_ver;
                     version.comment        = description;
 
-                        updates.updates.emplace_back(std::move(file_path), std::move(path_in_vendor.string()), std::move(version), vendor_name, changelog, "", force_update, false);
+                        updates.updates.emplace_back(std::move(file_path), std::move(path_in_vendor.string()), std::move(version), vendor_name, changelog, "", force_update, false, legal);
 
                         //BBS: add directory support
-                        updates.updates.emplace_back(cache_path / vendor_name, vendor_path / vendor_name, Version(), vendor_name, "", "", force_update, true);
+                        updates.updates.emplace_back(cache_path / "profiles" / vendor_name, vendor_path / vendor_name, Version(), vendor_name, "", "",
+                                                     force_update, true, legal);
                 }
             }
         }
@@ -1279,7 +1305,8 @@ bool PresetUpdater::priv::perform_updates(Updates &&updates, bool snapshot) cons
         for (const auto &update : updates.updates) {
             BOOST_LOG_TRIVIAL(info) << '\t' << update;
 
-            update.install();
+            if (update.can_install)
+                update.install();
             //if (!update.is_directory) {
             //    vendor_path = update.source.parent_path().string();
             //    vendor_name = update.vendor;
@@ -1440,7 +1467,7 @@ PresetUpdater::UpdateResult PresetUpdater::config_update(const Semver& old_slic3
         }
 
         // regular update
-        if (params == UpdateParams::SHOW_NOTIFICATION) {
+        if (/* params == UpdateParams::SHOW_NOTIFICATION */0) {
             p->set_waiting_updates(updates);
             GUI::wxGetApp().plater()->get_notification_manager()->push_notification(GUI::NotificationType::PresetUpdateAvailable);
         }

@@ -185,12 +185,15 @@ MsgUpdateConfig::MsgUpdateConfig(const std::vector<Update> &updates, bool force_
 
 	const auto lang_code = wxGetApp().current_language_code_safe().ToStdString();
 
-    auto *versions = new wxBoxSizer(wxVERTICAL);
+    // auto *versions = new wxBoxSizer(wxVERTICAL);
     // BBS: use changelog string instead of url
-    wxStaticText *changelog_textctrl = new wxStaticText(m_scrollwindw_release_note, wxID_ANY, wxEmptyString, wxDefaultPosition, wxSize(FromDIP(560), -1));
+    
 
 
     for (const auto &update : updates) {
+        auto* versions = new wxBoxSizer(wxVERTICAL);
+        wxStaticText* changelog_textctrl = new wxStaticText(m_scrollwindw_release_note, wxID_ANY, wxEmptyString, wxDefaultPosition,
+                                                            wxSize(FromDIP(560), -1));
         auto *flex = new wxFlexGridSizer(2, 0, FromDIP(15));
 
         auto *text_vendor = new wxStaticText(m_scrollwindw_release_note, wxID_ANY, update.vendor);
@@ -217,17 +220,15 @@ MsgUpdateConfig::MsgUpdateConfig(const std::vector<Update> &updates, bool force_
 
 			//auto change_log = new wxStaticText(m_scrollwindw_release_note, wxID_ANY, from_u8(update.change_log), wxDefaultPosition, wxDefaultSize); 
 			changelog_textctrl->SetLabel(changelog_textctrl->GetLabel() + wxString::Format("%s\n", from_u8(update.change_log)));
+
+		content_sizer->Add(versions);
+
+		////BBS: use changelog string instead of url
+        if (changelog_textctrl)
+            content_sizer->Add(changelog_textctrl, 1, wxEXPAND | wxTOP, FromDIP(30));
     }
 
-	content_sizer->Add(versions);
-
 	
-
-    ////BBS: use changelog string instead of url
-    if (changelog_textctrl) 
-		content_sizer->Add(changelog_textctrl, 1, wxEXPAND | wxTOP, FromDIP(30));
-
-
 	m_butto_ok->Bind(wxEVT_BUTTON, [this](const wxCommandEvent &) { EndModal(wxID_OK); });
 	m_button_cancel->Bind(wxEVT_BUTTON, [this](const wxCommandEvent &) { EndModal(wxID_CLOSE); });
 
