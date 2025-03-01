@@ -103,6 +103,7 @@ static wxString update_custom_filaments()
 
 GuideFrame::GuideFrame(GUI_App *pGUI, long style)
     : DPIDialog((wxWindow *) (pGUI->mainframe), wxID_ANY, "Snapmaker Orca", wxDefaultPosition, wxDefaultSize, style),
+    : DPIDialog((wxWindow *) (pGUI->mainframe), wxID_ANY, "Snapmaker Orca", wxDefaultPosition, wxDefaultSize, style),
 	m_appconfig_new()
 {
     SetBackgroundColour(*wxWHITE);
@@ -593,6 +594,7 @@ bool GuideFrame::IsFirstUse()
         return false;
 
     if (sm_bundle_rsrc == true)
+    if (sm_bundle_rsrc == true)
         return true;
 
     return true;
@@ -883,8 +885,10 @@ bool GuideFrame::apply_config(AppConfig *app_config, PresetBundle *preset_bundle
     };
     // Prusa printers are considered first, then 3rd party.
     if (preferred_model = get_preferred_printer_model(PresetBundle::SM_BUNDLE, preferred_variant);
+    if (preferred_model = get_preferred_printer_model(PresetBundle::SM_BUNDLE, preferred_variant);
         preferred_model.empty()) {
         for (const auto& bundle : enabled_vendors) {
+            if (bundle.first == PresetBundle::SM_BUNDLE) { continue; }
             if (bundle.first == PresetBundle::SM_BUNDLE) { continue; }
             if (preferred_model = get_preferred_printer_model(bundle.first, preferred_variant);
                 !preferred_model.empty())
@@ -964,7 +968,10 @@ bool GuideFrame::run()
             //clear filament section and use default materials
             app.app_config->set_variant(PresetBundle::SM_BUNDLE,
                 PresetBundle::SM_DEFAULT_PRINTER_MODEL, PresetBundle::SM_DEFAULT_PRINTER_VARIANT, "true");
+            app.app_config->set_variant(PresetBundle::SM_BUNDLE,
+                PresetBundle::SM_DEFAULT_PRINTER_MODEL, PresetBundle::SM_DEFAULT_PRINTER_VARIANT, "true");
             app.app_config->clear_section(AppConfig::SECTION_FILAMENTS);
+            app.preset_bundle->load_selections(*app.app_config, {PresetBundle::SM_DEFAULT_PRINTER_MODEL, PresetBundle::SM_DEFAULT_PRINTER_VARIANT, PresetBundle::SM_DEFAULT_FILAMENT, std::string()});
             app.preset_bundle->load_selections(*app.app_config, {PresetBundle::SM_DEFAULT_PRINTER_MODEL, PresetBundle::SM_DEFAULT_PRINTER_VARIANT, PresetBundle::SM_DEFAULT_FILAMENT, std::string()});
 
             app.app_config->set_legacy_datadir(false);
@@ -1106,6 +1113,11 @@ int GuideFrame::LoadProfile()
         if (!boost::filesystem::exists((vendor_dir / PresetBundle::SM_BUNDLE).replace_extension(".json"))) {
             sm_bundle_path = rsrc_vendor_dir;
             sm_bundle_rsrc = true;
+        auto sm_bundle_path = vendor_dir;
+        sm_bundle_rsrc = false;
+        if (!boost::filesystem::exists((vendor_dir / PresetBundle::SM_BUNDLE).replace_extension(".json"))) {
+            sm_bundle_path = rsrc_vendor_dir;
+            sm_bundle_rsrc = true;
         }
 
         // intptr_t    handle;
@@ -1128,6 +1140,7 @@ int GuideFrame::LoadProfile()
 
         //load BBL bundle from user data path
         string                                targetPath = sm_bundle_path.make_preferred().string();
+        string                                targetPath = sm_bundle_path.make_preferred().string();
         boost::filesystem::path               myPath(targetPath);
         boost::filesystem::directory_iterator endIter;
         for (boost::filesystem::directory_iterator iter(myPath); iter != endIter; iter++) {
@@ -1143,6 +1156,7 @@ int GuideFrame::LoadProfile()
                 strVendor          = strVendor.AfterLast('/');
                 wxString strExtension = from_u8(iter->path().string()).AfterLast('.').Lower();
 
+                if (w2s(strVendor) == PresetBundle::SM_BUNDLE && strExtension.CmpNoCase("json") == 0)
                 if (w2s(strVendor) == PresetBundle::SM_BUNDLE && strExtension.CmpNoCase("json") == 0)
                     LoadProfileFamily(w2s(strVendor), iter->path().string());
             }
@@ -1162,6 +1176,7 @@ int GuideFrame::LoadProfile()
                 strVendor          = strVendor.AfterLast('/');
                 wxString strExtension = from_u8(iter->path().string()).AfterLast('.').Lower();
 
+                if (w2s(strVendor) != PresetBundle::SM_BUNDLE && strExtension.CmpNoCase("json")==0)
                 if (w2s(strVendor) != PresetBundle::SM_BUNDLE && strExtension.CmpNoCase("json")==0)
                     LoadProfileFamily(w2s(strVendor), iter->path().string());
             }
@@ -1559,8 +1574,7 @@ int GuideFrame::LoadProfileFamily(std::string strVendor, std::string strFilePath
                 boost::filesystem::path sub_path = boost::filesystem::absolute(vendor_dir / s2).make_preferred();
                 std::string             sub_file = sub_path.string();
                 LoadFile(sub_file, contents);
-                
-                if(contents == ""){
+                if (contents == "") {
                     continue;
                 }
                 json pm = json::parse(contents);
@@ -1569,7 +1583,7 @@ int GuideFrame::LoadProfileFamily(std::string strVendor, std::string strFilePath
                 BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << "Load Filament:" << s1 << ",Path:" << sub_file << ",instantiation?" << strInstant;
 
                 if (strInstant == "true") {
-                    std::string sV;
+                    std::string sV;     
                     std::string sT;
 
                     int nRet = GetFilamentInfo(vendor_dir.string(),tFilaList, sub_file, sV, sT);

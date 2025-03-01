@@ -1657,6 +1657,14 @@ void Tab::on_value_change(const std::string& opt_key, const boost::any& value)
             new_colors.push_back(new_color);
         }
         wxGetApp().preset_bundle->set_num_filaments(num_extruder, new_colors);
+        int         old_filament_size = wxGetApp().preset_bundle->filament_presets.size();
+        std::vector<std::string> new_colors;
+        for (int i = old_filament_size; i < num_extruder; ++i) {
+            wxColour    new_col   = Plater::get_next_color_for_filament();
+            std::string new_color = new_col.GetAsString(wxC2S_HTML_SYNTAX).ToStdString();
+            new_colors.push_back(new_color);
+        }
+        wxGetApp().preset_bundle->set_num_filaments(num_extruder, new_colors);
         wxGetApp().plater()->on_filaments_change(num_extruder);
         wxGetApp().get_tab(Preset::TYPE_PRINT)->update();
         wxGetApp().preset_bundle->export_selections(*wxGetApp().app_config);
@@ -5101,20 +5109,13 @@ bool Tab::select_preset(std::string preset_name, bool delete_current /*=false*/,
         // check if there is something in the cache to move to the new selected preset
         apply_config_from_cache();
 
+        load_current_preset();
+
         // Orca: update presets for the selected printer
         if (m_type == Preset::TYPE_PRINTER && wxGetApp().app_config->get_bool("remember_printer_config")) {
             m_preset_bundle->update_selections(*wxGetApp().app_config);
-            int extruders_count =
-                m_preset_bundle->printers.get_edited_preset().config.opt<ConfigOptionFloats>("nozzle_diameter")->values.size();
-            bool support_multi_material =
-                m_preset_bundle->printers.get_edited_preset().config.opt<ConfigOptionBool>("single_extruder_multi_material")->getBool();
-
-            if (!support_multi_material) {
-                m_preset_bundle->set_num_filaments(extruders_count);
-            } 
             wxGetApp().plater()->sidebar().on_filaments_change(m_preset_bundle->filament_presets.size());
         }
-        load_current_preset();
 
         if (delete_third_printer) {
             wxGetApp().CallAfter([filament_presets, process_presets]() {
@@ -5162,6 +5163,12 @@ bool Tab::may_discard_current_dirty_preset(PresetCollection* presets /*= nullptr
     if (presets == nullptr) presets = m_presets;
 
     UnsavedChangesDialog dlg(m_type, presets, new_printer_name, no_transfer);
+    
+    if (dlg.getUpdateItemCount() == 0) {
+        // no need to save
+        return true;
+    }
+
     
     if (dlg.getUpdateItemCount() == 0) {
         // no need to save
