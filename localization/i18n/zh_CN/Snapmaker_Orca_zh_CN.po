@@ -7028,6 +7028,9 @@ msgstr "使用微型激光雷达进行自动流量校准"
 msgid "Modifying the device name"
 msgstr "修改打印机名称"
 
+msgid "needed, but current version is "
+msgstr "开始支持此预设更新，但是当前的软件版本为 "
+
 msgid "Bind with Pin Code"
 msgstr "通过Pin码绑定"
 
