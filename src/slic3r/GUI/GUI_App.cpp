@@ -1098,6 +1098,12 @@ void GUI_App::shutdown()
         login_dlg = nullptr;
     }
 
+    if (sm_login_dlg != nullptr) {
+        BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(": destroy login dialog");
+        delete sm_login_dlg;
+        sm_login_dlg = nullptr;
+    }
+
     if (m_is_recreating_gui) return;
     m_is_closing = true;
     BOOST_LOG_TRIVIAL(info) << "GUI_App::shutdown exit";
@@ -3665,7 +3671,7 @@ void GUI_App::sm_ShowUserLogin(bool show)
                 delete sm_login_dlg;
                 sm_login_dlg = new SMUserLogin();
             }
-            sm_login_dlg->ShowModal();
+            sm_login_dlg->run();
         } catch (std::exception&) {
             ;
         }

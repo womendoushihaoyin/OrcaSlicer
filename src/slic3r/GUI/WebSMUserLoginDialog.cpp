@@ -157,7 +157,7 @@ void SMUserLogin::OnIdle(wxIdleEvent &WXUNUSED(evt))
  * when the user clicks a link)
  */
 void SMUserLogin::OnNavigationRequest(wxWebViewEvent &evt)
-{
+{   
     wxString tmpUrl = evt.GetURL();
     
     size_t start = tmpUrl.find("token=");
@@ -386,6 +386,8 @@ void SMUserLogin::OnError(wxWebViewEvent &evt)
         if(m_timer!=NULL)
             m_timer->Stop();
 
+        m_networkOk = false;
+
         if (m_networkOk==false)
             ShowErrorPage();
     }
@@ -413,12 +415,14 @@ void SMUserLogin::OnScriptResponseMessage(wxCommandEvent &WXUNUSED(evt))
 
 bool  SMUserLogin::ShowErrorPage()
 {
-    wxString ErrortUrl = from_u8((boost::filesystem::path(resources_dir()) / "web\\login\\error.html").make_preferred().string());
-    load_url(ErrortUrl);
+    wxString ErrorUrl = from_u8((boost::filesystem::path(resources_dir()) / "web\\login\\error.html").make_preferred().string());
+    wxString strlang   = wxGetApp().current_language_code_safe();
+    if (strlang != "")
+        ErrorUrl = wxString::Format("file://%s/web/login/error.html?lang=%s", from_u8(resources_dir()), strlang);
+    load_url(ErrorUrl);
 
     return true;
 }
-
 
 }} // namespace Slic3r::GUI
 
