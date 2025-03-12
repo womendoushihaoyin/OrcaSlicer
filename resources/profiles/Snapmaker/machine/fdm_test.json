@@ -9,7 +9,6 @@
   "bed_model": "Snapmaker test_bed.stl",
   "bed_texture": "Snapmaker test_bed.svg",
   "printer_notes": "PRINTER_MODEL_SNAPMAKER_TEST\nPRINTER_MODEL_SNAPMAKER_TEST\n",
-  "printable_area": ["0x0", "400x0", "400x400", "0x400"],
   "change_filament_gcode": ";***** Update: 20230923\n{if current_extruder != next_extruder}\n; {if (next_wipe_x > 0) || (next_wipe_y > 0)}\n; use wipeTower\n; move to wipeTower before changing tool\nG0 X[next_wipe_x] Y[next_wipe_y]\n{endif}\n Change T[current_extruder] -> T[next_extruder] (layer [layer_num]\n; layer\nT{next_extruder}\n\nM107 P[current_extruder] ;fan off T[current_extruder]\n\n{if layer_num == 1 &&\n ((filament_type[current_extruder] == \"PLA\" || filament_type[current_extruder] == \"TPU\")\n  || (filament_type[next_extruder] == \"PLA\" || filament_type[next_extruder] == \"TPU\"))\n}\n  ; set bed temp: {filament_type[current_extruder]}({bed_temperature[current_extruder]}) -> {filament_type[next_extruder]}({bed_temperature[next_extruder]})\n  M140 S{min(bed_temperature[current_extruder], bed_temperature[next_extruder])}\n{endif}\n\nM109 T[next_extruder] S{if layer_num < 1}[nozzle_temperature_initial_layer]{else}[nozzle_temperature]{endif} C3 W1 ;wait T[next_extruder]\n{if layer_num == 1}\n  G1 E{retraction_length[next_extruder]} F200;deretract\n{endif}\n\n{if layer_z > first_layer_height && layer_num >= close_fan_the_first_x_layers[next_extruder]}\n;  M106 P[next_extruder] S{fan_min_speed[next_extruder] * 255.0 / 100.0} ;restore fan speed for T[next_extruder]\n{endif}\n; End Toolchange\n{endif}",
 
   "bed_exclude_area": [
@@ -212,5 +211,11 @@
         "Auto Lift",
         "Auto Lift",
         "Auto Lift"
+    ],
+    "printable_area": [
+        "0x0",
+        "270x0",
+        "270x268",
+        "0x268"
     ]
 }
