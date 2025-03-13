@@ -103,7 +103,6 @@ static wxString update_custom_filaments()
 
 GuideFrame::GuideFrame(GUI_App *pGUI, long style)
     : DPIDialog((wxWindow *) (pGUI->mainframe), wxID_ANY, "Snapmaker Orca", wxDefaultPosition, wxDefaultSize, style),
-    : DPIDialog((wxWindow *) (pGUI->mainframe), wxID_ANY, "Snapmaker Orca", wxDefaultPosition, wxDefaultSize, style),
 	m_appconfig_new()
 {
     SetBackgroundColour(*wxWHITE);
@@ -885,7 +884,6 @@ bool GuideFrame::apply_config(AppConfig *app_config, PresetBundle *preset_bundle
     };
     // Prusa printers are considered first, then 3rd party.
     if (preferred_model = get_preferred_printer_model(PresetBundle::SM_BUNDLE, preferred_variant);
-    if (preferred_model = get_preferred_printer_model(PresetBundle::SM_BUNDLE, preferred_variant);
         preferred_model.empty()) {
         for (const auto& bundle : enabled_vendors) {
             if (bundle.first == PresetBundle::SM_BUNDLE) { continue; }
@@ -1139,7 +1137,6 @@ int GuideFrame::LoadProfile()
 
 
         //load BBL bundle from user data path
-        string                                targetPath = sm_bundle_path.make_preferred().string();
         string                                targetPath = sm_bundle_path.make_preferred().string();
         boost::filesystem::path               myPath(targetPath);
         boost::filesystem::directory_iterator endIter;
