@@ -4,7 +4,7 @@ on:
   push:
     branches:
      - main
-     - 2.0.0
+     - 2.0.0_rebase
      - release/*
     paths:
      - 'deps/**'
@@ -18,7 +18,7 @@ on:
   pull_request:
     branches:
      - main
-     - 2.0.0
+     - 2.0.0_rebase
      - release/*
     paths:
      - 'deps/**'
