@@ -135,6 +135,8 @@ public:
 
     static std::shared_ptr<Response> web_server_handle_request(const std::string& url);
 
+    bool test_port_available() const;
+
 private:
     class IOServer
     {

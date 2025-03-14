@@ -1087,8 +1087,30 @@ GUI_App::GUI_App()
 
     reset_to_active();
 
-    // test
-    m_page_http_server.setPort(PAGE_HTTP_PORT);
+    // 从基础端口号开始查找第一个可用端口
+    int base_port = PAGE_HTTP_PORT;
+    int max_attempts = 100;  // 最多尝试100个端口
+    bool port_found = false;
+
+    for (int port = base_port; port < base_port + max_attempts; port++) {
+        m_page_http_server.setPort(port);
+        try {
+            if (m_page_http_server.test_port_available()) {
+                port_found = true;
+                BOOST_LOG_TRIVIAL(info) << "Found available HTTP port: " << port;
+                break;
+            }
+        } catch (...) {
+            continue;
+        }
+    }
+
+    if (!port_found) {
+        BOOST_LOG_TRIVIAL(error) << "Failed to find available HTTP port";
+        // 可以选择不启动服务器或使用其他错误处理方式
+        return;
+    }
+
     m_page_http_server.set_request_handler(HttpServer::web_server_handle_request);
     m_page_http_server.start();
     

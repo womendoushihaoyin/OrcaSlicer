@@ -333,5 +333,19 @@ void HttpServer::ResponseFile::write_response(std::stringstream& ssOut)
 
 }
 
+bool HttpServer::test_port_available() const 
+{
+    boost::asio::io_service io_service;
+    try {
+        boost::asio::ip::tcp::endpoint endpoint(boost::asio::ip::tcp::v4(), port);
+        boost::asio::ip::tcp::acceptor acceptor(io_service, endpoint);
+        acceptor.close();
+        return true;
+    }
+    catch (...) {
+        return false;
+    }
+}
+
 } // GUI
 } //Slic3r

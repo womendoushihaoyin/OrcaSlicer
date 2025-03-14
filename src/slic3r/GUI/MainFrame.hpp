@@ -205,17 +205,17 @@ public:
     ~MainFrame() = default;
 
     //BBS GUI refactor
-    enum TabPosition
-    {
-        tpHome          = 0,
-        tp3DEditor      = 1,
-        tpPreview       = 2,
-        tpProject       = 3,
-        tpCalibration   = 4,
-        tpMonitor       = 5,
-        tpMultiDevice   = 6,
-        tpAuxiliary     = 7,
-        toDebugTool     = 8,
+    // BBS GUI refactor
+    enum TabPosition {
+        tpHome        = 0,
+        tp3DEditor    = 1,
+        tpPreview     = 2,
+        tpMonitor     = 3,
+        tpMultiDevice = 4,
+        tpProject     = 5,
+        tpCalibration = 6,
+        tpAuxiliary   = 7,
+        toDebugTool   = 8,
     };
 
     //BBS: add slice&&print status update logic
