@@ -66,7 +66,16 @@ WebDeviceDialog::~WebDeviceDialog()
 
 void WebDeviceDialog::reload()
 {
-    load_url(m_device_url);
+    wxString strlang    = wxGetApp().current_language_code_safe();
+    wxString target_url = m_device_url;
+    if (strlang != "") {
+        if (target_url.find("?") != std::string::npos) {
+            target_url += "&lang=" + strlang;
+        } else {
+            target_url += "?lang=" + strlang;
+        }
+    }
+    load_url(target_url);
 }
 
 void WebDeviceDialog::load_url(wxString &url)
@@ -78,7 +87,16 @@ void WebDeviceDialog::load_url(wxString &url)
 
 bool WebDeviceDialog::run()
 {
-    this->load_url(m_device_url);
+    wxString strlang    = wxGetApp().current_language_code_safe();
+    wxString target_url = m_device_url;
+    if (strlang != "") {
+        if (target_url.find("?") != std::string::npos) {
+            target_url += "&lang=" + strlang;
+        } else {
+            target_url += "?lang=" + strlang;
+        }
+    }
+    this->load_url(target_url);
     if (this->ShowModal() == wxID_OK) {
         return true;
     }

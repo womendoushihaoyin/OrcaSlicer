@@ -796,6 +796,42 @@ msgstr "Натисніть, щоб змінити тип деталі на мо�
 msgid "Change Text Type"
 msgstr "Змінити тип тексту"
 
+msgid "Machine Connected"
+msgstr ""
+
+msgid "Machine Disconnected"
+msgstr ""
+
+msgid "Connection Lost !"
+msgstr ""
+
+msgid "connected unseccessfully !"
+msgstr ""
+
+msgid "The target machine model has been detected as"
+msgstr ""
+
+msgid "Please bind the nozzle information"
+msgstr ""
+
+msgid "Nozzle Bind"
+msgstr ""
+
+msgid "The target machine model has not been detected. Please bind manually."
+msgstr ""
+
+msgid "Machine Bind"
+msgstr ""
+
+msgid "connected sucessfully !"
+msgstr ""
+
+msgid "Disconnected sucessfully !"
+msgstr ""
+
+msgid "Disconnect Failed !"
+msgstr ""
+
 #, boost-format
 msgid "Rename style(%1%) for embossing text"
 msgstr "Перейменувати стиль(%1%) для тиснення тексту"

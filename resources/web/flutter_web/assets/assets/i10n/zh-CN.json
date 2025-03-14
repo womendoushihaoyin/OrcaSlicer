@@ -11,5 +11,6 @@
     "Manual connect": "手动连接",
     "Connect": "连接",
     "Connecting": "连接中...",
-    "Connected": "已连接"
+    "Connected": "已连接",
+    "Other Machine connect": "其他设备连接"
 }

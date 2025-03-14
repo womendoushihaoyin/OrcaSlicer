@@ -12628,8 +12628,9 @@ void Plater::send_gcode_legacy(int plate_idx, Export3mfProgressFn proFn, bool us
 
     if (!islegal) {
         MessageDialog msg_window(nullptr,
-                                 _L(" Your connected machine is ") + connect_preset + _L("\nYour model's preset is ") + c_preset + _L("\nDo you want to continue?"),
-                                 L("machine check"),
+                                 " " + _L("Your connected machine is") + " " + connect_preset + "\n" + _L("Your model's preset is") + " " +
+                                     c_preset + "\n" + _L("Do you want to continue?!"),
+                                 _L("machine check"),
                                  wxICON_QUESTION | wxOK);
         int res = msg_window.ShowModal();
         if (res != wxID_OK) {

@@ -6259,7 +6259,7 @@ msgstr ""
 msgid "Switching the language requires application restart.\n"
 msgstr "切换语言要求重启应用程序。\n"
 
-msgid "Do you want to continue?"
+msgid "Do you want to continue?!"
 msgstr "是否继续？"
 
 msgid "Language selection"
@@ -13789,6 +13789,54 @@ msgstr "*我们建议您在名称中添加品牌、材料、类型，甚至湿�
 
 msgid "Failed"
 msgstr "失败"
+
+msgid "Your connected machine is"
+msgstr "您连接的机器为"
+
+msgid "Your model's preset is"
+msgstr "您的机型预设为"
+
+msgid "Do you want to continue?"
+msgstr "您确定要继续吗？"
+
+msgid "machine check"
+msgstr "机型检查"
+
+msgid "Machine Connected"
+msgstr "机器已连接"
+
+msgid "Machine Disconnected"
+msgstr "机器连接已断开"
+
+msgid "Connection Lost !"
+msgstr "机器连接丢失！"
+
+msgid "connected unseccessfully !"
+msgstr "连接失败！"
+
+msgid "The target machine model has been detected as"
+msgstr "侦测到的机器类型为"
+
+msgid "Please bind the nozzle information"
+msgstr "请手动绑定喷嘴信息"
+
+msgid "Nozzle Bind"
+msgstr "喷嘴绑定"
+
+msgid "The target machine model has not been detected. Please bind manually."
+msgstr "未能侦测到机型信息。请手动绑定。"
+
+msgid "Machine Bind"
+msgstr "机型绑定"
+
+msgid "connected sucessfully !"
+msgstr "连接成功！"
+
+msgid "Disconnected sucessfully !"
+msgstr "连接已断开！"
+
+msgid "Disconnect Failed !"
+msgstr "断开连接失败！"
 
 msgid "Please enter the name you want to save to printer."
 msgstr "请输入要保存到打印机的名称。"

@@ -1153,7 +1153,7 @@ void SSWCP_MachineConnect_Instance::sw_connect() {
                                 wxString    strJS      = wxString::Format("window.postMessage(%s)", logout_cmd);
                                 GUI::wxGetApp().run_script(strJS);
 
-                                MessageDialog msg_window(nullptr, _L(" Connection Lost !\n"), L("Machine Disconnected"),
+                                MessageDialog msg_window(nullptr, " " + _L("Connection Lost !") + "\n", _L("Machine Disconnected"),
                                                          wxICON_QUESTION | wxOK);
                                 msg_window.ShowModal();
 
@@ -1191,7 +1191,7 @@ void SSWCP_MachineConnect_Instance::sw_connect() {
 
                                 if (!host->check_sn_arrived()) {
                                     wxGetApp().CallAfter([ip]() {
-                                        MessageDialog msg_window(nullptr, ip + _L(" connected unseccessfully !\n"), L("Failed"),
+                                        MessageDialog msg_window(nullptr, ip + " " + _L("connected unseccessfully !") + "\n", _L("Failed"),
                                                                  wxICON_QUESTION | wxOK);
                                         msg_window.ShowModal();
                                     });
@@ -1235,9 +1235,9 @@ void SSWCP_MachineConnect_Instance::sw_connect() {
                                         } else {
                                             wxGetApp().app_config->save_device_info(info);
                                             MessageDialog msg_window(nullptr,
-                                                                     ip + _L(" The target machine model has been detected as ") +
-                                                                         machine_type + "\n" + _L("Please bind the nozzle information\n"),
-                                                                     L("Nozzle Bind"), wxICON_QUESTION | wxOK);
+                                                                     ip + " " + _L("The target machine model has been detected as") + "" +
+                                                                         machine_type + "\n" + _L("Please bind the nozzle information") + "\n",
+                                                                     _L("Nozzle Bind"), wxICON_QUESTION | wxOK);
                                             msg_window.ShowModal();
 
                                             auto dialog          = WebPresetDialog(&wxGetApp());
@@ -1294,10 +1294,10 @@ void SSWCP_MachineConnect_Instance::sw_connect() {
                                                 // todo 绑定喷嘴
 
                                                 MessageDialog msg_window(nullptr,
-                                                                         ip + _L(" The target machine model has been detected as ") +
+                                                                         ip + " " + _L("The target machine model has been detected as") + " "  +
                                                                              machine_type + "\n" +
-                                                                             _L("Please bind the nozzle information\n"),
-                                                                         L("Nozzle Bind"), wxICON_QUESTION | wxOK);
+                                                                             _L("Please bind the nozzle information") + "\n",
+                                                                         _L("Nozzle Bind"), wxICON_QUESTION | wxOK);
                                                 msg_window.ShowModal();
                                                 auto dialog          = WebPresetDialog(&wxGetApp());
                                                 dialog.m_bind_nozzle = true;
@@ -1323,8 +1323,8 @@ void SSWCP_MachineConnect_Instance::sw_connect() {
                                                 wxGetApp().app_config->save_device_info(info);
                                                 MessageDialog msg_window(
                                                     nullptr,
-                                                    ip + _L(" The target machine model has not been detected. Please bind manually. "),
-                                                    L("Machine Bind"), wxICON_QUESTION | wxOK);
+                                                    ip + " " + _L("The target machine model has not been detected. Please bind manually."),
+                                                    _L("Machine Bind"), wxICON_QUESTION | wxOK);
                                                 msg_window.ShowModal();
                                                 auto dialog        = WebPresetDialog(&wxGetApp());
                                                 dialog.m_device_id = ip;
@@ -1345,7 +1345,7 @@ void SSWCP_MachineConnect_Instance::sw_connect() {
                                 wxString    strJS      = wxString::Format("window.postMessage(%s)", logout_cmd);
                                 GUI::wxGetApp().run_script(strJS);
 
-                                MessageDialog msg_window(nullptr, ip + _L(" connected sucessfully !\n"), L("Machine Connected"),
+                                MessageDialog msg_window(nullptr, ip + " " + _L("connected sucessfully !") + "\n", _L("Machine Connected"),
                                                          wxICON_QUESTION | wxOK);
                                 msg_window.ShowModal();
 
@@ -1365,7 +1365,7 @@ void SSWCP_MachineConnect_Instance::sw_connect() {
 
                         } else {
                             wxGetApp().CallAfter([ip_port]() {
-                                MessageDialog msg_window(nullptr, ip_port + _L(" connected unseccessfully !\n"), L("Failed"),
+                                MessageDialog msg_window(nullptr, ip_port + " " + _L("connected unseccessfully !") + "\n", _L("Failed"),
                                                          wxICON_QUESTION | wxOK);
                                 msg_window.ShowModal();
                             });
@@ -1443,7 +1443,7 @@ void SSWCP_MachineConnect_Instance::sw_disconnect() {
                 wxString    strJS      = wxString::Format("window.postMessage(%s)", logout_cmd);
                 GUI::wxGetApp().run_script(strJS);
 
-                MessageDialog msg_window(nullptr, _L(" Disconnected sucessfully !\n"), L("Machine Disconnected"), wxICON_QUESTION | wxOK);
+                MessageDialog msg_window(nullptr, " " + _L("Disconnected sucessfully !") + "\n", _L("Machine Disconnected"), wxICON_QUESTION | wxOK);
                 msg_window.ShowModal();
 
                 wxGetApp().mainframe->plater()->sidebar().update_all_preset_comboboxes();
@@ -1452,7 +1452,7 @@ void SSWCP_MachineConnect_Instance::sw_disconnect() {
 
         } else {
             wxGetApp().CallAfter([]() {
-                MessageDialog msg_window(nullptr, _L(" Disconnect Failed !\n"), L("Machine Disconnected"), wxICON_QUESTION | wxOK);
+                MessageDialog msg_window(nullptr, " " + _L("Disconnect Failed !") + "\n", _L("Machine Disconnected"), wxICON_QUESTION | wxOK);
                 msg_window.ShowModal(); 
             });
             

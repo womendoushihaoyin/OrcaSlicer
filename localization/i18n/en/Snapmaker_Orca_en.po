@@ -12794,6 +12794,44 @@ msgid ""
 "the nozzle diameter."
 msgstr ""
 
+msgid "Machine Connected"
+msgstr ""
+
+msgid "Machine Disconnected"
+msgstr ""
+
+msgid "Connection Lost !"
+msgstr ""
+
+msgid "connected unseccessfully !"
+msgstr ""
+
+msgid "The target machine model has been detected as"
+msgstr ""
+
+msgid "Please bind the nozzle information"
+msgstr ""
+
+msgid "Nozzle Bind"
+msgstr ""
+
+msgid "The target machine model has not been detected. Please bind manually."
+msgstr ""
+
+msgid "Machine Bind"
+msgstr ""
+
+msgid "connected sucessfully !"
+msgstr ""
+
+msgid "Disconnected sucessfully !"
+msgstr ""
+
+msgid "Disconnect Failed !"
+msgstr ""
+
+
+
 msgid "Speed of top surface infill which is solid"
 msgstr "This is the speed for solid top surface infill."
 
