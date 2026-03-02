@@ -7,9 +7,12 @@ on:
      - 2.2.0
      - 2.3.0-new
      - release/*
-     - dev-*/*
-     - fix-*/*
-     - feature-*/*
+     - dev/*
+     - dev-*
+     - fix/*
+     - fix-*
+     - feature/*
+     - feature-*
     paths:
      - 'deps/**'
      - 'src/**'
@@ -26,9 +29,12 @@ on:
      - 2.2.0
      - 2.3.0-new
      - release/*
-     - dev-*/*
-     - fix-*/*
-     - feature-*/*
+     - dev/*
+     - dev-*
+     - fix/*
+     - fix-*
+     - feature/*
+     - feature-*
     paths:
      - 'deps/**'
      - 'src/**'
