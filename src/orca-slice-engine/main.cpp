@@ -549,13 +549,23 @@ int main(int argc, char* argv[]) {
                     }
                 }
 
+                // Apply plate-level config from global config
+                pd->config.apply(config, false);  // Don't keep unused keys
+
+                // Set thumbnail flags if thumbnails are present (loaded from original 3MF)
+                if (pd->plate_thumbnail.is_valid()) {
+                    pd->thumbnail_file = "valid_thumbnail";
+                }
+                // Note: no_light, top, pick thumbnails are GUI-specific and not available in headless mode
+
                 BOOST_LOG_TRIVIAL(info) << "Plate " << pd->plate_index
                     << ": gcode=" << pd->gcode_file
                     << ", prediction=" << pd->gcode_prediction << "s"
                     << ", weight=" << pd->gcode_weight << "g"
                     << ", support=" << (pd->is_support_used ? "yes" : "no")
                     << ", printer=" << pd->printer_model_id
-                    << ", nozzle=" << pd->nozzle_diameters;
+                    << ", nozzle=" << pd->nozzle_diameters
+                    << ", thumbnail_valid=" << (pd->plate_thumbnail.is_valid() ? "yes" : "no");
             }
         }
 
@@ -564,6 +574,13 @@ int main(int argc, char* argv[]) {
         model.clear_objects();
         BOOST_LOG_TRIVIAL(debug) << "Cleared model objects for gcode.3mf export";
 
+        // Prepare thumbnail data pointers from plate_data
+        // Thumbnails are loaded from original 3MF during model loading
+        std::vector<ThumbnailData*> thumbnails;
+        for (auto& pd : plate_data) {
+            thumbnails.push_back(&pd->plate_thumbnail);
+        }
+
         // Use store_bbs_3mf to create the output
         StoreParams params;
         params.path = output_path.c_str();
@@ -571,6 +588,7 @@ int main(int argc, char* argv[]) {
         params.model = &model;
         params.config = &config;
         params.project_presets = project_presets;
+        params.thumbnail_data = thumbnails;  // Pass thumbnails loaded from original 3MF
         // Set export_plate_idx for proper thumbnail relationships (0-indexed)
         // For single plate: set to plate_id-1, for all plates: -1 (default)
         params.export_plate_idx = single_plate ? (plate_id - 1) : -1;
