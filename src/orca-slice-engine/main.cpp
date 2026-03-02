@@ -565,7 +565,8 @@ int main(int argc, char* argv[]) {
                     << ", support=" << (pd->is_support_used ? "yes" : "no")
                     << ", printer=" << pd->printer_model_id
                     << ", nozzle=" << pd->nozzle_diameters
-                    << ", thumbnail_valid=" << (pd->plate_thumbnail.is_valid() ? "yes" : "no");
+                    << ", thumbnail_valid=" << (pd->plate_thumbnail.is_valid() ? "yes" : "no")
+                    << ", config_applied=yes";
             }
         }
 
