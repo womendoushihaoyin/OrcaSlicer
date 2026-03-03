@@ -55,6 +55,14 @@ float WipeTower2::get_limit_depth_by_height(float max_height)
     return min_wipe_tower_depth;
 }
 
+// From BambuStudio: Auto-calculate brim width based on wipe tower height
+float WipeTower2::get_auto_brim_by_height(float max_height)
+{
+    if (max_height < 100)
+        return max_height / 100.f * 8.f;
+    return 8.f;
+}
+
 namespace Slic3r
 {
 
