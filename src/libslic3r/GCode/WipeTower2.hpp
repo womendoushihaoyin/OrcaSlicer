@@ -68,9 +68,9 @@ public:
     
     // From BambuStudio: Auto-calculate brim width based on wipe tower height
     static float get_auto_brim_by_height(float max_height);
-	float get_wipe_tower_height() const { return m_wipe_tower_height; }
 
-
+    // From BambuStudio: Check if filament is TPU material
+    bool is_tpu_filament(int filament_id) const;
 
 
 
@@ -187,9 +187,7 @@ private:
     float filament_area() const {
         return m_filpar[0].filament_area; // all extruders are assumed to have the same filament diameter at this point
 
-    // From BambuStudio: Check if filament is TPU material
-    bool is_tpu_filament(int filament_id) const;    }
-
+    }
 	bool   m_change_pressure         = true;
     float  m_change_pressure_value   = 0.0;
     float  m_ramming_width_ratio     = 2.0;
