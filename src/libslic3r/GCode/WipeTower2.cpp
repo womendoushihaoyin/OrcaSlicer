@@ -76,6 +76,12 @@ static constexpr int    arc_fit_size                   = 20;
 enum class LimitFlow { None, LimitPrintFlow, LimitRammingFlow };
 static const std::map<float, float> nozzle_diameter_to_nozzle_change_width{{0.2f, 0.5f}, {0.4f, 1.0f}, {0.6f, 1.2f}, {0.8f, 1.4f}};
 
+// From BambuStudio: Check if filament is TPU material
+bool WipeTower2::is_tpu_filament(int filament_id) const
+{
+    return m_filpar[filament_id].material == "TPU";
+}
+
 inline float align_round(float value, float base) { return std::round(value / base) * base; }
 
 inline float align_ceil(float value, float base) { return std::ceil(value / base) * base; }
