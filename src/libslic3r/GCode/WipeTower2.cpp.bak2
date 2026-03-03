@@ -21,59 +21,6 @@
 #include <boost/algorithm/string/predicate.hpp>
 
 
-// From BambuStudio: Map for minimum depth per height (used by get_limit_depth_by_height)
-const std::map<float, float> WipeTower2::min_depth_per_height = {
-    {5.f, 5.f}, {100.f, 20.f}, {250.f, 40.f}, {350.f, 60.f}
-};
-
-// From BambuStudio: Calculate minimum depth limit based on wipe tower height
-// Returns the minimum required depth for the wipe tower based on its height
-// Uses interpolation between predefined height-depth pairs
-float WipeTower2::get_limit_depth_by_height(float max_height)
-{
-    float min_wipe_tower_depth = 0.f;
-    auto  iter                 = WipeTower2::min_depth_per_height.begin();
-    while (iter != WipeTower2::min_depth_per_height.end()) {
-        auto curr_height_to_depth = *iter;
-
-        // This is the case that wipe tower height is lower than the first min_depth_to_height member.
-        if (curr_height_to_depth.first >= max_height) {
-            min_wipe_tower_depth = curr_height_to_depth.second;
-            break;
-        }
-
-        iter++;
-
-        // If curr_height_to_depth is the last member, use its min_depth.
-        if (iter == WipeTower2::min_depth_per_height.end()) {
-            min_wipe_tower_depth = curr_height_to_depth.second;
-            break;
-        }
-
-        // If wipe tower height is between the current and next member, set the min_depth as linear interpolation between them
-        auto next_height_to_depth = *iter;
-        if (next_height_to_depth.first > max_height) {
-            float height_base    = curr_height_to_depth.first;
-            float height_diff    = next_height_to_depth.first - curr_height_to_depth.first;
-            float min_depth_base = curr_height_to_depth.second;
-            float depth_diff     = next_height_to_depth.second - curr_height_to_depth.second;
-
-            min_wipe_tower_depth = min_depth_base + (max_height - curr_height_to_depth.first) / height_diff * depth_diff;
-            break;
-        }
-    }
-    return min_wipe_tower_depth;
-}
-
-// From BambuStudio: Auto-calculate brim width based on wipe tower height
-// Returns brim width scaling factor based on height (up to 8mm)
-float WipeTower2::get_auto_brim_by_height(float max_height)
-{
-    if (max_height < 100)
-        return max_height / 100.f * 8.f;
-    return 8.f;
-}
-
 namespace Slic3r
 {
 
@@ -84,15 +31,9 @@ static constexpr double WIPE_TOWER_RESOLUTION          = 0.1;
 static constexpr double     WT_SIMPLIFY_TOLERANCE_SCALED   = 0.001f / SCALING_FACTOR_INTERNAL;
 static constexpr int    arc_fit_size                   = 20;
 #define SCALED_WIPE_TOWER_RESOLUTION (WIPE_TOWER_RESOLUTION / SCALING_FACTOR_INTERNAL)
-enum class LimitFlow { None, LimitPrintFlow, LimitRammingFlow, LimitRammingFlowNC };//nc:nozzle change
+enum class LimitFlow { None, LimitPrintFlow, LimitRammingFlow };
 static const std::map<float, float> nozzle_diameter_to_nozzle_change_width{{0.2f, 0.5f}, {0.4f, 1.0f}, {0.6f, 1.2f}, {0.8f, 1.4f}};
 
-
-// From BambuStudio: Check if filament is TPU material
-bool WipeTower2::is_tpu_filament(int filament_id) const
-{
-    return m_filpar[filament_id].material == "TPU";
-}
 inline float align_round(float value, float base) { return std::round(value / base) * base; }
 
 inline float align_ceil(float value, float base) { return std::ceil(value / base) * base; }

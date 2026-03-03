@@ -186,9 +186,7 @@ private:
     const float WT_EPSILON            = 1e-3f;
     float filament_area() const {
         return m_filpar[0].filament_area; // all extruders are assumed to have the same filament diameter at this point
-
-    // From BambuStudio: Check if filament is TPU material
-    bool is_tpu_filament(int filament_id) const;    }
+    }
 
 	bool   m_change_pressure         = true;
     float  m_change_pressure_value   = 0.0;
