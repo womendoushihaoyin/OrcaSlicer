@@ -1987,7 +1987,11 @@ void WipeTower2::toolchange_Wipe(
 	float dy = (is_first_layer() ? m_extra_flow : m_extra_spacing_wipe) * m_perimeter_width; // Don't use the extra spacing for the first layer, but do use the spacing resulting from increased flow.
     // All the calculations in all other places take the spacing into account for all the layers.
 
-	// If spare layers are excluded->if 1 or less toolchange has been done, it must be sill the first layer, too.So slow down.
+
+    // From BambuStudio: TPU material speed reduction (25%)
+    if (is_tpu_filament(m_current_tool)) {
+        wipe_speed *= 0.25f;
+    }	// If spare layers are excluded->if 1 or less toolchange has been done, it must be sill the first layer, too.So slow down.
     const float target_speed = is_first_layer() || (m_num_tool_changes <= 1 && m_no_sparse_layers) ? m_first_layer_speed * 60.f : std::min(m_wipe_tower_max_purge_speed * 60.f, m_infill_speed * 60.f);
     float wipe_speed = 0.33f * target_speed;
 
