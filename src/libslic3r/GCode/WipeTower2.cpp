@@ -1980,6 +1980,11 @@ void WipeTower2::toolchange_Wipe(
     const float target_speed = is_first_layer() || (m_num_tool_changes <= 1 && m_no_sparse_layers) ? m_first_layer_speed * 60.f : std::min(m_wipe_tower_max_purge_speed * 60.f, m_infill_speed * 60.f);
     float wipe_speed = 0.33f * target_speed;
 
+    // From BambuStudio: TPU material speed reduction (25%)
+    if (is_tpu_filament(m_current_tool)) {
+        wipe_speed *= 0.25f;
+    }
+
     // if there is less than 2.5*line_width to the edge, advance straightaway (there is likely a blob anyway)
     if ((m_left_to_right ? xr-writer.x() : writer.x()-xl) < 2.5f*line_width) {
         writer.travel((m_left_to_right ? xr-line_width : xl+line_width),writer.y()+dy);
