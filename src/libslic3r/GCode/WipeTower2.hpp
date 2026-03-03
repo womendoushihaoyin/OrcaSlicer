@@ -60,6 +60,9 @@ public:
 	std::vector<std::pair<float, float>> get_z_and_depth_pairs() const;
     float get_brim_width() const { return m_wipe_tower_brim_width_real; }
 	float get_wipe_tower_height() const { return m_wipe_tower_height; }
+    float get_limit_depth_by_height(float max_height);
+    float get_auto_brim_by_height(float max_height);
+    bool is_tpu_filament(int filament_id) const;
 
 
 

@@ -26,6 +26,35 @@ const std::map<float, float> WipeTower2::min_depth_per_height = {
     {5.f, 5.f}, {100.f, 20.f}, {250.f, 40.f}, {350.f, 60.f}
 };
 
+// From BambuStudio: Calculate minimum depth limit based on wipe tower height
+float WipeTower2::get_limit_depth_by_height(float max_height)
+{
+    float min_wipe_tower_depth = 0.f;
+    auto iter = WipeTower2::min_depth_per_height.begin();
+    while (iter != WipeTower2::min_depth_per_height.end()) {
+        auto curr_height_to_depth = *iter;
+        if (curr_height_to_depth.first >= max_height) {
+            min_wipe_tower_depth = curr_height_to_depth.second;
+            break;
+        }
+        iter++;
+        if (iter == WipeTower2::min_depth_per_height.end()) {
+            min_wipe_tower_depth = curr_height_to_depth.second;
+            break;
+        }
+        auto next_height_to_depth = *iter;
+        if (next_height_to_depth.first > max_height) {
+            float height_base = curr_height_to_depth.first;
+            float height_diff = next_height_to_depth.first - curr_height_to_depth.first;
+            float min_depth_base = curr_height_to_depth.second;
+            float depth_diff = next_height_to_depth.second - curr_height_to_depth.second;
+            min_wipe_tower_depth = min_depth_base + (max_height - curr_height_to_depth.first) / height_diff * depth_diff;
+            break;
+        }
+    }
+    return min_wipe_tower_depth;
+}
+
 namespace Slic3r
 {
 
