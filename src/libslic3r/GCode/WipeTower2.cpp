@@ -21,6 +21,11 @@
 #include <boost/algorithm/string/predicate.hpp>
 
 
+// From BambuStudio: Map for minimum depth per height
+const std::map<float, float> WipeTower2::min_depth_per_height = {
+    {5.f, 5.f}, {100.f, 20.f}, {250.f, 40.f}, {350.f, 60.f}
+};
+
 namespace Slic3r
 {
 
