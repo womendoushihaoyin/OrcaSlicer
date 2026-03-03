@@ -73,7 +73,7 @@ static constexpr double WIPE_TOWER_RESOLUTION          = 0.1;
 static constexpr double     WT_SIMPLIFY_TOLERANCE_SCALED   = 0.001f / SCALING_FACTOR_INTERNAL;
 static constexpr int    arc_fit_size                   = 20;
 #define SCALED_WIPE_TOWER_RESOLUTION (WIPE_TOWER_RESOLUTION / SCALING_FACTOR_INTERNAL)
-enum class LimitFlow { None, LimitPrintFlow, LimitRammingFlow };
+enum class LimitFlow { None, LimitPrintFlow, LimitRammingFlow, LimitRammingFlowNC };//nc:nozzle change
 static const std::map<float, float> nozzle_diameter_to_nozzle_change_width{{0.2f, 0.5f}, {0.4f, 1.0f}, {0.6f, 1.2f}, {0.8f, 1.4f}};
 
 // From BambuStudio: Check if filament is TPU material
