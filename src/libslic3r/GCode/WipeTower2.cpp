@@ -1988,11 +1988,6 @@ void WipeTower2::toolchange_Wipe(
     // All the calculations in all other places take the spacing into account for all the layers.
 
 
-    // From BambuStudio: TPU material speed reduction (25%)
-    if (is_tpu_filament(m_current_tool)) {
-        wipe_speed *= 0.25f;
-    }	// If spare layers are excluded->if 1 or less toolchange has been done, it must be sill the first layer, too.So slow down.
-    const float target_speed = is_first_layer() || (m_num_tool_changes <= 1 && m_no_sparse_layers) ? m_first_layer_speed * 60.f : std::min(m_wipe_tower_max_purge_speed * 60.f, m_infill_speed * 60.f);
     float wipe_speed = 0.33f * target_speed;
 
     // if there is less than 2.5*line_width to the edge, advance straightaway (there is likely a blob anyway)
@@ -2002,7 +1997,11 @@ void WipeTower2::toolchange_Wipe(
     }
     
     // now the wiping itself:
-	for (int i = 0; true; ++i)	{
+
+    // From BambuStudio: TPU material speed reduction (25%)
+    if (is_tpu_filament(m_current_tool)) {
+        wipe_speed *= 0.25f;
+    }	for (int i = 0; true; ++i)	{
 		if (i!=0) {
             if      (wipe_speed < 0.34f * target_speed) wipe_speed = 0.375f * target_speed;
             else if (wipe_speed < 0.377 * target_speed) wipe_speed = 0.458f * target_speed;
