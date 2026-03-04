@@ -20,6 +20,8 @@
 
 #include <boost/algorithm/string/predicate.hpp>
 
+namespace Slic3r
+{
 
 // From BambuStudio: Map for minimum depth per height
 const std::map<float, float> WipeTower2::min_depth_per_height = {
@@ -62,9 +64,6 @@ float WipeTower2::get_auto_brim_by_height(float max_height)
         return max_height / 100.f * 8.f;
     return 8.f;
 }
-
-namespace Slic3r
-{
 
     float                   flat_iron_area                 = 4.f;
 constexpr float         flat_iron_speed                = 10.f * 60.f;
