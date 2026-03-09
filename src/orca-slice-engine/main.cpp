@@ -346,10 +346,12 @@ int main(int argc, char* argv[]) {
     BOOST_LOG_TRIVIAL(info) << "Found " << plate_data.size() << " plate(s) in 3MF";
 
     // Validate requested plate exists
+    // Note: plate_id is 1-based from command line, pd->plate_index is 0-based
     if (single_plate) {
         bool plate_found = false;
+        int plate_index = plate_id - 1;  // Convert to 0-based for comparison
         for (const auto& pd : plate_data) {
-            if (pd->plate_index == plate_id) {
+            if (pd->plate_index == plate_index) {
                 plate_found = true;
                 break;
             }
@@ -359,7 +361,7 @@ int main(int argc, char* argv[]) {
             std::cerr << "Available plates: ";
             for (size_t i = 0; i < plate_data.size(); ++i) {
                 if (i > 0) std::cerr << ", ";
-                std::cerr << plate_data[i]->plate_index;
+                std::cerr << (plate_data[i]->plate_index + 1);  // Display 1-based
             }
             std::cerr << std::endl;
             return EXIT_INVALID_ARGS;
@@ -371,9 +373,11 @@ int main(int argc, char* argv[]) {
     BOOST_LOG_TRIVIAL(info) << "Output file: " << output_path;
 
     // Collect plates to process
+    // Note: plate_id from command line is 1-based, but pd->plate_index is 0-based
     std::vector<int> plates_to_process;
     if (single_plate) {
-        plates_to_process.push_back(plate_id);
+        // Convert 1-based plate_id to 0-based index
+        plates_to_process.push_back(plate_id - 1);
     } else {
         for (const auto& pd : plate_data) {
             plates_to_process.push_back(pd->plate_index);
@@ -390,8 +394,10 @@ int main(int argc, char* argv[]) {
     std::map<int, PlateSliceResult> plate_results;
 
     // Process each plate
+    // Note: current_plate_id is 0-based internally, but we display 1-based in logs
     for (int current_plate_id : plates_to_process) {
-        BOOST_LOG_TRIVIAL(info) << "=== Processing plate " << current_plate_id << " ===";
+        int plate_number = current_plate_id + 1;  // 1-based for display
+        BOOST_LOG_TRIVIAL(info) << "=== Processing plate " << plate_number << " ===";
 
         // Get instances for current plate from obj_inst_map
         // obj_inst_map format: key=object_id (from 3MF), value=pair<instance_id, identify_id>
@@ -428,11 +434,11 @@ int main(int argc, char* argv[]) {
         }
 
         BOOST_LOG_TRIVIAL(info) << "Filtered model: " << instances_on_plate
-            << " instances on plate " << current_plate_id;
+            << " instances on plate " << plate_number;
 
         // Skip empty plates (no instances to slice)
         if (instances_on_plate == 0) {
-            BOOST_LOG_TRIVIAL(warning) << "Skipping empty plate " << current_plate_id;
+            BOOST_LOG_TRIVIAL(warning) << "Skipping empty plate " << plate_number;
             continue;
         }
 
@@ -443,9 +449,8 @@ int main(int argc, char* argv[]) {
         // Set plate index and origin for multi-plate support
         // Calculate plate origin based on printer bed size and plate position
         // This matches GUI's PartPlateList::compute_origin() logic
-        // plate_index is 0-based (plate 1 in 3MF = index 0)
-        int plate_index = current_plate_id - 1;
-        print.set_plate_index(plate_index);
+        // current_plate_id is 0-based (plate 1 in 3MF = index 0)
+        print.set_plate_index(current_plate_id);
 
         // Get plate dimensions from printable_area config
         // GUI uses bed bounding box size as plate size
@@ -475,8 +480,8 @@ int main(int argc, char* argv[]) {
         // Calculate column count dynamically based on total plates (matches GUI logic)
         const int plate_cols = compute_colum_count(static_cast<int>(plates_to_process.size()));
 
-        int row = plate_index / plate_cols;
-        int col = plate_index % plate_cols;
+        int row = current_plate_id / plate_cols;
+        int col = current_plate_id % plate_cols;
 
         double plate_stride_x = plate_width * (1.0 + LOGICAL_PART_PLATE_GAP);
         double plate_stride_y = plate_depth * (1.0 + LOGICAL_PART_PLATE_GAP);
@@ -488,7 +493,7 @@ int main(int argc, char* argv[]) {
         );
 
         print.set_plate_origin(plate_origin);
-        BOOST_LOG_TRIVIAL(info) << "Plate " << current_plate_id << " origin: ("
+        BOOST_LOG_TRIVIAL(info) << "Plate " << plate_number << " origin: ("
             << plate_origin.x() << ", " << plate_origin.y() << ", " << plate_origin.z() << ")";
 
         // Apply model and config to print
@@ -496,13 +501,13 @@ int main(int argc, char* argv[]) {
         BOOST_LOG_TRIVIAL(info) << "Print apply status: " << static_cast<int>(apply_status);
 
         // Execute slicing
-        BOOST_LOG_TRIVIAL(info) << "Starting slicing process for plate " << current_plate_id << "...";
+        BOOST_LOG_TRIVIAL(info) << "Starting slicing process for plate " << plate_number << "...";
 
         try {
             print.process();
         }
         catch (std::exception& e) {
-            BOOST_LOG_TRIVIAL(error) << "Slicing failed for plate " << current_plate_id << ": " << e.what();
+            BOOST_LOG_TRIVIAL(error) << "Slicing failed for plate " << plate_number << ": " << e.what();
             // Cleanup temp files before exit
             for (const auto& file : temp_files) {
                 try {
@@ -514,20 +519,20 @@ int main(int argc, char* argv[]) {
             return EXIT_SLICING_ERROR;
         }
 
-        BOOST_LOG_TRIVIAL(info) << "Slicing completed for plate " << current_plate_id;
+        BOOST_LOG_TRIVIAL(info) << "Slicing completed for plate " << plate_number;
 
         // For gcode.3mf format, export to temp file first
         std::string gcode_output;
         if (format == OutputFormat::GCODE_3MF || !single_plate) {
             // Export to temp directory for later packaging
-            gcode_output = temp_dir + "/plate_" + std::to_string(current_plate_id) + ".gcode";
+            gcode_output = temp_dir + "/plate_" + std::to_string(plate_number) + ".gcode";
             temp_files.push_back(gcode_output);  // Track for cleanup
         } else {
             gcode_output = output_path;
         }
 
         // Export G-code
-        BOOST_LOG_TRIVIAL(info) << "Exporting G-code for plate " << current_plate_id << "...";
+        BOOST_LOG_TRIVIAL(info) << "Exporting G-code for plate " << plate_number << "...";
 
         PlateSliceResult slice_result;
 
@@ -544,7 +549,7 @@ int main(int argc, char* argv[]) {
             plate_results[current_plate_id] = slice_result;
         }
         catch (std::exception& e) {
-            BOOST_LOG_TRIVIAL(error) << "Failed to export G-code for plate " << current_plate_id << ": " << e.what();
+            BOOST_LOG_TRIVIAL(error) << "Failed to export G-code for plate " << plate_number << ": " << e.what();
             // Cleanup temp files before exit
             for (const auto& file : temp_files) {
                 try {
@@ -661,7 +666,7 @@ int main(int argc, char* argv[]) {
                     pd->objects_and_instances.emplace_back(entry.first, entry.second.first);
                 }
 
-                BOOST_LOG_TRIVIAL(info) << "Plate " << pd->plate_index
+                BOOST_LOG_TRIVIAL(info) << "Plate " << (pd->plate_index + 1)
                     << ": gcode=" << pd->gcode_file
                     << ", prediction=" << pd->gcode_prediction << "s"
                     << ", weight=" << pd->gcode_weight << "g"

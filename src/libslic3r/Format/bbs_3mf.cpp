@@ -7670,8 +7670,16 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
                 }
                 stream << "\"/>\n";
 
-                if (save_gcode)
-                    stream << "    <" << METADATA_TAG << " " << KEY_ATTR << "=\"" << GCODE_FILE_ATTR << "\" " << VALUE_ATTR << "=\"" << std::boolalpha << xml_escape(plate_data->gcode_file) << "\"/>\n";
+                if (save_gcode && plate_data->is_sliced_valid) {
+                    // Write gcode_file with 3mf internal path format (e.g., "Metadata/plate_1.gcode")
+                    // _add_gcode_file_to_archive may have already converted the path, but if not,
+                    // we convert it here to ensure the correct format in model_settings.config
+                    std::string gcode_file_in_3mf = plate_data->gcode_file;
+                    if (!gcode_file_in_3mf.empty() && gcode_file_in_3mf.find("Metadata/") == std::string::npos) {
+                        gcode_file_in_3mf = (boost::format(GCODE_FILE_FORMAT) % (plate_data->plate_index + 1)).str();
+                    }
+                    stream << "    <" << METADATA_TAG << " " << KEY_ATTR << "=\"" << GCODE_FILE_ATTR << "\" " << VALUE_ATTR << "=\"" << xml_escape(gcode_file_in_3mf) << "\"/>\n";
+                }
                 if (!plate_data->gcode_file.empty()) {
                     gcode_paths.push_back(plate_data->gcode_file);
                 }
