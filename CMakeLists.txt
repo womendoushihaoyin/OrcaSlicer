@@ -949,6 +949,7 @@ elseif (SLIC3R_FHS)
     set(SLIC3R_FHS_RESOURCES "${CMAKE_INSTALL_FULL_DATAROOTDIR}/Snapmaker_Orca")
     install(DIRECTORY ${SLIC3R_RESOURCES_DIR}/ DESTINATION ${SLIC3R_FHS_RESOURCES}
         PATTERN "*/udev" EXCLUDE
+        PATTERN "snapmaker_control_linux_*" PERMISSIONS OWNER_READ OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
     )
     install(FILES src/dev-utils/platform/unix/Snapmaker_Orca.desktop DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/applications)
     foreach(SIZE 32 128 192)
@@ -1002,11 +1003,19 @@ set(_snapmaker_nsis_uninst_kill [=[
   Pop $0
   nsExec::Exec 'taskkill /F /T /IM Snapmaker_Orca.exe'
   Pop $0
+  nsExec::Exec 'taskkill /F /T /IM snapmaker_control_windows_x64.exe'
+  Pop $0
+  nsExec::Exec 'taskkill /F /T /IM snapmaker_control_windows_arm64.exe'
+  Pop $0
+  nsExec::Exec 'taskkill /F /T /IM snapmaker_connection_windows_x64.exe'
+  Pop $0
+  nsExec::Exec 'taskkill /F /T /IM snapmaker_connection_windows_arm64.exe'
+  Pop $0
 ]=])
 string(CONCAT CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS
        "${_snapmaker_nsis_uninst_kill}" "${_snapmaker_nsis_uninst_url}")
-# Wait for the shared connect CLI's no-client self-exit before generated files
-# are removed. Exact installed paths only; no CLI process enumeration or kill.
+# Wait briefly for the connect CLI to release its executable after the forced
+# termination above before generated files are removed.
 file(READ "${CMAKE_SOURCE_DIR}/cmake/nsis/SnapmakerConnect_uninstall.nsh" _snapmaker_connect_uninstall)
 string(APPEND CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS "\n${_snapmaker_connect_uninstall}")
 # Auto-close the uninstall details page so the wizard advances to the custom
