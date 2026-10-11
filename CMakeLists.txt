@@ -997,6 +997,8 @@ set (CPACK_NSIS_DEFINES "!define MUI_STARTMENUPAGE_DEFAULTFOLDER \"${CPACK_PACKA
 # .nsi template must stay ASCII -- the Chinese/English prompt texts therefore
 # live in the separate UTF-8 BOM .nsh instead of this inline block.
 file(READ "${CMAKE_SOURCE_DIR}/cmake/nsis/SnapmakerURLProtocols_install.nsh" CPACK_NSIS_EXTRA_INSTALL_COMMANDS)
+file(READ "${CMAKE_SOURCE_DIR}/cmake/nsis/SnapmakerConnectFirewall_install.nsh" _snapmaker_connect_firewall_install)
+string(APPEND CPACK_NSIS_EXTRA_INSTALL_COMMANDS "\n${_snapmaker_connect_firewall_install}")
 file(READ "${CMAKE_SOURCE_DIR}/cmake/nsis/SnapmakerURLProtocols_uninstall.nsh" _snapmaker_nsis_uninst_url)
 set(_snapmaker_nsis_uninst_kill [=[
   nsExec::Exec 'taskkill /F /T /IM snapmaker-orca.exe'
@@ -1018,6 +1020,8 @@ string(CONCAT CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS
 # termination above before generated files are removed.
 file(READ "${CMAKE_SOURCE_DIR}/cmake/nsis/SnapmakerConnect_uninstall.nsh" _snapmaker_connect_uninstall)
 string(APPEND CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS "\n${_snapmaker_connect_uninstall}")
+file(READ "${CMAKE_SOURCE_DIR}/cmake/nsis/SnapmakerConnectFirewall_uninstall.nsh" _snapmaker_connect_firewall_uninstall)
+string(APPEND CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS "\n${_snapmaker_connect_firewall_uninstall}")
 # Auto-close the uninstall details page so the wizard advances to the custom
 # finish page as soon as the uninstall section finishes (no extra click).
 string(APPEND CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS "  SetAutoClose true\n")
