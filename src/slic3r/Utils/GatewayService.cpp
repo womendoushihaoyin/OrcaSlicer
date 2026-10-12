@@ -302,8 +302,8 @@ void GatewayWebSocketTransport::connect(std::uint16_t port, const std::string& p
     Listener listener   = listener_;
     auto     session    = std::make_shared<Session>(io_context, host_, std::to_string(port), path, std::move(listener));
     session_            = session;
-    io_thread_          = std::thread([io_context] { io_context->run(); });
     session->run();
+    io_thread_ = std::thread([io_context] { io_context->run(); });
 }
 
 bool GatewayWebSocketTransport::send(const std::string& message)
