@@ -45,6 +45,8 @@ struct FakeHttp final : public HttpTransport
     HttpResponse post_json(const std::string& url, const std::string& body) override
     {
         posts.push_back(url + "\n" + body);
+        if (url.find("/api/region") != std::string::npos)
+            return {200, R"({"code":200,"data":{"region":"US","locale":"en-US","reload":true}})", {}};
         return {200, store_response, {}};
     }
 };
@@ -257,6 +259,31 @@ TEST_CASE("GatewayService connects, handles device watch, and calls HTTP APIs", 
 
     service.stop();
     REQUIRE(service.state() == ConnectionState::Disconnected);
+}
+
+TEST_CASE("GatewayService updates the CLI region", "[gateway][service]")
+{
+    std::shared_ptr<ConnectionProcessManager> process;
+    std::shared_ptr<FakeHttp>                 http;
+    std::shared_ptr<FakeWebSocket>            websocket;
+    GatewayService                            service(GatewayService::Config{}, make_dependencies(process, http, websocket));
+
+    REQUIRE(service.start("zh-CN"));
+    REQUIRE(wait_for_state(service, ConnectionState::Connected));
+
+    const auto result = service.set_region("US");
+    REQUIRE(!result.error);
+    REQUIRE(http->posts.size() == 1);
+    const auto posted = nlohmann::json::parse(http->posts[0].substr(http->posts[0].find('\n') + 1));
+    REQUIRE(http->posts[0].substr(0, http->posts[0].find('\n')) == "http://127.0.0.1:8080/api/region");
+    REQUIRE(posted.at("region") == "US");
+    REQUIRE(posted.size() == 1);
+
+    const auto invalid_region = service.set_region("");
+    REQUIRE(invalid_region.error.code == GatewayErrorCode::InvalidRequest);
+    REQUIRE(http->posts.size() == 1);
+
+    service.stop();
 }
 
 TEST_CASE("GatewayService concurrent stops are idempotent", "[gateway][service][lifecycle]")

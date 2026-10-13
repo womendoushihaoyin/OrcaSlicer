@@ -97,6 +97,7 @@ public:
         std::string                     device_path{"/api/cache/all"};
         std::string                     account_path{"/api/account"};
         std::string                     store_path{"/api/store"};
+        std::string                     region_path{"/api/region"};
         std::chrono::milliseconds       health_poll_interval{std::chrono::milliseconds{100}};
         std::chrono::milliseconds       health_timeout{std::chrono::milliseconds{5000}};
         detail::ReconnectPolicy::Config reconnect;
@@ -145,6 +146,7 @@ public:
     ApiResult    get_device(const std::optional<std::string>& serial_number = std::nullopt);
     ApiResult    get_account();
     PreprintStoreResult store_preprint_context(const std::string& id, const nlohmann::json& payload);
+    ApiResult    set_region(const std::string& region);
     std::string  web_url(const std::string& page_key) const;
     std::string  localfile_url(const std::string& file_path) const;
 

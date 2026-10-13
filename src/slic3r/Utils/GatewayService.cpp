@@ -567,6 +567,22 @@ GatewayService::ApiResult GatewayService::get_device(const std::optional<std::st
 
 GatewayService::ApiResult GatewayService::get_account() { return get_json(config_.account_path); }
 
+GatewayService::ApiResult GatewayService::set_region(const std::string& region)
+{
+    if (region.empty())
+        return {{GatewayErrorCode::InvalidRequest, "region is empty"}, {}};
+
+    ApiResult result = post_json(config_.region_path, {{"region", region}});
+    if (result.error)
+        return result;
+
+    const auto code = result.value.find("code");
+    if (code == result.value.end() || !code->is_number_integer() || code->get<int>() != 200) {
+        result.error = {GatewayErrorCode::InvalidResponse, "region endpoint did not report code 200"};
+    }
+    return result;
+}
+
 PreprintStoreResult GatewayService::store_preprint_context(const std::string& id, const nlohmann::json& payload)
 {
     PreprintStoreResult result;

@@ -3831,6 +3831,7 @@ void GUI_App::keyboard_shortcuts()
 void GUI_App::ShowUserGuide() {
     // BBS:Show NewUser Guide
     try {
+        const std::string locale_before_wizard = gateway_locale();
         bool res = false;
         GuideFrame GuideDlg(this);
                 //if (GuideDlg.IsFirstUse())
@@ -3840,7 +3841,7 @@ if (res) {
             update_publish_status();
             mainframe->refresh_plugin_tips();
 
-            m_fltviews.reload_all();
+            sync_gateway_region_after_wizard(locale_before_wizard);
             // BBS: remove SLA related message
         }
     } catch (std::exception &) {
@@ -7244,6 +7245,7 @@ bool GUI_App::run_wizard(ConfigWizard::RunReason reason, ConfigWizard::StartPage
 {
     wxCHECK_MSG(mainframe != nullptr, false, "Internal error: Main frame not created / null");
 
+    const std::string locale_before_wizard = gateway_locale();
     std::string strFinish = wxGetApp().app_config->get("firstguide", "finish");
     long        pStyle    = wxCAPTION | wxCLOSE_BOX | wxSYSTEM_MENU;
     if (strFinish == "false" || strFinish.empty())
@@ -7271,7 +7273,7 @@ bool GUI_App::run_wizard(ConfigWizard::RunReason reason, ConfigWizard::StartPage
         wxGetApp().sidebar().update_nozzle_settings();
         update_publish_status();
         mainframe->refresh_plugin_tips();
-        m_fltviews.reload_all();
+        sync_gateway_region_after_wizard(locale_before_wizard);
         // BBS: remove SLA related message
     }
     auto isAgree = wxGetApp().app_config->get("app", PRIVACY_POLICY_FLAGS);
@@ -7279,6 +7281,27 @@ bool GUI_App::run_wizard(ConfigWizard::RunReason reason, ConfigWizard::StartPage
     user_update_privacy_notify(isAgree == "true");
     BOOST_LOG_TRIVIAL(warning) << "run_wizard changed the privacy policy with: " << (isAgree);
     return res;
+}
+
+void GUI_App::sync_gateway_region_after_wizard(const std::string& locale_before_wizard)
+{
+    const std::string locale_after_wizard = gateway_locale();
+    bool              gateway_refreshed   = false;
+    if (locale_after_wizard != locale_before_wizard && m_gateway_service) {
+        const std::size_t separator = locale_after_wizard.find_last_of("-_");
+        if (separator != std::string::npos && separator + 1 < locale_after_wizard.size()) {
+            const std::string region = locale_after_wizard.substr(separator + 1);
+            const auto        result = m_gateway_service->set_region(region);
+            if (result.error) {
+                BOOST_LOG_TRIVIAL(warning) << "failed to update connection gateway region: " << result.error.message;
+            } else {
+                BOOST_LOG_TRIVIAL(info) << "connection gateway region updated to " << region << " with locale " << locale_after_wizard;
+                gateway_refreshed = true;
+            }
+        }
+    }
+    if (!gateway_refreshed)
+        m_fltviews.reload_all();
 }
 
 void GUI_App::show_desktop_integration_dialog()
