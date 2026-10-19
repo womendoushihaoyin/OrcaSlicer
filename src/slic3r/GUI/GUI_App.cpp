@@ -41,6 +41,7 @@
 #include <cstdio>
 #include <random>
 #include <boost/algorithm/string/predicate.hpp>
+#include <boost/filesystem/fstream.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/format.hpp>
 #include <boost/lexical_cast.hpp>
@@ -96,6 +97,7 @@
 #include "../Utils/PrintHost.hpp"
 #include "../Utils/Process.hpp"
 #include "../Utils/MacDarkMode.hpp"
+#include "../Utils/GatewayProtocol.hpp"
 #include "../Utils/GatewayService.hpp"
 #include "../Utils/GatewayDevice.hpp"
 #include "../Utils/Http.hpp"
@@ -847,6 +849,22 @@ static void register_win32_device_notification_event()
 // Windows 11 build number threshold: build >= 22000 = Windows 11
 constexpr int kWindows11BuildNumber = 22000;
 
+static std::string read_cli_version_from_resources()
+{
+    // The gateway CLI is shipped with the Flutter web bundle. Its manifest is
+    // updated whenever the bundled CLI is updated, so it is available even
+    // before the gateway process has started and /api/health is reachable.
+    const boost::filesystem::path manifest_path =
+        boost::filesystem::path(Slic3r::resources_dir()) / "web" / "flutter_web" / "version.json";
+    boost::filesystem::ifstream stream(manifest_path, std::ios_base::in | std::ios_base::binary);
+    if (!stream)
+        return {};
+
+    const std::string manifest_body{std::istreambuf_iterator<char>{stream}, std::istreambuf_iterator<char>{}};
+    const auto manifest = Gateway::parse_json_object(manifest_body);
+    return manifest ? Gateway::format_cli_version(*manifest) : std::string{};
+}
+
 void GUI_App::log_version_info()
 {
     // Cache OS description on first call so that subsequent calls from background
@@ -894,6 +912,10 @@ void GUI_App::log_version_info()
     BOOST_LOG_TRIVIAL(warning) << "[Version] Profile: " << (profile_ver.empty() ? "N/A" : profile_ver);
 
     BOOST_LOG_TRIVIAL(warning) << "[Version] OS: " << s_cached_os_desc;
+
+    const std::string snapmaker_connect_version = read_cli_version_from_resources();
+    BOOST_LOG_TRIVIAL(warning) << "[Version] Snapmaker Connect: "
+                               << (snapmaker_connect_version.empty() ? "N/A" : snapmaker_connect_version);
 
     BOOST_LOG_TRIVIAL(warning) << "========================================";
 
