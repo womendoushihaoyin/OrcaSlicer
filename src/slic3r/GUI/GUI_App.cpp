@@ -5938,6 +5938,7 @@ void GUI_App::register_gateway_notifications()
         refresh_gateway_account();
 
         const std::string base_url         = m_gateway_service->base_url();
+        BOOST_LOG_TRIVIAL(warning) << "[FLUTTER_FLOW] [gateway] [connected] base_url=" << base_url;
         const bool        endpoint_changed = m_gateway_loaded_base_url != base_url;
         m_gateway_loaded_base_url          = base_url;
         query_gateway_current_device();
@@ -5956,6 +5957,8 @@ wxString GUI_App::gateway_web_url(const wxString& page_key) const
     if (!url.empty())
         return from_u8(url);
 
+    BOOST_LOG_TRIVIAL(warning)
+        << "[FLUTTER_FLOW] [gateway] [url_fallback] page=" << into_u8(page_key) << " port=" << get_page_http_port();
     return wxString::FromUTF8(LOCALHOST_URL + std::to_string(get_page_http_port()) + "/web/orca/missing_connection.html");
 }
 
