@@ -6,6 +6,9 @@
 #include <deque>
 #include <sstream>
 #include <exception>
+#include <atomic>
+#include <list>
+#include <mutex>
 #include <boost/filesystem/fstream.hpp>
 #include <boost/filesystem/path.hpp>
 #include <boost/filesystem.hpp>
@@ -87,6 +90,87 @@ std::unique_ptr<CurlGlobalInit> CurlGlobalInit::instance;
 std::map<std::string, std::string> extra_headers;
 std::mutex g_mutex;
 
+namespace {
+
+class AsyncHttpRequests
+{
+    struct Job
+    {
+        std::weak_ptr<Http> request;
+        std::thread         worker;
+        std::atomic<bool>   finished{false};
+    };
+    std::mutex     m_mutex;
+    std::list<Job> m_jobs;
+    bool           m_stopping = false;
+
+    void collect_finished()
+    {
+        std::list<Job> finished;
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            for (auto it = m_jobs.begin(); it != m_jobs.end();) {
+                auto current = it++;
+                if (current->finished.load(std::memory_order_acquire))
+                    finished.splice(finished.end(), m_jobs, current);
+            }
+        }
+        // The callable's captured objects are destroyed as the worker returns;
+        // their destructors may also enqueue work. Join without the registry lock.
+        for (auto& job : finished)
+            job.worker.join();
+    }
+
+public:
+    void start(const Http::Ptr& request, std::function<void()> task)
+    {
+        collect_finished();
+        std::lock_guard<std::mutex> lock(m_mutex);
+        if (m_stopping) {
+            request->cancel();
+            return;
+        }
+        m_jobs.emplace_back();
+        auto& job   = m_jobs.back();
+        job.request = request;
+        try {
+            job.worker = std::thread([&job, task = std::move(task)]() mutable {
+                task();
+                task = {}; // Release request/callback captures before publishing completion.
+                job.finished.store(true, std::memory_order_release);
+            });
+        } catch (...) {
+            m_jobs.pop_back();
+            throw;
+        }
+    }
+
+    void shutdown()
+    {
+        std::list<Job> jobs;
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            m_stopping = true;
+            jobs.splice(jobs.end(), m_jobs);
+        }
+        for (auto& job : jobs)
+            if (auto request = job.request.lock())
+                request->cancel();
+        for (auto& job : jobs)
+            job.worker.join();
+    }
+};
+
+AsyncHttpRequests& async_http_requests()
+{
+    // Explicitly drained by GUI_App::OnExit. Process-lifetime storage avoids
+    // static destructor order races with curl/OpenSSL and late callbacks.
+    static auto* requests = new AsyncHttpRequests;
+    return *requests;
+}
+
+} // namespace
+
 struct form_file
 {
     fs::ifstream                          ifs;
@@ -120,10 +204,9 @@ struct Http::priv
 	std::string error_buffer;    // Used for CURLOPT_ERRORBUFFER
     std::string headers;
 	size_t limit;
-	bool cancel;
+	std::atomic<bool> cancel;
     std::unique_ptr<form_file> putFile;
 
-	std::thread io_thread;
 	Http::CompleteFn completefn;
 	Http::ErrorFn errorfn;
 	Http::ProgressFn progressfn;
@@ -536,13 +619,7 @@ Http::Http(const std::string &url) : p(new priv(url)) {
 
 Http::Http(Http &&other) : p(std::move(other.p)) {}
 
-Http::~Http()
-{
-    assert(! p || ! p->putFile);
-	if (p && p->io_thread.joinable()) {
-		p->io_thread.detach();
-	}
-}
+Http::~Http() = default;
 
 
 Http& Http::timeout_connect(long timeout)
@@ -757,14 +834,13 @@ Http::Ptr Http::perform()
 	auto self = std::make_shared<Http>(std::move(*this));
 
 	if (self->p) {
-		auto io_thread = std::thread([self](){
-				self->p->http_perform();
-			});
-		self->p->io_thread = std::move(io_thread);
+		async_http_requests().start(self, [self] { self->p->http_perform(); });
 	}
 
 	return self;
 }
+
+void Http::shutdown_async() { async_http_requests().shutdown(); }
 
 void Http::perform_sync()
 {

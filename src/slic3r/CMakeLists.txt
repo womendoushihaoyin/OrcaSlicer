@@ -739,6 +739,20 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/GeneratedConfig.hpp.in
                @ONLY)
 
 add_library(libslic3r_gui STATIC ${SLIC3R_GUI_SOURCES})
+if(ORCA_LOCAL_PLUGIN_SPIKE OR ORCA_PYTHON_PLUGINS)
+    target_sources(libslic3r_gui PRIVATE GUI/LocalPluginsDialog.cpp)
+    if(ORCA_PYTHON_PLUGINS)
+        include(${CMAKE_SOURCE_DIR}/cmake/OrcaPluginCore.cmake)
+    else()
+        target_link_libraries(libslic3r_gui orca_local_plugin_runtime)
+    endif()
+    target_compile_definitions(libslic3r_gui PRIVATE
+        ORCA_LOCAL_PLUGIN_SPIKE
+        ORCA_PLUGIN_PYTHON_HOME="${ORCA_PLUGIN_PYTHON_ROOT}"
+    )
+    add_executable(orca_http_shutdown_test "${CMAKE_SOURCE_DIR}/tests/plugin_runtime_spike/http_shutdown.cpp")
+    target_link_libraries(orca_http_shutdown_test PRIVATE libslic3r_gui)
+endif()
 target_include_directories(libslic3r_gui PRIVATE Utils ${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/..)
 target_link_libraries(libslic3r_gui paho-mqttpp3-static)
 

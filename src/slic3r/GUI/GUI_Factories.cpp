@@ -326,14 +326,22 @@ wxBitmap SettingsFactory::get_category_bitmap(const std::string& category_name, 
 //-------------------------------------
 
 // Note: id accords to type of the sub-object (adding volume), so sequence of the menu items is important
-static const constexpr std::array<std::pair<const char *, const char *>, 5> ADD_VOLUME_MENU_ITEMS = {{
+static const constexpr std::array<std::pair<const char *, const char *>, 11> ADD_VOLUME_MENU_ITEMS = {{
     //       menu_item Name              menu_item bitmap name
         {L("Add part"),              "menu_add_part" },           // ~ModelVolumeType::MODEL_PART
         {L("Add negative part"),     "menu_add_negative" },       // ~ModelVolumeType::NEGATIVE_VOLUME
         {L("Add modifier"),          "menu_add_modifier"},         // ~ModelVolumeType::PARAMETER_MODIFIER
         {L("Add support blocker"),   "menu_support_blocker"},     // ~ModelVolumeType::SUPPORT_BLOCKER
         {L("Add support enforcer"),  "menu_support_enforcer"},     // ~ModelVolumeType::SUPPORT_ENFORCER
+        {L("Add Precise Seam"),      "menu_precise_seam_center"},
+        {L("Add Precise Seam"),      "menu_precise_seam_left"},
+        {L("Add Precise Seam"),      "menu_precise_seam_right"},
+        {L("Add Precise Seam"),      "menu_precise_seam_enforced"},
+        {L("Add Precise Seam"),      "menu_precise_seam_blocked"},
+        {L("Add Precise Seam"),      "menu_precise_seam_neutral"},
 }};
+static_assert(ADD_VOLUME_MENU_ITEMS.size() == size_t(ModelVolumeType::PRECISE_SEAM_NEUTRAL) + 1,
+              "Every volume type needs a tree icon");
 
 // Note: id accords to type of the sub-object (adding volume), so sequence of the menu items is important
 static const constexpr std::array<std::pair<const char *, const char *>, 3> TEXT_VOLUME_ICONS {{
@@ -718,10 +726,16 @@ void MenuFactory::append_menu_items_add_volume(wxMenu* menu)
 
     for (size_t type = 0; type < ADD_VOLUME_MENU_ITEMS.size(); type++)
     {
+        // Creation starts in Center mode; the subtype menu exposes all six modes.
+        if (is_precise_seam(ModelVolumeType(type)) && ModelVolumeType(type) != ModelVolumeType::PRECISE_SEAM_CENTER)
+            continue;
         auto& item = ADD_VOLUME_MENU_ITEMS[type];
 
         wxMenu* sub_menu = append_submenu_add_generic(menu, ModelVolumeType(type));
-        append_submenu(menu, sub_menu, wxID_ANY, _(item.first), "", item.second,
+        const bool precise_seam = is_precise_seam(ModelVolumeType(type));
+        append_submenu(menu, sub_menu, wxID_ANY, _(item.first),
+            precise_seam ? _L("Place the helper across a wall, then choose its Precise Seam Type.") : wxString(),
+            precise_seam ? "menu_precise_seam_add" : item.second,
             []() { return obj_list()->is_instance_or_object_selected(); }, m_parent);
     }
 
@@ -809,8 +823,50 @@ wxMenuItem* MenuFactory::append_menu_item_change_type(wxMenu* menu)
         [](wxCommandEvent&) { obj_list()->change_part_type(); }, "", menu,
         []() {
             wxDataViewItem item = obj_list()->GetSelection();
-            return item.IsOk() || obj_list()->GetModel()->GetItemType(item) == itVolume;
+            return item.IsOk() && obj_list()->get_selected_model_volume() != nullptr;
         }, m_parent);
+}
+
+void MenuFactory::append_menu_item_precise_seam_submenu(wxMenu* menu)
+{
+    const wxString name = _L("Precise Seam Type");
+    const int old_item = menu->FindItem(name);
+    if (old_item != wxNOT_FOUND)
+        menu->Destroy(old_item);
+
+    if (plater() == nullptr)
+        return;
+    wxDataViewItemArray selected;
+    obj_list()->GetSelections(selected);
+    if (selected.IsEmpty())
+        return;
+    std::vector<ModelVolumeType> selected_types;
+    for (auto item : selected) {
+        if (list_model()->GetItemType(item) & itSettings)
+            item = list_model()->GetParent(item);
+        const ModelVolumeType type = list_model()->GetVolumeType(item);
+        if (!is_precise_seam(type))
+            return;
+        selected_types.push_back(type);
+    }
+
+    static const std::array<std::pair<const char*, ModelVolumeType>, 6> types = {{
+        {L("Seam Center"), ModelVolumeType::PRECISE_SEAM_CENTER},
+        {L("Seam Left"), ModelVolumeType::PRECISE_SEAM_LEFT},
+        {L("Seam Right"), ModelVolumeType::PRECISE_SEAM_RIGHT},
+        {L("Seam Enforced"), ModelVolumeType::PRECISE_SEAM_ENFORCED},
+        {L("Seam Blocked"), ModelVolumeType::PRECISE_SEAM_BLOCKED},
+        {L("Seam Neutral"), ModelVolumeType::PRECISE_SEAM_NEUTRAL},
+    }};
+    wxMenu* submenu = new wxMenu();
+    for (const auto& type : types) {
+        wxMenuItem* item = append_menu_check_item(submenu, wxID_ANY, _(type.first), "",
+            [target = type.second](wxCommandEvent&) { obj_list()->set_volume_type(target); }, submenu);
+        item->Check(std::find(selected_types.begin(), selected_types.end(), type.second) != selected_types.end());
+    }
+    append_submenu(menu, submenu, wxID_ANY, name,
+        _L("Drag helpers within the Center/Left/Right or Enforced/Blocked/Neutral group to set priority. Higher items take precedence."),
+        "menu_precise_seam_type", []() { return true; }, m_parent);
 }
 
 wxMenuItem* MenuFactory::append_menu_item_instance_to_object(wxMenu* menu)
@@ -1799,6 +1855,7 @@ wxMenu* MenuFactory::part_menu()
     append_menu_items_convert_unit(&m_part_menu);
     append_menu_item_change_filament(&m_part_menu);
     append_menu_item_per_object_settings(&m_part_menu);
+    append_menu_item_precise_seam_submenu(&m_part_menu);
     return &m_part_menu;
 }
 
@@ -1839,7 +1896,7 @@ wxMenu* MenuFactory::multi_selection_menu()
     bool multi_volume = true;
 
     for (const wxDataViewItem& item : sels) {
-        multi_volume = list_model()->GetItemType(item) & itVolume;
+        multi_volume &= (list_model()->GetItemType(item) & itVolume) != 0;
         if (!(list_model()->GetItemType(item) & (itVolume | itObject | itInstance)))
             // show this menu only for Objects(Instances mixed with Objects)/Volumes selection
             return nullptr;
@@ -1876,6 +1933,7 @@ wxMenu* MenuFactory::multi_selection_menu()
         append_menu_item_delete(menu);
         append_menu_items_convert_unit(menu);
         append_menu_item_change_filament(menu);
+        append_menu_item_precise_seam_submenu(menu);
         wxMenu* split_menu = new wxMenu();
         if (split_menu) {
             append_menu_item(split_menu, wxID_ANY, _L("To objects"), _L("Split the selected object into multiple objects"),
@@ -2048,14 +2106,21 @@ void MenuFactory::append_menu_item_per_object_settings(wxMenu* menu)
             menu->Destroy(item_id);
     }
 
+    // Menus are constructed inside Plater's constructor, before GUI_App owns
+    // the Plater. Resolve the selection only when the menu is updated or used.
+    const auto can_edit = []() {
+        auto* current_plater = plater();
+        if (current_plater == nullptr || current_plater->canvas3D() == nullptr)
+            return false;
+        if (const ModelVolume* volume = obj_list()->get_selected_model_volume(); volume && volume->is_precise_seam())
+            return false;
+        const Selection& selection = current_plater->canvas3D()->get_selection();
+        return selection.is_single_full_object() || selection.is_single_full_instance() || selection.is_single_volume();
+    };
     append_menu_item(menu, wxID_ANY, names[0], names[1],
-        [](wxCommandEvent&) {
-            plater()->PopupObjectTableBySelection();
-        }, "", nullptr,
-        []() {
-            Selection& selection = plater()->canvas3D()->get_selection();
-            return selection.is_single_full_object() || selection.is_single_full_instance() || selection.is_single_volume();
-        }, m_parent);
+        [can_edit](wxCommandEvent&) {
+            if (can_edit()) plater()->PopupObjectTableBySelection();
+        }, "", nullptr, can_edit, m_parent);
 }
 
 void MenuFactory::append_menu_item_change_filament(wxMenu* menu)

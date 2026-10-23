@@ -402,6 +402,17 @@ ColorRGBA color_from_model_volume(const ModelVolume& model_volume)
         return GLVolume::SUPPORT_BLOCKER_COL;
     else if (model_volume.is_support_enforcer())
         return GLVolume::SUPPORT_ENFORCER_COL;
+    else if (model_volume.is_precise_seam()) {
+        switch (model_volume.type()) {
+        case ModelVolumeType::PRECISE_SEAM_CENTER:   return {1.000f, 0.627f, 0.082f, 0.6f};
+        case ModelVolumeType::PRECISE_SEAM_LEFT:     return {1.000f, 0.753f, 0.000f, 0.6f};
+        case ModelVolumeType::PRECISE_SEAM_RIGHT:    return {1.000f, 0.514f, 0.000f, 0.6f};
+        case ModelVolumeType::PRECISE_SEAM_ENFORCED: return {0.412f, 0.820f, 0.412f, 0.6f};
+        case ModelVolumeType::PRECISE_SEAM_BLOCKED:  return {0.820f, 0.412f, 0.412f, 0.6f};
+        case ModelVolumeType::PRECISE_SEAM_NEUTRAL:  return {0.655f, 0.655f, 0.655f, 0.6f};
+        default: break;
+        }
+    }
     return color;
 }
 

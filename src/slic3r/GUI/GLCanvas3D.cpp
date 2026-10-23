@@ -1,3 +1,4 @@
+#include "libslic3r/LifecycleEvents.hpp"
 #include "libslic3r/libslic3r.h"
 #include "GLCanvas3D.hpp"
 
@@ -5838,10 +5839,45 @@ void GLCanvas3D::set_tooltip(const std::string& tooltip)
         m_tooltip.set_text(tooltip);
 }
 
+namespace {
+using LifecycleTransformSnapshot = std::map<size_t, std::vector<Matrix4d>>;
+LifecycleTransformSnapshot capture_model_transforms(const Model& model)
+{
+    LifecycleTransformSnapshot result;
+    for (const auto* object : model.objects) {
+        auto& matrices = result[object->id().id];
+        for (const auto* instance : object->instances) matrices.push_back(instance->get_matrix().matrix());
+        for (const auto* volume : object->volumes) matrices.push_back(volume->get_matrix().matrix());
+    }
+    return result;
+}
+void notify_model_transformed(const Model& model, const LifecycleTransformSnapshot& before, const char* operation)
+{
+    const auto after = capture_model_transforms(model);
+    std::vector<LifecycleEventContext> changed;
+    for (size_t index = 0; index < model.objects.size(); ++index) {
+        const auto* object = model.objects[index];
+        const auto old = before.find(object->id().id), now = after.find(object->id().id);
+        if (old == before.end() || now == after.end() || old->second.size() != now->second.size()) continue;
+        bool different = false;
+        for (size_t matrix = 0; matrix < old->second.size(); ++matrix)
+            different |= !old->second[matrix].isApprox(now->second[matrix], 1e-12);
+        if (!different) continue;
+        LifecycleEventContext context;
+        context.name = object->name; context.id = std::to_string(object->id().id);
+        context.index = int(index); context.source = operation;
+        changed.push_back(std::move(context));
+    }
+    // A callback may edit the model. Dispatch value snapshots after iteration.
+    for (const auto& context : changed) fire_lifecycle_event(LifecycleEvent::ObjectTransformed, context);
+}
+}
+
 void GLCanvas3D::do_move(const std::string& snapshot_type)
 {
     if (m_model == nullptr)
         return;
+    const auto original_transforms = capture_model_transforms(*m_model);
 
     if (!snapshot_type.empty())
         wxGetApp().plater()->take_snapshot(snapshot_type);
@@ -5945,12 +5981,15 @@ void GLCanvas3D::do_move(const std::string& snapshot_type)
     wxGetApp().plater()->notify_filament_usage_changed();
 
     m_dirty = true;
+    notify_model_transformed(*m_model, original_transforms, "move");
+
 }
 
 void GLCanvas3D::do_rotate(const std::string& snapshot_type)
 {
     if (m_model == nullptr)
         return;
+    const auto original_transforms = capture_model_transforms(*m_model);
 
     if (!snapshot_type.empty())
         wxGetApp().plater()->take_snapshot(snapshot_type);
@@ -6039,12 +6078,15 @@ void GLCanvas3D::do_rotate(const std::string& snapshot_type)
         post_event(SimpleEvent(EVT_GLCANVAS_INSTANCE_ROTATED));
 
     m_dirty = true;
+    notify_model_transformed(*m_model, original_transforms, "rotate");
+
 }
 
 void GLCanvas3D::do_scale(const std::string& snapshot_type)
 {
     if (m_model == nullptr)
         return;
+    const auto original_transforms = capture_model_transforms(*m_model);
 
     if (!snapshot_type.empty())
         wxGetApp().plater()->take_snapshot(snapshot_type);
@@ -6124,6 +6166,8 @@ void GLCanvas3D::do_scale(const std::string& snapshot_type)
         post_event(SimpleEvent(EVT_GLCANVAS_INSTANCE_SCALED));
 
     m_dirty = true;
+    notify_model_transformed(*m_model, original_transforms, "scale");
+
 }
 
 void GLCanvas3D::do_center()
@@ -6153,6 +6197,7 @@ void GLCanvas3D::do_mirror(const std::string& snapshot_type)
 {
     if (m_model == nullptr)
         return;
+    const auto original_transforms = capture_model_transforms(*m_model);
 
     if (!snapshot_type.empty())
         wxGetApp().plater()->take_snapshot(snapshot_type);
@@ -6231,6 +6276,8 @@ void GLCanvas3D::do_mirror(const std::string& snapshot_type)
     post_event(SimpleEvent(EVT_GLCANVAS_SCHEDULE_BACKGROUND_PROCESS));
 
     m_dirty = true;
+    notify_model_transformed(*m_model, original_transforms, "mirror");
+
 }
 
 void GLCanvas3D::update_gizmos_on_off_state()

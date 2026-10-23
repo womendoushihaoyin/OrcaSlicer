@@ -18,6 +18,7 @@ namespace Slic3r {
 class Model;
 
 namespace GUI {
+struct TextureMixedPaletteSnapshot;
 	class Selection;
     class GLGizmosManager;
 	class PartPlateList;
@@ -57,6 +58,9 @@ struct SnapshotData
 	// Bitmap of Flags (see the Flags enum).
 	unsigned int        flags { 0 };
     int                 layer_range_idx { -1 };
+    // Optional owned texture-palette transaction state; older/default snapshots
+    // leave it empty. Its implementation stays out of this shared header.
+    std::shared_ptr<const GUI::TextureMixedPaletteSnapshot> texture_mixed_palette;
 
 	// Bitmask of various binary flags to be stored with the snapshot.
 	enum Flags {

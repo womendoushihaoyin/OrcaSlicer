@@ -1,0 +1,48 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<script src="dialog/js/plugin-config-ui.js"></script>
+<style>
+body { margin: 16px; font: 14px system-ui; }
+iframe { width: 100%; height: 380px; border: 0; }
+textarea { width: 100%; min-height: 350px; box-sizing: border-box; }
+footer { display: flex; gap: 12px; margin-top: 12px; }
+#error { color: #b43b30; white-space: pre-wrap; }
+</style></head><body>
+<div id="error" role="alert"></div>
+<iframe id="configCustom" title="Plugin configuration" sandbox="allow-scripts" referrerpolicy="no-referrer" hidden></iframe>
+<textarea id="configText" aria-label="Capability configuration JSON" spellcheck="false" autocorrect="off" autocapitalize="off" hidden></textarea>
+<footer><button id="save" hidden>Save JSON</button><button id="restore">Restore defaults</button><button id="done">Done</button></footer>
+<script>
+const frame = document.getElementById('configCustom');
+const editor = document.getElementById('configText');
+const save = document.getElementById('save');
+let initialized = false;
+let scope = 'global';
+function send(action, config) { window.orca.postMessage({ action, config }); }
+window.orca.onMessage(payload => {
+  document.getElementById('error').textContent = payload.error || '';
+  if (payload.command === 'capability_config' && !initialized) {
+    initialized = true;
+    scope = payload.scope || 'global';
+    const html = payload.custom_html || '';
+    document.getElementById('restore').textContent = payload.restore_label || 'Restore defaults';
+    frame.hidden = !html;
+    editor.hidden = save.hidden = !!html;
+    if (html) frame.srcdoc = BuildCustomConfigDocument(html, payload.config, OrcaConfigContext(payload, scope));
+    else editor.value = JSON.stringify(payload.config, null, 2);
+  } else if (payload.ok === true) {
+    if (!frame.hidden) frame.contentWindow.postMessage({ __orca: 'config', config: payload.config, context: OrcaConfigContext(payload, scope) }, '*');
+    else editor.value = JSON.stringify(payload.config, null, 2);
+  }
+});
+window.addEventListener('message', event => {
+  if (frame.hidden || event.source !== frame.contentWindow || !event.data) return;
+  if (event.data.__orca === 'save') send('save', event.data.config === undefined ? {} : event.data.config);
+  if (event.data.__orca === 'restore') send('restore');
+});
+save.onclick = () => send('save', editor.value);
+document.getElementById('restore').onclick = () => send('restore');
+document.getElementById('done').onclick = () => window.orca.close();
+OrcaWatchThemeForFrame('configCustom');
+send('get');
+</script></body></html>

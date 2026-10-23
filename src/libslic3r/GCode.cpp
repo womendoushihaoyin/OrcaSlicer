@@ -1,3 +1,5 @@
+#include "GCode/Path3Projection.hpp"
+#include "LifecycleOperation.hpp"
 #include "BoundingBox.hpp"
 #include "Config.hpp"
 #include "Polygon.hpp"
@@ -2163,6 +2165,13 @@ void GCode::do_export(Print* print, const char* path, GCodeProcessorResult* resu
     BOOST_LOG_TRIVIAL(info) << boost::format("Will export G-code to %1% soon") % path;
     GCodeProcessor::s_IsBBLPrinter = print->is_BBL_printer();
     print->set_started(psGCodeExport);
+    LifecycleEventContext lifecycle;
+    lifecycle.id = std::to_string(print->model().id().id);
+    lifecycle.name = print->get_model_name();
+    lifecycle.msg = path;
+    lifecycle.cancellation_check = [print] { return print->canceled(); };
+    LifecycleOperation lifecycle_operation(LifecycleEvent::GCodeExportStarted, LifecycleEvent::GCodeExportFinished, std::move(lifecycle));
+
 
     // check if any custom gcode contains keywords used by the gcode processor to
     // produce time estimation and gcode toolpaths
@@ -2304,6 +2313,7 @@ void GCode::do_export(Print* print, const char* path, GCodeProcessorResult* resu
 
     BOOST_LOG_TRIVIAL(info) << "Exporting G-code finished" << log_memory_info();
     print->set_done(psGCodeExport);
+    lifecycle_operation.finish();
 
     if (is_BBL_Printer())
         result->label_object_enabled = m_enable_exclude_object;
@@ -3203,6 +3213,10 @@ void GCode::_do_export(Print& print, GCodeOutputStream& file, ThumbnailsGenerato
     // Collect custom seam data from all objects.
     std::function<void(void)> throw_if_canceled_func = [&print]() { print.throw_if_canceled(); };
     m_seam_placer.init(print, throw_if_canceled_func);
+    if (!m_seam_placer.precise_seam_warning().empty())
+        print.active_step_add_warning(PrintStateBase::WarningLevel::NON_CRITICAL,
+                                      m_seam_placer.precise_seam_warning(),
+                                      PrintStateBase::SlicingPreciseSeamWarning);
 
     // BBS: get path for change filament
     if (m_writer.multiple_extruders) {
@@ -4105,10 +4119,92 @@ inline GCode::ObjectByExtruder& object_by_extruder(std::map<unsigned int, std::v
     return objects_by_extruder[object_idx];
 }
 
-static inline void apply_local_z_flow_height_override(ExtrusionPath& path, const double flow_height_override)
+namespace {
+// A pass-local interpretation of existing Contour offsets. The path retains its
+// original contour arc length for extrusion volume; only emitted nozzle Z is
+// remapped to the cumulative micro-layer fraction.
+struct LocalZContourPass {
+    double source_height;
+    double cumulative_ratio;
+    double lower_height;
+    double upper_height;
+    bool contouring_enabled;
+    bool scarf_enabled;
+};
+struct LocalZContourEmission {
+    const GCode* owner;
+    LocalZContourPass pass;
+};
+thread_local const LocalZContourEmission* local_z_contour_emission = nullptr;
+class ScopedLocalZContourEmission {
+    LocalZContourEmission m_current;
+    const LocalZContourEmission* m_previous;
+    double* m_nominal_z;
+    float* m_last_layer_z;
+    double m_saved_nominal_z;
+    float m_saved_last_layer_z;
+public:
+    ScopedLocalZContourEmission(const GCode* owner, LocalZContourPass pass,
+                               double* nominal_z = nullptr, float* last_layer_z = nullptr)
+        : m_current{owner, pass}, m_previous(local_z_contour_emission),
+          m_nominal_z(nominal_z), m_last_layer_z(last_layer_z),
+          m_saved_nominal_z(nominal_z ? *nominal_z : 0.),
+          m_saved_last_layer_z(last_layer_z ? *last_layer_z : 0.f)
+    { local_z_contour_emission = &m_current; }
+    ~ScopedLocalZContourEmission()
+    {
+        local_z_contour_emission = m_previous;
+        if (m_nominal_z) *m_nominal_z = m_saved_nominal_z;
+        if (m_last_layer_z) *m_last_layer_z = m_saved_last_layer_z;
+    }
+    ScopedLocalZContourEmission(const ScopedLocalZContourEmission&) = delete;
+    ScopedLocalZContourEmission& operator=(const ScopedLocalZContourEmission&) = delete;
+};
+LocalZContourPass local_z_contour_pass(const Layer& layer, const SubLayerPlan& plan,
+                                     const DynamicPrintConfig& config, bool enabled, bool scarf_enabled = false)
+{
+    const double height = layer.height;
+    const double cumulative = plan.print_z - (layer.print_z - height);
+    if (!std::isfinite(height) || height <= EPSILON || !std::isfinite(cumulative) ||
+        cumulative < plan.flow_height - EPSILON || cumulative > height + EPSILON)
+        throw RuntimeError("Local-Z contour interval is invalid");
+    return {height, std::clamp(cumulative / height, 0., 1.),
+            config.opt_float("mixed_filament_height_lower_bound"),
+            config.opt_float("mixed_filament_height_upper_bound"), enabled, scarf_enabled};
+}
+const LocalZContourPass* local_z_contour_pass_for(const GCode* owner)
+{
+    return local_z_contour_emission && local_z_contour_emission->owner == owner ?
+        &local_z_contour_emission->pass : nullptr;
+}
+void validate_local_z_contour(const ExtrusionPath& path, double pass_height,
+                              const LocalZContourPass* pass)
+{
+    if (pass && path.role() == erIroning && (pass->contouring_enabled || path.has_polyline3()))
+        throw RuntimeError("Local-Z with Z contouring does not support ironing: terminal-surface scheduling is required");
+    const auto* spatial = path.polyline3();
+    if (!spatial) return;
+    if (pass && pass->scarf_enabled)
+        throw RuntimeError("Local-Z with Z contouring does not yet support scarf seams");
+    if (!pass || std::abs(path.height - pass->source_height) > 1e-6)
+        throw RuntimeError("Local-Z contour path must use the source layer height");
+    for (const auto& point : spatial->points) {
+        const double physical_height = pass_height * (1. + unscale<double>(point.z()) / pass->source_height);
+        if (!std::isfinite(physical_height) || physical_height <= EPSILON ||
+            physical_height < pass->lower_height - 1e-6 || physical_height > pass->upper_height + 1e-6)
+            throw RuntimeError("Local-Z contour physical sublayer height " + std::to_string(physical_height) +
+                " mm is outside the configured lower/upper bounds [" + std::to_string(pass->lower_height) +
+                ", " + std::to_string(pass->upper_height) + "] mm");
+    }
+}
+}
+
+static inline void apply_local_z_flow_height_override(ExtrusionPath& path, const double flow_height_override,
+                                                      const LocalZContourPass* contour_pass)
 {
     if (flow_height_override <= EPSILON)
         return;
+    validate_local_z_contour(path, flow_height_override, contour_pass);
     if (path.height > EPSILON) {
         const double ratio = flow_height_override / path.height;
         path.mm3_per_mm *= ratio;
@@ -4120,8 +4216,59 @@ static inline void append_clipped_path(const ExtrusionPath& src_path,
                                        const ExPolygons*    include_masks,
                                        const ExPolygons*    exclude_masks,
                                        const double         flow_height_override,
-                                       std::vector<ExtrusionPath>& dst)
+                                       std::vector<ExtrusionPath>& dst,
+                                       const LocalZContourPass* contour_pass)
 {
+    if (const auto* spatial = src_path.polyline3()) {
+        const size_t first_result = dst.size();
+        for (size_t i = 1; i < spatial->points.size(); ++i) {
+            const Vec3crd& a = spatial->points[i - 1];
+            const Vec3crd& b = spatial->points[i];
+            // A vertical segment has no XY extent for Clipper. Classify its
+            // footprint directly and retain both Z endpoints when included.
+            if (a.head<2>() == b.head<2>()) {
+                const Point point(a.x(), a.y());
+                const auto contains = [&](const ExPolygons* masks) {
+                    return masks && std::any_of(masks->begin(), masks->end(),
+                        [&](const ExPolygon& polygon) { return polygon.contains(point); });
+                };
+                if ((include_masks && !include_masks->empty() && !contains(include_masks)) || contains(exclude_masks)) continue;
+                ExtrusionPath clipped(Polyline3(Points3{a, b}), src_path);
+                apply_local_z_flow_height_override(clipped, flow_height_override, contour_pass);
+                if (dst.size() > first_result && dst.back().polyline3()->points.back() == a)
+                    dst.back().append(clipped);
+                else
+                    dst.emplace_back(std::move(clipped));
+                continue;
+            }
+            Polylines pieces{Polyline{Point(a.x(), a.y()), Point(b.x(), b.y())}};
+            if (include_masks != nullptr && !include_masks->empty()) pieces = intersection_pl(std::move(pieces), *include_masks);
+            if (exclude_masks != nullptr && !exclude_masks->empty()) pieces = diff_pl(std::move(pieces), *exclude_masks);
+            const Vec2d delta = (b.head<2>() - a.head<2>()).cast<double>();
+            const double length2 = delta.squaredNorm();
+            auto fraction = [&](const Point& point) {
+                return std::clamp((point.cast<double>() - a.head<2>().cast<double>()).dot(delta) / length2, 0., 1.);
+            };
+            for (auto& piece : pieces)
+                if (piece.is_valid() && fraction(piece.first_point()) > fraction(piece.last_point())) piece.reverse();
+            std::sort(pieces.begin(), pieces.end(), [&](const Polyline& x, const Polyline& y) {
+                return fraction(x.first_point()) < fraction(y.first_point());
+            });
+            for (const auto& piece : pieces) {
+                if (!piece.is_valid()) continue;
+                Polyline3 geometry;
+                for (const Point& point : piece.points)
+                    geometry.append(Vec3crd(point.x(), point.y(), coord_t(std::llround(double(a.z()) + fraction(point) * double(b.z() - a.z())))));
+                ExtrusionPath clipped(std::move(geometry), src_path);
+                apply_local_z_flow_height_override(clipped, flow_height_override, contour_pass);
+                if (dst.size() > first_result && dst.back().polyline3()->points.back() == clipped.polyline3()->points.front())
+                    dst.back().append(clipped);
+                else
+                    dst.emplace_back(std::move(clipped));
+            }
+        }
+        return;
+    }
     Polylines segments{src_path.polyline};
     if (include_masks != nullptr && !include_masks->empty())
         segments = intersection_pl(std::move(segments), *include_masks);
@@ -4132,7 +4279,7 @@ static inline void append_clipped_path(const ExtrusionPath& src_path,
         if (!segment.is_valid())
             continue;
         ExtrusionPath clipped(segment, src_path);
-        apply_local_z_flow_height_override(clipped, flow_height_override);
+        apply_local_z_flow_height_override(clipped, flow_height_override, contour_pass);
         dst.emplace_back(std::move(clipped));
     }
 }
@@ -4176,22 +4323,18 @@ static void local_z_order_clipped_paths_for_seam(std::vector<ExtrusionPath>& pat
         ExtrusionPath anchor_path = std::move(paths[best_anchor_idx]);
         paths.erase(paths.begin() + best_anchor_idx);
 
-        Polyline head;
-        Polyline tail;
+        ExtrusionPath head(anchor_path.role()), tail(anchor_path.role());
         Point split_point = seam_anchor;
-        anchor_path.polyline.split_at(split_point, &head, &tail);
+        anchor_path.split_at(split_point, &head, &tail);
 
-        if (tail.is_valid()) {
-            ExtrusionPath tail_path(std::move(tail), anchor_path);
-            ordered.emplace_back(std::move(tail_path));
+        if (tail.polyline.is_valid()) {
+            ordered.emplace_back(std::move(tail));
             current_pos = ordered.back().last_point();
         }
 
-        if (head.is_valid()) {
-            ExtrusionPath head_path(std::move(head), anchor_path);
-            if (head_path.can_reverse())
-                head_path.reverse();
-            ordered.emplace_back(std::move(head_path));
+        if (head.polyline.is_valid()) {
+            if (head.can_reverse()) head.reverse();
+            ordered.emplace_back(std::move(head));
             current_pos = ordered.back().last_point();
         }
     }
@@ -4342,7 +4485,8 @@ static std::unique_ptr<ExtrusionEntityCollection> clip_extrusion_collection_for_
     const ExPolygons*                include_masks,
     const ExPolygons*                exclude_masks,
     const double                     flow_height_override,
-    const LocalZLoopSeamPlacer*      seam_placer = nullptr)
+    const LocalZLoopSeamPlacer*      seam_placer = nullptr,
+    const LocalZContourPass*         contour_pass = nullptr)
 {
     if (source.entities.empty())
         return nullptr;
@@ -4360,21 +4504,24 @@ static std::unique_ptr<ExtrusionEntityCollection> clip_extrusion_collection_for_
     for (const ExtrusionEntity* entity : flattened.entities) {
         if (const auto* path = dynamic_cast<const ExtrusionPath*>(entity)) {
             std::vector<ExtrusionPath> clipped_paths;
-            append_clipped_path(*path, include_masks, exclude_masks, flow_height_override, clipped_paths);
+            append_clipped_path(*path, include_masks, exclude_masks, flow_height_override, clipped_paths, contour_pass);
             append_clipped_paths(std::move(clipped_paths), *out);
         } else if (const auto* multipath = dynamic_cast<const ExtrusionMultiPath*>(entity)) {
             std::vector<ExtrusionPath> clipped_paths;
             for (const ExtrusionPath& path : multipath->paths)
-                append_clipped_path(path, include_masks, exclude_masks, flow_height_override, clipped_paths);
+                append_clipped_path(path, include_masks, exclude_masks, flow_height_override, clipped_paths, contour_pass);
             append_clipped_paths(std::move(clipped_paths), *out);
         } else if (const auto* loop = dynamic_cast<const ExtrusionLoop*>(entity)) {
+            if (flow_height_override > EPSILON && contour_pass && contour_pass->contouring_enabled &&
+                dynamic_cast<const ExtrusionLoopSloped*>(loop))
+                throw RuntimeError("Local-Z with Z contouring does not yet support scarf loops");
             ExtrusionLoop seam_loop = *loop;
             Point         seam_anchor = loop->first_point();
             const bool    seam_ready =
                 seam_placer != nullptr && (*seam_placer)(*loop, seam_loop, seam_anchor);
             std::vector<ExtrusionPath> clipped_paths;
             for (const ExtrusionPath& path : seam_loop.paths)
-                append_clipped_path(path, include_masks, exclude_masks, flow_height_override, clipped_paths);
+                append_clipped_path(path, include_masks, exclude_masks, flow_height_override, clipped_paths, contour_pass);
             if (seam_ready)
                 local_z_order_clipped_paths_for_seam(clipped_paths, seam_anchor);
             append_clipped_paths(std::move(clipped_paths), *out);
@@ -4597,33 +4744,32 @@ static std::vector<unsigned int> pointillism_sequence_for_row_for_gcode(const Mi
     return {};
 }
 
-static void split_polyline_by_length_for_pointillism(const Polyline& src,
+static void split_polyline_by_length_for_pointillism(const ExtrusionPath& src,
                                                      const double    split_length,
-                                                     Polylines&      out)
+                                                     ExtrusionPaths& out)
 {
     out.clear();
-    if (!src.is_valid())
+    if (!src.polyline.is_valid())
         return;
     if (split_length <= EPSILON) {
         out.emplace_back(src);
         return;
     }
 
-    Polyline remainder = src;
+    ExtrusionPath remainder = src;
     size_t   guard     = 0;
-    while (remainder.is_valid() && remainder.points.size() >= 2 && ++guard < 200000) {
+    while (remainder.polyline.is_valid() && remainder.size() >= 2 && ++guard < 200000) {
         if (remainder.length() <= split_length + EPSILON) {
             out.emplace_back(std::move(remainder));
             break;
         }
-        Polyline head;
-        Polyline tail;
-        if (!remainder.split_at_length(split_length, &head, &tail) || !head.is_valid()) {
+        ExtrusionPath head(src.role()), tail(src.role());
+        if (!remainder.split_at_length(split_length, &head, &tail) || !head.polyline.is_valid()) {
             out.emplace_back(std::move(remainder));
             break;
         }
         out.emplace_back(std::move(head));
-        if (!tail.is_valid() || tail.points.size() < 2)
+        if (!tail.polyline.is_valid() || tail.size() < 2)
             break;
         remainder = std::move(tail);
     }
@@ -4631,9 +4777,9 @@ static void split_polyline_by_length_for_pointillism(const Polyline& src,
         out.emplace_back(src);
 }
 
-static bool trim_polyline_for_pointillism_gap(Polyline& src, const double trim_each_end)
+static bool trim_polyline_for_pointillism_gap(ExtrusionPath& src, const double trim_each_end)
 {
-    if (!src.is_valid())
+    if (!src.polyline.is_valid())
         return false;
     if (trim_each_end <= EPSILON)
         return true;
@@ -4642,19 +4788,18 @@ static bool trim_polyline_for_pointillism_gap(Polyline& src, const double trim_e
     if (original_len <= 2.0 * trim_each_end + EPSILON)
         return false;
 
-    Polyline head;
-    Polyline tail;
-    if (!src.split_at_length(trim_each_end, &head, &tail) || !tail.is_valid() || tail.points.size() < 2)
+    ExtrusionPath head(src.role()), tail(src.role());
+    if (!src.split_at_length(trim_each_end, &head, &tail) || !tail.polyline.is_valid() || tail.size() < 2)
         return false;
     src = std::move(tail);
 
     const double keep_len = src.length() - trim_each_end;
     if (keep_len <= EPSILON)
         return false;
-    if (!src.split_at_length(keep_len, &head, &tail) || !head.is_valid() || head.points.size() < 2)
+    if (!src.split_at_length(keep_len, &head, &tail) || !head.polyline.is_valid() || head.size() < 2)
         return false;
     src = std::move(head);
-    return src.is_valid() && src.points.size() >= 2;
+    return src.polyline.is_valid() && src.size() >= 2;
 }
 
 struct PointillismPathSplitStats
@@ -4696,8 +4841,8 @@ static bool split_extrusion_collection_for_pointillism_paths(
         return false;
 
     size_t sequence_idx = sequence_phase % sequence.size();
-    auto append_piece = [&](unsigned int extruder_id, const ExtrusionPath& src_path, Polyline& piece) {
-        if (!piece.is_valid())
+    auto append_piece = [&](unsigned int extruder_id, ExtrusionPath& piece) {
+        if (!piece.polyline.is_valid())
             return;
         if (extruder_id == 0 || extruder_id > num_physical)
             extruder_id = fallback_extruder;
@@ -4706,7 +4851,7 @@ static bool split_extrusion_collection_for_pointillism_paths(
             dst = std::make_unique<ExtrusionEntityCollection>();
             dst->no_sort = source.no_sort;
         }
-        ExtrusionPath out_path(piece, src_path);
+        ExtrusionPath out_path(std::move(piece));
         out_path.inset_idx = k_pointillism_path_inset_marker;
         dst->append(std::move(out_path));
         ++out_stats.segment_count;
@@ -4715,16 +4860,16 @@ static bool split_extrusion_collection_for_pointillism_paths(
     ExtrusionEntityCollection flattened = source.flatten(false);
     for (const ExtrusionEntity* entity : flattened.entities) {
         auto split_one_path = [&](const ExtrusionPath& path) {
-            Polylines pieces;
-            split_polyline_by_length_for_pointillism(path.polyline, split_length_scaled, pieces);
+            ExtrusionPaths pieces;
+            split_polyline_by_length_for_pointillism(path, split_length_scaled, pieces);
             const double trim_each_end = std::max(0.0, split_gap_scaled * 0.5);
-            for (Polyline& piece : pieces) {
+            for (ExtrusionPath& piece : pieces) {
                 if (trim_each_end > EPSILON && !trim_polyline_for_pointillism_gap(piece, trim_each_end)) {
                     ++sequence_idx;
                     continue;
                 }
                 unsigned int extruder_id = sequence[sequence_idx % sequence.size()];
-                append_piece(extruder_id, path, piece);
+                append_piece(extruder_id, piece);
                 ++sequence_idx;
             }
         };
@@ -5989,11 +6134,14 @@ LayerResult GCode::process_layer(const Print& print,
                                         : pass_bucket.compensated_masks_by_extruder[pass_extruder_id];
                                     if (pass_masks.empty())
                                         continue;
+                                    const auto contour_pass = local_z_contour_pass(layer, *pass_bucket.plan,
+                                        print.full_print_config(), region.config().zaa_enabled.value,
+                                        region.config().seam_slope_type.value != SeamScarfType::None);
                                     auto clipped_local = clip_extrusion_collection_for_local_z(*extrusions,
                                                                                                &pass_masks,
                                                                                                nullptr,
                                                                                                pass_bucket.plan->flow_height,
-                                                                                               &local_z_loop_seam_placer);
+                                                                                               &local_z_loop_seam_placer, &contour_pass);
                                     if (!clipped_local)
                                         continue;
 
@@ -6348,6 +6496,9 @@ LayerResult GCode::process_layer(const Print& print,
 
             const SubLayerPlan& pass_plan = *pass_ref.bucket->plan;
             const double pass_z           = pass_plan.print_z + m_config.z_offset.value;
+            const Layer& source_layer = *layers[pass_ref.layer_to_print_idx].object_layer;
+            const auto contour_pass = local_z_contour_pass(source_layer, pass_plan, print.full_print_config(), true);
+            const ScopedLocalZContourEmission contour_scope(this, contour_pass, &m_nominal_z, &m_last_layer_z);
             const double saved_nominal_z  = m_nominal_z;
             const float  saved_last_layer_z = m_last_layer_z;
             // Ensure all travel/lift logic inside this pass references the micro-pass Z,
@@ -6366,19 +6517,14 @@ LayerResult GCode::process_layer(const Print& print,
                                      << " extruder=" << local_extruder_id;
             if (std::abs(m_writer.get_position().z() - pass_z) > EPSILON) {
                 gcode += this->retract(false, false, LiftType::NormalLift);
-                gcode += m_writer.travel_to_z(pass_z, "Local-Z path pass");
-            }
-            if (std::abs(m_writer.get_position().z() - pass_z) > EPSILON) {
-                BOOST_LOG_TRIVIAL(warning) << "Local-Z pass z restore"
-                                           << " print_z=" << print_z
-                                           << " layer_id=" << pass_plan.layer_id
-                                           << " pass_index=" << pass_plan.pass_index
-                                           << " dependency_group=" << pass_plan.dependency_group
-                                           << " dependency_order=" << pass_plan.dependency_order
-                                           << " extruder=" << local_extruder_id
-                                           << " expected_pass_z=" << pass_z
-                                           << " observed_z_after_toolchange=" << m_writer.get_position().z();
-                gcode += m_writer.travel_to_z(pass_z, "Local-Z pass z restore");
+                // Do not descend at the previous path's endpoint. Its contoured
+                // surface may be above the next pass's nominal plane. The path
+                // entry travel moves in XY before restoring its physical Z.
+                const bool avoid_descent = m_last_path_was_contoured && m_writer.get_position().z() > pass_z + EPSILON;
+                const double entry_z = avoid_descent ? m_writer.get_position().z() : pass_z;
+                gcode += m_writer.travel_to_z(entry_z, avoid_descent ? "Local-Z safe pass entry" : "Local-Z path pass");
+                if (!avoid_descent && std::abs(m_writer.get_position().z() - pass_z) > EPSILON)
+                    gcode += m_writer.travel_to_z(pass_z, "Local-Z pass z restore");
             }
             std::vector<InstanceToPrint> instances_to_print =
                 sort_print_object_instances(objects_by_extruder, layers, ordering, single_object_instance_idx);
@@ -7448,7 +7594,13 @@ std::string GCode::extrude_loop(
         // inside the model
         if (discoveredTouchingLines > 1) {
             // use extrude instead of travel_to_xy to trigger the unretract
-            ExtrusionPath fake_path_wipe(Polyline{pt, current_point}, paths.front());
+            ExtrusionPath fake_path_wipe(paths.front());
+            if (const auto* spatial = paths.front().polyline3()) {
+                const auto z = spatial->points.front().z();
+                fake_path_wipe.set_polyline3(Polyline3(Points3{Vec3crd(pt.x(), pt.y(), z), Vec3crd(current_point.x(), current_point.y(), z)}));
+            } else {
+                fake_path_wipe.set_polyline(Polyline{pt, current_point});
+            }
             fake_path_wipe.set_force_no_extrusion(true);
             fake_path_wipe.mm3_per_mm = 0;
             // fake_path_wipe.set_extrusion_role(erExternalPerimeter);
@@ -7534,10 +7686,14 @@ std::string GCode::extrude_loop(
         }
     }
 
-    // BBS
+    // The release wipe writer only emits XY moves. Reversing a contoured
+    // path at its final Z could cross an earlier, higher part of the surface.
+    const bool contoured_loop = std::any_of(paths.begin(), paths.end(),
+        [](const ExtrusionPath& path) { return path.has_polyline3(); });
     if (m_wipe.enable) {
         m_wipe.path = Polyline();
         for (ExtrusionPath& path : paths) {
+            if (contoured_loop) break;
             // BBS: Don't need to save duplicated point into wipe path
             if (!m_wipe.path.empty() && !path.empty() && m_wipe.path.last_point() == path.first_point())
                 m_wipe.path.append(path.polyline.points.begin() + 1, path.polyline.points.end());
@@ -7547,7 +7703,7 @@ std::string GCode::extrude_loop(
     }
 
     // make a little move inwards before leaving loop
-    if (m_config.wipe_on_loops.value && paths.back().role() == erExternalPerimeter && m_layer != NULL && m_config.wall_loops.value > 1 &&
+    if (!contoured_loop && m_config.wipe_on_loops.value && paths.back().role() == erExternalPerimeter && m_layer != NULL && m_config.wall_loops.value > 1 &&
         paths.front().size() >= 2 && paths.back().polyline.points.size() >= 3) {
         // detect angle between last and first segment
         // the side depends on the original winding order of the polygon (inwards for contours, outwards for holes)
@@ -7625,7 +7781,10 @@ std::string GCode::extrude_multi_path(ExtrusionMultiPath multipath, std::string 
     // BBS
     if (m_wipe.enable) {
         m_wipe.path = Polyline();
+        const bool contoured = std::any_of(multipath.paths.begin(), multipath.paths.end(),
+            [](const ExtrusionPath& path) { return path.has_polyline3(); });
         for (ExtrusionPath& path : multipath.paths) {
+            if (contoured) break;
             // BBS: Don't need to save duplicated point into wipe path
             if (!m_wipe.path.empty() && !path.empty() && m_wipe.path.last_point() == path.first_point())
                 m_wipe.path.append(path.polyline.points.begin() + 1, path.polyline.points.end());
@@ -7662,7 +7821,7 @@ std::string GCode::extrude_path(ExtrusionPath path, std::string description, dou
     //    description += ExtrusionEntity::role_to_string(path.role());
     std::string gcode = this->_extrude(path, description, speed);
     if (m_wipe.enable) {
-        m_wipe.path = std::move(path.polyline);
+        m_wipe.path = path.has_polyline3() ? Polyline() : std::move(path.polyline);
         m_wipe.path.reverse();
     }
 
@@ -7865,15 +8024,25 @@ std::string GCode::_extrude(const ExtrusionPath& path, std::string description, 
         description += " (bridge)";
 
     const ExtrusionPathSloped* sloped = dynamic_cast<const ExtrusionPathSloped*>(&path);
+    const Polyline3* spatial = path.polyline3();
+    const LocalZContourPass* contour_pass = spatial ? local_z_contour_pass_for(this) : nullptr;
+    if (contour_pass && sloped)
+        throw RuntimeError("Local-Z with Z contouring does not yet support scarf paths");
+    if (contour_pass && EXTRUDER_CONFIG(adaptive_pressure_advance) &&
+        get_value_at(m_config, m_config.enable_pressure_advance, ConfigFlowDomain::Filament, m_writer.extruder()->id()))
+        throw RuntimeError("Local-Z with Z contouring does not yet support adaptive pressure advance");
+    const double contour_z_scale = contour_pass ? contour_pass->cumulative_ratio : 1.;
 
     const auto get_sloped_z = [&sloped, this](double z_ratio) {
         const auto height = sloped->height;
         return lerp(m_nominal_z - height, m_nominal_z, z_ratio);
     };
 
+    const double first_offset = spatial ? unscale<double>(spatial->points.front().z()) * contour_z_scale : 0.;
+    const double first_z = sloped ? get_sloped_z(sloped->slope_begin.z_ratio) + first_offset * sloped->slope_begin.z_ratio : m_nominal_z + first_offset;
     bool slope_need_z_travel = false;
     if (sloped != nullptr && !sloped->is_flat()) {
-        auto target_z       = get_sloped_z(sloped->slope_begin.z_ratio);
+        auto target_z       = first_z;
         slope_need_z_travel = m_writer.will_move_z(target_z);
     }
     // Move to first point of extrusion path
@@ -7882,12 +8051,17 @@ std::string GCode::_extrude(const ExtrusionPath& path, std::string description, 
     if (!m_last_pos_defined || m_last_pos != path.first_point() || m_need_change_layer_lift_z || slope_need_z_travel) {
         const bool _last_pos_undefined = !m_last_pos_defined;
         gcode += this->travel_to(path.first_point(), path.role(), "move to first " + description + " point",
-                                 sloped == nullptr ? DBL_MAX : get_sloped_z(sloped->slope_begin.z_ratio));
+                                 spatial ? first_z : (sloped == nullptr ? DBL_MAX : get_sloped_z(sloped->slope_begin.z_ratio)));
         m_need_change_layer_lift_z = false;
         // Orca: force restore Z after unknown last pos
-        if (_last_pos_undefined && !slope_need_z_travel) {
+        if (_last_pos_undefined && !slope_need_z_travel && !spatial) {
             gcode += this->writer().travel_to_z(m_last_layer_z, "force restore Z after unknown last pos", true);
         }
+    }
+
+    if (spatial || m_last_path_was_contoured) {
+        if (GCodeFormatter::quantize_xyzf(m_writer.get_position().z()) != GCodeFormatter::quantize_xyzf(first_z))
+            gcode += m_writer.travel_to_z(first_z, spatial ? "set Z for contouring" : "reset Z after contouring", true);
     }
 
     // if needed, write the gcode_label_objects_end then gcode_label_objects_start
@@ -7999,6 +8173,22 @@ std::string GCode::_extrude(const ExtrusionPath& path, std::string description, 
     // m_writer.extruder()->e_per_mm3() below is (filament flow ratio / cross-sectional area)
     double e_per_mm = m_writer.extruder()->e_per_mm3() * _mm3_per_mm;
     e_per_mm /= filament_flow_ratio;
+    // E remains integrated over the original contour length. Speed constraints
+    // use the largest actual deposited cross-section after the Z remapping.
+    if (contour_pass) {
+        double maximum_factor = 0.;
+        for (size_t i = 1; i < spatial->points.size(); ++i) {
+            const Vec3d delta = (spatial->points[i] - spatial->points[i - 1]).cast<double>() * SCALING_FACTOR;
+            const double actual_length = std::hypot(delta.head<2>().norm(), delta.z() * contour_z_scale);
+            if (actual_length <= EPSILON) continue;
+            const double height_factor = 1. + std::max(unscale<double>(spatial->points[i - 1].z()),
+                unscale<double>(spatial->points[i].z())) / contour_pass->source_height;
+            maximum_factor = std::max(maximum_factor, delta.norm() / actual_length * height_factor);
+        }
+        if (!(maximum_factor > 0. && std::isfinite(maximum_factor)))
+            throw RuntimeError("Local-Z contour path has no valid physical extrusion length");
+        _mm3_per_mm *= maximum_factor;
+    }
 
     // set speed
     if (speed == -1) {
@@ -8356,6 +8546,62 @@ std::string GCode::_extrude(const ExtrusionPath& path, std::string description, 
         append_role_based_fan_marker(erIroning, "_IRONING"sv, ironing_fan_speed >= 0 && path.role() == erIroning);
     };
 
+    auto contour_extrude = [&](const Vec2d& xy, double z_offset, double extrusion, const std::string& text, double progress) {
+        const auto slope = sloped ? sloped->interpolate(std::clamp(progress, 0., 1.)) : ExtrusionPathSloped::Slope{1., 1.};
+        const double z = sloped ? get_sloped_z(slope.z_ratio) + z_offset * slope.z_ratio : m_nominal_z + z_offset * contour_z_scale;
+        extrusion *= slope.e_ratio;
+        if (z < 0.1) throw RuntimeError("GCode: very low contour Z");
+        if (path.role() != erIroning) {
+            const double reference_height = contour_pass ? contour_pass->source_height : path.height;
+            if (reference_height <= 0. || reference_height + z_offset < -EPSILON)
+                throw RuntimeError("GCode: invalid contour extrusion height");
+            extrusion *= (reference_height + z_offset) / reference_height;
+        }
+        std::string capped;
+        if (contour_pass && extrusion > EPSILON && filament_max_volumetric_speed > 0.) {
+            const Vec3d target(xy.x(), xy.y(), z);
+            const Vec3d previous = m_writer.get_position();
+            // The writer emits 3-decimal XYZ and 5-decimal E. Bound flow in
+            // those emitted coordinates, including plate offsets. Its public
+            // XY offset accessor returns float, so retain the entire double
+            // interval which may round to that float instead of assuming it
+            // is the original offset.
+            const auto minimum_wire_delta = [](double a, double b, float offset) {
+                const double lower = .5 * (double(offset) + double(std::nextafter(offset, -std::numeric_limits<float>::infinity())));
+                const double upper = .5 * (double(offset) + double(std::nextafter(offset, std::numeric_limits<float>::infinity())));
+                const double a_lo = GCodeFormatter::quantize_xyzf(a - upper);
+                const double a_hi = GCodeFormatter::quantize_xyzf(a - lower);
+                const double b_lo = GCodeFormatter::quantize_xyzf(b - upper);
+                const double b_hi = GCodeFormatter::quantize_xyzf(b - lower);
+                return std::max({0., a_lo - b_hi, b_lo - a_hi});
+            };
+            const Vec2f offset = m_writer.get_xy_offset();
+            const Vec3d minimum_wire_delta_xyz(
+                minimum_wire_delta(target.x(), previous.x(), offset.x()),
+                minimum_wire_delta(target.y(), previous.y(), offset.y()),
+                GCodeFormatter::quantize_xyzf(target.z()) - GCodeFormatter::quantize_xyzf(previous.z()));
+            const double wire_length_lower_bound = minimum_wire_delta_xyz.norm();
+            const double previous_e = m_writer.extruder()->E();
+            const double emitted_e = m_writer.config.use_relative_e_distances ?
+                GCodeFormatter::quantize_e(extrusion) :
+                GCodeFormatter::quantize_e(previous_e + extrusion) - GCodeFormatter::quantize_e(previous_e);
+            if (emitted_e > 0.) {
+                const double physical_volume = emitted_e * m_writer.extruder()->filament_crossection();
+                if (wire_length_lower_bound <= EPSILON)
+                    throw RuntimeError("Local-Z contour extrusion has no guaranteed motion at G-code precision");
+                const double capped_feedrate = 60. * filament_max_volumetric_speed * wire_length_lower_bound / physical_volume;
+                const double precision = GCodeFormatter::pow_10[GCodeFormatter::XYZF_EXPORT_DIGITS];
+                const double emitted_feedrate = std::floor(capped_feedrate * precision) / precision;
+                if (emitted_feedrate <= 0.)
+                    throw RuntimeError("Local-Z contour volumetric limit is below G-code feedrate precision");
+                if (GCodeFormatter::quantize_xyzf(m_writer.get_current_speed()) > emitted_feedrate)
+                    capped += m_writer.set_speed(emitted_feedrate, "Local-Z contour volumetric limit", "");
+            }
+        }
+        return capped + m_writer.extrude_to_xyz(Vec3d(xy.x(), xy.y(), z), extrusion,
+            GCodeWriter::full_gcode_comment ? text : "", path.is_force_no_extrusion());
+    };
+
     if (!variable_speed) {
         // F is mm per minute.
         if ((std::abs(writer().get_current_speed() - F) > EPSILON) || (std::abs(_mm3_per_mm - m_last_mm3_mm) > EPSILON)) {
@@ -8420,12 +8666,15 @@ std::string GCode::_extrude(const ExtrusionPath& path, std::string description, 
             }
             // BBS: use G1 if not enable arc fitting or has no arc fitting result or in spiral_mode mode or we are doing sloped extrusion
             // Attention: G2 and G3 is not supported in spiral_mode mode
-            if (!m_config.enable_arc_fitting || path.polyline.fitting_result.empty() || m_config.spiral_mode || sloped != nullptr) {
+            if (!m_config.enable_arc_fitting || path.polyline.fitting_result.empty() || m_config.spiral_mode || sloped != nullptr || spatial) {
                 double path_length  = 0.;
-                double total_length = sloped == nullptr ? 0. : path.polyline.length() * SCALING_FACTOR;
-                for (const Line& line : path.polyline.lines()) {
+                double total_length = sloped == nullptr ? 0. : path.length() * SCALING_FACTOR;
+                for (size_t point_index = 1; point_index < path.polyline.points.size(); ++point_index) {
+                    const Line line(path.polyline.points[point_index - 1], path.polyline.points[point_index]);
                     std::string  tempDescription = description;
-                    const double line_length     = line.length() * SCALING_FACTOR;
+                    const double line_length = spatial ?
+                        (spatial->points[point_index] - spatial->points[point_index - 1]).cast<double>().norm() * SCALING_FACTOR :
+                        line.length() * SCALING_FACTOR;
                     if (line_length < EPSILON)
                         continue;
                     path_length += line_length;
@@ -8438,7 +8687,9 @@ std::string GCode::_extrude(const ExtrusionPath& path, std::string description, 
                             tempDescription += Slic3r::format(" | Old Flow Value: %0.5f Length: %0.5f", oldE, line_length);
                         }
                     }
-                    if (sloped == nullptr) {
+                    if (spatial) {
+                        gcode += contour_extrude(this->point_to_gcode(line.b), unscale<double>(spatial->points[point_index].z()), dE, tempDescription, sloped ? path_length / total_length : 1.);
+                    } else if (sloped == nullptr) {
                         // Normal extrusion
                         gcode += m_writer.extrude_to_xy(this->point_to_gcode(line.b), dE,
                                                         GCodeWriter::full_gcode_comment ? tempDescription : "",
@@ -8515,8 +8766,18 @@ std::string GCode::_extrude(const ExtrusionPath& path, std::string description, 
     } else {
         double last_set_speed = new_points[0].speed * 60.0;
 
+        std::vector<double> sample_z;
+        if (spatial) {
+            Path3Projection projection(*spatial);
+            sample_z.reserve(new_points.size());
+            for (const auto& point : new_points) sample_z.push_back(projection.z(point.p));
+        }
         double total_length = 0;
-        if (sloped != nullptr) {
+        if (sloped && spatial) {
+            for (size_t i = 1; i < new_points.size(); ++i)
+                total_length += std::hypot((this->point_to_gcode_quantized(new_points[i].p) -
+                    this->point_to_gcode_quantized(new_points[i - 1].p)).norm(), sample_z[i] - sample_z[i - 1]);
+        } else if (sloped != nullptr) {
             // Calculate total extrusion length
             Points p;
             p.reserve(new_points.size());
@@ -8526,6 +8787,7 @@ std::string GCode::_extrude(const ExtrusionPath& path, std::string description, 
         }
         gcode += m_writer.set_speed(last_set_speed, "", comment);
         Vec2d prev            = this->point_to_gcode_quantized(new_points[0].p);
+        double prev_z = spatial ? sample_z.front() : 0.;
         bool  pre_fan_enabled = false;
         bool  cur_fan_enabled = false;
         if (m_enable_cooling_markers && enable_overhang_bridge_fan)
@@ -8553,7 +8815,8 @@ std::string GCode::_extrude(const ExtrusionPath& path, std::string description, 
                 apply_role_based_fan_speed();
             }
 
-            const double line_length = (p - prev).norm();
+            const double point_z = spatial ? sample_z[i] : 0.;
+            const double line_length = spatial ? std::hypot((p - prev).norm(), point_z - prev_z) : (p - prev).norm();
             if (line_length < EPSILON)
                 continue;
             path_length += line_length;
@@ -8616,7 +8879,9 @@ std::string GCode::_extrude(const ExtrusionPath& path, std::string description, 
                     tempDescription += Slic3r::format(" | Old Flow Value: %0.5f Length: %0.5f", oldE, line_length);
                 }
             }
-            if (sloped == nullptr) {
+            if (spatial) {
+                gcode += contour_extrude(p, point_z, dE, tempDescription, sloped ? path_length / total_length : 1.);
+            } else if (sloped == nullptr) {
                 // Normal extrusion
                 gcode += m_writer.extrude_to_xy(p, dE, GCodeWriter::full_gcode_comment ? tempDescription : "");
             } else {
@@ -8627,6 +8892,7 @@ std::string GCode::_extrude(const ExtrusionPath& path, std::string description, 
             }
 
             prev = p;
+            prev_z = point_z;
         }
     }
     if (m_enable_cooling_markers) {
@@ -8638,6 +8904,7 @@ std::string GCode::_extrude(const ExtrusionPath& path, std::string description, 
     }
 
     this->set_last_pos(path.last_point());
+    m_last_path_was_contoured = spatial != nullptr;
     return gcode;
 }
 

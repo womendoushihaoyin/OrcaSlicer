@@ -1990,6 +1990,10 @@ void ObjectGridTable::construct_object_configs(ObjectGrid *object_grid)
         for (int j = 0; j < volume_count; j++)
         {
             ModelVolume* volume = object->volumes[j];
+            // Precise Seam geometry has no active process settings. In particular,
+            // opening this table must not normalize or erase its dormant config.
+            if (volume->is_precise_seam())
+                continue;
             ObjectGridRow* volume_grid = new ObjectGridRow(i, j, row_volume);
             volume_grid->model_volume_type = volume->type();
             volume_grid->config = &(volume->config);

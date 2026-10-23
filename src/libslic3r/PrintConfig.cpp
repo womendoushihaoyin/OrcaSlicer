@@ -3694,6 +3694,43 @@ void PrintConfigDef::init_fff_params()
     def->mode     = comAdvanced;
     def->set_default_value(new ConfigOptionFloat(-1));
 
+    def = this->add("zaa_enabled", coBool);
+    def->label    = L("Z contouring enabled");
+    def->category = L("Quality");
+    def->tooltip  = L("Enable Z-layer contouring (aka Z-layer anti-aliasing).");
+    def->mode     = comAdvanced;
+    def->set_default_value(new ConfigOptionBool(false));
+
+    def = this->add("zaa_minimize_perimeter_height", coFloat);
+    def->label    = L("Minimize wall height angle");
+    def->category = L("Quality");
+    def->tooltip  = L("Reduce the height of top-surface perimeters to match the model edge height.\n"
+                      "Affects perimeters with a slope greater than this angle (degrees).\n"
+                      "A reasonable value is 35. Set to 0 to disable.");
+    def->sidetext = u8"°";	// degrees, don't need translation
+    def->min      = 0;
+    def->max      = 90;
+    def->mode     = comAdvanced;
+    def->set_default_value(new ConfigOptionFloat(35));
+
+    def = this->add("zaa_dont_alternate_fill_direction", coBool);
+    def->label    = L("Don't alternate fill direction");
+    def->category = L("Quality");
+    def->tooltip  = L("Disable alternating fill direction when using Z contouring.");
+    def->mode     = comAdvanced;
+    def->set_default_value(new ConfigOptionBool(false));
+
+    def = this->add("zaa_min_z", coFloat);
+    def->label    = L("Minimum Z height");
+    def->category = L("Quality");
+    def->tooltip  = L("Minimum Z-layer height.\n"
+                      "Also controls the slicing plane.");
+    def->sidetext = L("mm");	// millimeters, CIS languages need translation
+    def->min      = 0;
+    def->max      = 100;
+    def->mode     = comAdvanced;
+    def->set_default_value(new ConfigOptionFloat(0.05));
+
     def = this->add("layer_change_gcode", coString);
     def->label = L("Layer change G-code");
     def->tooltip = L("This G-code is inserted at every layer change after the Z lift.");
@@ -4333,6 +4370,17 @@ void PrintConfigDef::init_fff_params()
     def->mode = comAdvanced;
     def->set_default_value(new ConfigOptionBool(false));
     
+    def = this->add("slicing_pipeline_plugin", coStrings);
+    def->label = L("Slicing pipeline plugins");
+    def->mode = comDevelop;
+    def->set_default_value(new ConfigOptionStrings());
+    def = this->add("plugins", coStrings);
+    def->mode = comDevelop;
+    def->set_default_value(new ConfigOptionStrings());
+    def = this->add("print_plugin_config_overrides", coString);
+    def->mode = comDevelop;
+    def->set_default_value(new ConfigOptionString());
+
     def = this->add("post_process", coStrings);
     def->label = L("Post-processing Scripts");
     def->tooltip = L("If you want to process the output G-code through custom scripts, "
@@ -7831,8 +7879,12 @@ DynamicPrintConfig DynamicPrintConfig::full_print_config()
 	return DynamicPrintConfig((const PrintRegionConfig&)FullPrintConfig::defaults());
 }
 
-DynamicPrintConfig::DynamicPrintConfig(const StaticPrintConfig& rhs) : DynamicConfig(rhs, rhs.keys_ref())
+DynamicPrintConfig::DynamicPrintConfig(const StaticPrintConfig &rhs)
 {
+    // Static enum-vector fields contain values only: their default cache does
+    // not populate keys_map. Create options through the definition before
+    // assigning values so dynamic serialization has the enum mapping as well.
+    this->apply_only(rhs, rhs.keys_ref());
 }
 
 DynamicPrintConfig* DynamicPrintConfig::new_from_defaults_keys(const std::vector<std::string> &keys)

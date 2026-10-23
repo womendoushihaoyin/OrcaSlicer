@@ -120,9 +120,26 @@ public:
     Points3 points;
 
     void append(const Vec3crd& point) { this->points.push_back(point); }
+    void append(Points3::const_iterator begin, Points3::const_iterator end) { points.insert(points.end(), begin, end); }
 
-    void translate(double x, double y);
+    void translate(double x, double y, double z = 0);
     void translate(const Point& vector);
+    void translate(const Vec3crd& vector);
+    void rotate(double angle) { rotate(std::cos(angle), std::sin(angle)); }
+    void rotate(double cos_angle, double sin_angle);
+    void rotate(double angle, const Vec3crd& center);
+    void reverse() { std::reverse(points.begin(), points.end()); }
+    void clear() { points.clear(); }
+    size_t size() const { return points.size(); }
+    bool empty() const { return points.empty(); }
+    Vec3crd& first_point() { return points.front(); }
+    Vec3crd& last_point() { return points.back(); }
+    const Vec3crd& first_point() const { return points.front(); }
+    const Vec3crd& last_point() const { return points.back(); }
+    auto begin() { return points.begin(); }
+    auto end() { return points.end(); }
+    auto begin() const { return points.begin(); }
+    auto end() const { return points.end(); }
     virtual Lines3 lines() const = 0;
     double length() const;
     bool is_valid() const { return this->points.size() >= 2; }
@@ -131,6 +148,9 @@ public:
 
     // Remove exact duplicates, return true if any duplicate has been removed.
     bool remove_duplicate_points();
+    int find_point(const Point& point, double scaled_epsilon = 0) const;
+    int find_point(const Vec3crd& point, double scaled_epsilon = 0) const;
+    static Points3 _douglas_peucker(const Points3& points, double tolerance);
 };
 
 extern BoundingBox get_extents(const MultiPoint &mp);

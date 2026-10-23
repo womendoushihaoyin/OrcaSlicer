@@ -164,6 +164,14 @@ endif ()
 
 # Proposal for C++ unit tests and sandboxes
 option(SLIC3R_BUILD_SANDBOXES   "Build development sandboxes" OFF)
+option(ORCA_LOCAL_PLUGIN_SPIKE "Build the trusted local Script migration spike (not the full plugin platform)" OFF)
+option(ORCA_PYTHON_PLUGINS "Build the upstream Python plugin migration (incomplete; development only)" OFF)
+if(ORCA_PYTHON_PLUGINS AND ORCA_LOCAL_PLUGIN_SPIKE)
+    message(FATAL_ERROR "Choose the upstream runtime or the original spike, not both")
+endif()
+if(ORCA_LOCAL_PLUGIN_SPIKE OR ORCA_PYTHON_PLUGINS)
+    include(cmake/OrcaPluginPython.cmake)
+endif()
 option(BUILD_TESTS       "Build unit tests" OFF)
 option(ORCA_TOOLS       "Build Orca tools" OFF)
 

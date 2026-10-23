@@ -1,3 +1,11 @@
+#include "slic3r/plugin/PluginSlicingInvalidation.hpp"
+#include "libslic3r/LifecycleOperation.hpp"
+#ifdef ORCA_PYTHON_PLUGINS
+#include "EditableTextureDialog.hpp"
+#include "TextureMixedPaletteSnapshot.hpp"
+#include "slic3r/plugin/host/PluginDockLayout.hpp"
+#endif
+#include "libslic3r/LifecycleEvents.hpp"
 #include "Plater.hpp"
 #include "MixedFilamentDialog.hpp"
 #include "MixedFilamentBatchDialog.hpp"
@@ -10596,6 +10604,12 @@ struct Plater::priv
     void on_action_send_to_printer(bool isall = false);
     void on_action_send_to_multi_machine(SimpleEvent&);
     int update_print_required_data(Slic3r::DynamicPrintConfig config, Slic3r::Model model, Slic3r::PlateDataPtrs plate_data_list, std::string file_name, std::string file_path);
+#ifdef ORCA_PYTHON_PLUGINS
+    bool texture_mixed_history_active = false;
+    std::shared_ptr<const TextureMixedPaletteSnapshot> texture_palette_snapshot() const;
+    void sync_texture_palette_policy(MixedFilamentManager& manager) const;
+    void refresh_texture_palette();
+#endif
 private:
     bool layers_height_allowed() const;
 
@@ -13042,7 +13056,12 @@ void Plater::priv::remove(size_t obj_idx)
         view3D->enable_layers_editing(false);
 
     m_worker.cancel_all();
+    LifecycleEventContext deleted;
+    deleted.name = model.objects.at(obj_idx)->name;
+    deleted.id = std::to_string(model.objects.at(obj_idx)->id().id);
+    deleted.index = int(obj_idx);
     model.delete_object(obj_idx);
+    fire_lifecycle_event(LifecycleEvent::ObjectDeleted, deleted);
     //BBS: notify partplate the instance removed
     partplate_list.notify_instance_removed(obj_idx, -1);
     update();
@@ -13078,7 +13097,12 @@ bool Plater::priv::delete_object_from_model(size_t obj_idx, bool refresh_immedia
     if (obj->is_cut())
         sidebar->obj_list()->invalidate_cut_info_for_object(obj_idx);
 
+    LifecycleEventContext deleted;
+    deleted.name = model.objects.at(obj_idx)->name;
+    deleted.id = std::to_string(model.objects.at(obj_idx)->id().id);
+    deleted.index = int(obj_idx);
     model.delete_object(obj_idx);
+    fire_lifecycle_event(LifecycleEvent::ObjectDeleted, deleted);
     //BBS: notify partplate the instance removed
     partplate_list.notify_instance_removed(obj_idx, -1);
 
@@ -13127,6 +13151,11 @@ void Plater::priv::delete_all_objects_from_model()
 
 void Plater::priv::reset(bool apply_presets_change)
 {
+    ProjectDirtyStateManager::NotificationSuppressor dirty_notifications(dirty_state);
+    LifecycleEventContext closed;
+    closed.name = into_u8(get_project_filename());
+    closed.id = std::to_string(model.id().id);
+    if (!closed.name.empty() || !model.objects.empty()) fire_lifecycle_event(LifecycleEvent::ProjectClosed, closed);
     Plater::TakeSnapshot snapshot(q, "Reset Project", UndoRedo::SnapshotType::ProjectSeparator);
 
     clear_warnings();
@@ -13206,8 +13235,12 @@ void Plater::priv::reset(bool apply_presets_change)
         if (!sidebar_layout.is_collapsed && !sidebar.IsShown()) {
             sidebar.Show();
         }
-        auto layout = m_aui_mgr.SavePerspective();
-        wxGetApp().app_config->set("window_layout", layout.utf8_string());
+        auto layout = m_aui_mgr.SavePerspective().utf8_string();
+#ifdef ORCA_PYTHON_PLUGINS
+        // Startup creates the blank project before plugin windows arrive.
+        layout = plugin_preserve_uncreated_panes(layout, wxGetApp().app_config->get("window_layout"));
+#endif
+        wxGetApp().app_config->set("window_layout", layout);
     }
 }
 
@@ -15393,6 +15426,19 @@ void Plater::priv::on_process_completed(SlicingProcessCompletedEvent &evt)
         is_finished = true;
     }
 
+    // This terminal job event follows the actual worker result, including
+    // post-processing/export failure. Geometry/G-code events are earlier seams.
+    {
+        LifecycleEventContext context;
+        if (const auto* print = background_process.current_print()) {
+            context.id = std::to_string(print->model().id().id);
+            if (print->model().model_info) context.name = print->model().model_info->model_name;
+        }
+        context.code = evt.cancelled() ? LifecycleEvtCode::Warn : (has_error ? LifecycleEvtCode::Error : LifecycleEvtCode::Ok);
+        context.msg = evt.cancelled() ? "cancelled" : (has_error ? evt.format_error_message().first : std::string());
+        fire_lifecycle_event(LifecycleEvent::SlicingJobComplete, context);
+    }
+
     //BBS: set the current plater's slice result to valid
     if (!this->background_process.empty())
         this->background_process.get_current_plate()->update_slice_result_valid_state(evt.success());
@@ -17072,6 +17118,99 @@ int Plater::priv::get_active_snapshot_index()
     return it - ss_stack.begin();
 }
 
+#ifdef ORCA_PYTHON_PLUGINS
+static bool texture_palette_requires_restore(const TextureMixedPaletteSnapshot& current,
+                                            const TextureMixedPaletteSnapshot& target)
+{
+    if (current.project_has_definitions != target.project_has_definitions ||
+        current.print_has_definitions != target.print_has_definitions ||
+        current.project_definitions != target.project_definitions ||
+        current.print_definitions != target.print_definitions)
+        return true;
+
+    const auto& current_rows = current.manager.mixed_filaments();
+    const auto& target_rows = target.manager.mixed_filaments();
+    if (current_rows != target_rows)
+        return true;
+    // operator== covers every recipe field except the derived display color,
+    // but tolerates small float differences. Undo must preserve exact edits.
+    for (size_t i = 0; i < current_rows.size(); ++i) {
+        const auto& a = current_rows[i];
+        const auto& b = target_rows[i];
+        if (a.gradient_start != b.gradient_start || a.gradient_end != b.gradient_end ||
+            a.component_a_surface_offset != b.component_a_surface_offset ||
+            a.component_b_surface_offset != b.component_b_surface_offset)
+            return true;
+    }
+    // A no-op keeps the entire live manager, including its stable-ID allocator.
+    // Policy/context caches follow current settings, not the undo snapshot.
+    return false;
+}
+
+std::shared_ptr<const TextureMixedPaletteSnapshot> Plater::priv::texture_palette_snapshot() const
+{
+    const auto* bundle=wxGetApp().preset_bundle;
+    if (!bundle || printer_technology!=ptFFF) return {};
+    const auto* colors=bundle->project_config.option<ConfigOptionStrings>("filament_colour");
+    const auto count=bundle->filament_presets.size();
+    if (!colors || !count || colors->values.size()<count) return {};
+    return capture_texture_mixed_palette(bundle->mixed_filaments,bundle->project_config,
+        bundle->prints.get_edited_preset().config,bundle->filament_presets,
+        {colors->values.begin(),colors->values.begin()+ptrdiff_t(count)});
+}
+
+void Plater::priv::sync_texture_palette_policy(MixedFilamentManager& manager) const
+{
+    const auto& bundle=*wxGetApp().preset_bundle;
+    const auto& print=bundle.prints.get_edited_preset().config;
+    const auto read_bool=[&](const char* key) {
+        for (const auto* config : {&bundle.project_config,&print}) {
+            if (const auto* value=config->option<ConfigOptionBool>(key)) return value->value;
+            if (const auto* value=config->option<ConfigOptionInt>(key)) return value->value!=0;
+        }
+        return false;
+    };
+    const auto* colors=bundle.project_config.option<ConfigOptionStrings>("filament_colour");
+    const auto count=bundle.filament_presets.size();
+    if (!colors || !count || colors->values.size()<count) return;
+    const auto context=build_mixed_filament_display_context(
+        {colors->values.begin(),colors->values.begin()+ptrdiff_t(count)});
+    // Pure data preparation: no controls, rendering, events or background work.
+    // Match the sidebar's current global policy before rebuilding Print/scene.
+    manager.apply_gradient_settings(read_bool("mixed_filament_gradient_mode")?1:0,
+        float(context.preview_settings.mixed_lower_bound),float(context.preview_settings.mixed_upper_bound),
+        read_bool("mixed_filament_advanced_dithering"));
+    if (context.component_bias_enabled) {
+        for (auto& entry : manager.mixed_filaments()) {
+            const float bias=mixed_filament_single_surface_offset_value(entry,context.nozzle_diameters);
+            const auto offsets=mixed_filament_single_surface_offset_pair(entry,bias,context.nozzle_diameters);
+            entry.component_a_surface_offset=offsets.first;
+            entry.component_b_surface_offset=offsets.second;
+        }
+    }
+    manager.set_display_context(context);
+}
+
+void Plater::priv::refresh_texture_palette()
+{
+    auto& bundle=*wxGetApp().preset_bundle;
+    auto& print=bundle.prints.get_edited_preset().config;
+    const auto snapshot=texture_palette_snapshot();
+    if (!snapshot) return;
+    sync_texture_palette_policy(bundle.mixed_filaments);
+    sidebar->update_mixed_filament_panel(false);
+    // Sidebar rebuild serializes its manager as a side effect. The transaction
+    // owns the exact presence/value of each definition field, including older
+    // projects whose print and project strings differ, so keep those values.
+    restore_texture_palette_definitions(*snapshot,bundle.project_config,print);
+    sidebar->update_dynamic_filament_list();
+    q->update_filament_colors_in_full_config();
+    if (auto* tab=wxGetApp().get_tab(Preset::TYPE_PRINT)) tab->update_dirty();
+    if (wxGetApp().mainframe) wxGetApp().mainframe->on_config_changed(&print);
+    q->update_project_dirty_from_presets();
+}
+#endif
+
 void Plater::priv::take_snapshot(const std::string& snapshot_name, const UndoRedo::SnapshotType snapshot_type)
 {
     if (m_prevent_snapshots > 0)
@@ -17083,6 +17222,11 @@ void Plater::priv::take_snapshot(const std::string& snapshot_name, const UndoRed
     UndoRedo::SnapshotData snapshot_data;
     snapshot_data.snapshot_type      = snapshot_type;
     snapshot_data.printer_technology = this->printer_technology;
+#ifdef ORCA_PYTHON_PLUGINS
+    // Capture even before the first texture recipe is created, so a direct jump
+    // to an earlier action can restore its baseline without an external cache.
+    snapshot_data.texture_mixed_palette = texture_palette_snapshot();
+#endif
     if (this->view3D->is_layers_editing_enabled())
         snapshot_data.flags |= UndoRedo::SnapshotData::VARIABLE_LAYER_EDITING_ACTIVE;
     if (this->sidebar->obj_list()->is_selected(itSettings)) {
@@ -17127,8 +17271,12 @@ void Plater::priv::take_snapshot(const std::string& snapshot_name, const UndoRed
     
     const GLGizmosManager& gizmos = canvas->get_canvas_type() == GLCanvas3D::CanvasAssembleView ? assemble_view->get_canvas3d()->get_gizmos_manager() : view3D->get_canvas3d()->get_gizmos_manager();
 
-    if (snapshot_type == UndoRedo::SnapshotType::ProjectSeparator)
+    if (snapshot_type == UndoRedo::SnapshotType::ProjectSeparator) {
         this->undo_redo_stack().clear();
+#ifdef ORCA_PYTHON_PLUGINS
+        texture_mixed_history_active = false;
+#endif
+    }
     this->undo_redo_stack().take_snapshot(snapshot_name, model, get_current_canvas3D()->get_canvas_type() == GLCanvas3D::CanvasAssembleView ? assemble_view->get_canvas3d()->get_selection() : view3D->get_canvas3d()->get_selection(), gizmos, partplate_list, snapshot_data);
     if (snapshot_type == UndoRedo::SnapshotType::LeavingGizmoWithAction) {
         // Filter all but the last UndoRedo::SnapshotType::GizmoAction in a row between the last UndoRedo::SnapshotType::EnteringGizmo and UndoRedo::SnapshotType::LeavingGizmoWithAction.
@@ -17242,6 +17390,34 @@ void Plater::priv::undo_redo_to(std::vector<UndoRedo::Snapshot>::const_iterator 
     unsigned int new_flags = it_snapshot->snapshot_data.flags;
     UndoRedo::SnapshotData top_snapshot_data;
     top_snapshot_data.printer_technology = this->printer_technology;
+#ifdef ORCA_PYTHON_PLUGINS
+    top_snapshot_data.texture_mixed_palette = texture_palette_snapshot();
+    // Allocate restore state before changing either the Model or the palette.
+    // The physical slots are not part of texture transactions and must still
+    // have the same identity; otherwise old virtual IDs could alias new tools.
+    struct PaletteRestore {
+        MixedFilamentManager manager;
+        DynamicPrintConfig project, print;
+    };
+    std::optional<PaletteRestore> texture_restore;
+    if (texture_mixed_history_active && it_snapshot->snapshot_data.texture_mixed_palette) {
+        const auto& target=*it_snapshot->snapshot_data.texture_mixed_palette;
+        const auto current=top_snapshot_data.texture_mixed_palette;
+        // Ordinary Model undo need not restore an unchanged recipe palette.
+        // In that case preserve current physical colors and the live manager.
+        if (!current || texture_palette_requires_restore(*current,target)) {
+            if (!current || current->physical_presets!=target.physical_presets || current->physical_colors!=target.physical_colors) {
+                MessageDialog(q,_L("The physical filament palette changed after texture baking. Restore those filament slots before undoing this texture transaction."),
+                    _L("Texture"),wxOK|wxICON_INFORMATION).ShowModal();
+                return;
+            }
+            auto& bundle=*wxGetApp().preset_bundle;
+            texture_restore.emplace(PaletteRestore{target.manager,bundle.project_config,bundle.prints.get_edited_preset().config});
+            prepare_texture_palette_restore(target,texture_restore->manager,texture_restore->project,texture_restore->print);
+            sync_texture_palette_policy(texture_restore->manager);
+        }
+    }
+#endif
     if (this->view3D->is_layers_editing_enabled())
         top_snapshot_data.flags |= UndoRedo::SnapshotData::VARIABLE_LAYER_EDITING_ACTIVE;
     if (this->sidebar->obj_list()->is_selected(itSettings)) {
@@ -17276,6 +17452,14 @@ void Plater::priv::undo_redo_to(std::vector<UndoRedo::Snapshot>::const_iterator 
     if (it_snapshot->timestamp < this->undo_redo_stack().active_snapshot_time() ?
         this->undo_redo_stack().undo(model, is_assemble ? assemble_view->get_canvas3d()->get_selection() : this->view3D->get_canvas3d()->get_selection(), is_assemble ? assemble_view->get_canvas3d()->get_gizmos_manager() : this->view3D->get_canvas3d()->get_gizmos_manager(), this->partplate_list, top_snapshot_data, it_snapshot->timestamp) :
         this->undo_redo_stack().redo(model, is_assemble ? assemble_view->get_canvas3d()->get_gizmos_manager() : this->view3D->get_canvas3d()->get_gizmos_manager(), this->partplate_list, it_snapshot->timestamp)) {
+#ifdef ORCA_PYTHON_PLUGINS
+        if (texture_restore) {
+            auto& bundle=*wxGetApp().preset_bundle;
+            std::swap(bundle.mixed_filaments,texture_restore->manager);
+            bundle.project_config.swap(texture_restore->project);
+            bundle.prints.get_edited_preset().config.swap(texture_restore->print);
+        }
+#endif
         if (printer_technology_changed) {
             // Switch to the other printer technology. Switch to the last printer active for that particular technology.
             AppConfig *app_config = wxGetApp().app_config;
@@ -17341,6 +17525,12 @@ void Plater::priv::undo_redo_to(std::vector<UndoRedo::Snapshot>::const_iterator 
             this->sidebar->obj_list()->set_selected_layers_range_idx(layer_range_idx);
 
         this->update_after_undo_redo(snapshot_copy, temp_snapshot_was_taken);
+#ifdef ORCA_PYTHON_PLUGINS
+        // Sidebar refresh renders synchronously. Only render after Model, GL
+        // volumes, selection, gizmos and object-list pointers have been rebuilt.
+        if (texture_restore)
+            refresh_texture_palette();
+#endif
         // Enable layer editing after the Undo / Redo jump.
         if (!view3D->is_layers_editing_enabled() && this->layers_height_allowed() && new_variable_layer_editing_active)
             view3D->get_canvas3d()->force_main_toolbar_left_action(view3D->get_canvas3d()->get_main_toolbar_item_id("layersediting"));
@@ -17568,6 +17758,7 @@ int Plater::new_project(bool skip_confirm, bool silent, const wxString& project_
     //get_partplate_list().reinit();
     //get_partplate_list().update_slice_context_to_current_plate(p->background_process);
     //p->preview->update_gcode_result(p->partplate_list.get_current_slice_result());
+    ProjectDirtyStateManager::NotificationSuppressor dirty_notifications(p->dirty_state);
     reset(transfer_preset_changes);
     reset_project_dirty_after_save();
     reset_project_dirty_initial_presets();
@@ -17618,6 +17809,11 @@ int Plater::new_project(bool skip_confirm, bool silent, const wxString& project_
             wxGetApp().plater()->sidebar().update_nozzle_settings(true);
     });
 
+    if (!silent) {
+        LifecycleEventContext created;
+        created.id = std::to_string(model().id().id);
+        fire_lifecycle_event(LifecycleEvent::NewProject, created);
+    }
     return wxID_YES;
 }
 
@@ -17706,6 +17902,10 @@ void Plater::load_project(wxString const& filename2,
     if (!res.empty() && (load_restore || !(strategy & LoadStrategy::Silence))) {
         BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << __LINE__ << " call set_project_filename: " << (load_restore ? originfile : filename);
         p->set_project_filename(load_restore ? originfile : filename);
+        LifecycleEventContext opened;
+        opened.name = into_u8(load_restore ? originfile : filename);
+        opened.id = std::to_string(model().id().id);
+        fire_lifecycle_event(LifecycleEvent::ProjectOpened, opened);
         if (load_restore && originfile.IsEmpty()) {
         p->set_project_name(_L("Untitled"));
         }
@@ -17764,6 +17964,10 @@ int Plater::save_project(bool saveAs)
     if (filename == "<cancel>")
         return wxID_CANCEL;
 
+    LifecycleEventContext save_context;
+    save_context.name = into_u8(filename);
+    save_context.id = std::to_string(model().id().id);
+    LifecycleOperation save_event(LifecycleEvent::ProjectBeforeSave, LifecycleEvent::ProjectAfterSave, save_context);
     //BBS export 3mf without gcode
     if (export_3mf(into_path(filename), SaveStrategy::SplitModel | SaveStrategy::ShareMesh | SaveStrategy::FullPathSources) < 0) {
         MessageDialog(this, _L("Failed to save the project.\nPlease check whether the folder exists online or if other programs open the project file."),
@@ -17792,6 +17996,7 @@ int Plater::save_project(bool saveAs)
     catch (...) {}
 
     update_title_dirty_status();
+    save_event.finish();
     return wxID_YES;
 }
 
@@ -20946,6 +21151,55 @@ void publish(Model &model, SaveStrategy strategy) {
 }
 }
 
+namespace {
+
+// export_3mf() assigns archive paths to previously unsaved SVGs. Puts them back, so an export that
+// is not a project save does not change what a later project save writes.
+class SvgArchivePathsRestorer
+{
+public:
+    explicit SvgArchivePathsRestorer(Model& model)
+    {
+        for (ModelObject* object : model.objects)
+            for (ModelVolume* volume : object->volumes)
+                if (volume != nullptr && volume->emboss_shape.has_value() && volume->emboss_shape->svg_file.has_value()) {
+                    std::string* path_in_3mf = &volume->emboss_shape->svg_file->path_in_3mf;
+                    m_paths.emplace_back(path_in_3mf, *path_in_3mf);
+                }
+    }
+    ~SvgArchivePathsRestorer() { restore(); }
+    SvgArchivePathsRestorer(const SvgArchivePathsRestorer&)            = delete;
+    SvgArchivePathsRestorer& operator=(const SvgArchivePathsRestorer&) = delete;
+
+    void restore()
+    {
+        for (const auto& [path_in_3mf, previous_path] : m_paths)
+            *path_in_3mf = previous_path;
+    }
+
+private:
+    std::vector<std::pair<std::string*, std::string>> m_paths;
+};
+
+} // namespace
+
+bool Plater::export_3mf_copy(const boost::filesystem::path& output_path)
+{
+    Model&                  model = p->model;
+    SvgArchivePathsRestorer svg_paths(model);
+
+    // With no design info, export_3mf() writes the signed-in account's user id as the designer; an
+    // empty one keeps it out. export_3mf() also drops design info without a designer name afterwards.
+    const std::shared_ptr<ModelDesignInfo> design_info = model.design_info;
+    if (design_info == nullptr)
+        model.design_info = std::make_shared<ModelDesignInfo>();
+    ScopeGuard restore_design_info([&model, design_info]() { model.design_info = design_info; });
+
+    // The project save's layout, plus Silence so the project file name stays as it is. Unlike a save
+    // it never adds FullPathSources: a copy is for sharing, and those are paths on this machine.
+    return export_3mf(output_path, SaveStrategy::SplitModel | SaveStrategy::ShareMesh | SaveStrategy::Silence) == 0;
+}
+
 // BBS: backup
 int Plater::export_3mf(const boost::filesystem::path& output_path, SaveStrategy strategy, int export_plate_idx, Export3mfProgressFn proFn)
 {
@@ -23470,6 +23724,91 @@ bool Plater::set_printer_technology(PrinterTechnology printer_technology)
     return ret;
 }
 
+#ifdef ORCA_PYTHON_PLUGINS
+void Plater::apply_resource_texture()
+{
+    if (!get_view3D_canvas3D()->get_gizmos_manager().check_gizmos_closed_except(GLGizmosManager::EType::Undefined)) return;
+    const Selection& selection = get_selection();
+    if (selection.is_wipe_tower() || selection.get_volume_idxs().size() != 1) {
+        MessageDialog(this, _L("Select one model part to apply a texture."), _L("Texture"), wxOK | wxICON_INFORMATION).ShowModal();
+        return;
+    }
+    const GLVolume* selected = selection.get_first_volume();
+    const int object_index = selected->object_idx(), volume_index = selected->volume_idx(), instance_index = selected->instance_idx();
+    if (object_index < 0 || volume_index < 0 || instance_index < 0 || size_t(object_index) >= model().objects.size()) return;
+    ModelObject* object = model().objects[object_index];
+    if (size_t(volume_index) >= object->volumes.size() || size_t(instance_index) >= object->instances.size()) return;
+    ModelVolume* volume = object->volumes[volume_index];
+    if (!volume->is_model_part()) {
+        MessageDialog(this, _L("Select a model part rather than a modifier."), _L("Texture"), wxOK | wxICON_INFORMATION).ShowModal();
+        return;
+    }
+    const auto object_id = object->id(), volume_id = volume->id(), instance_id = object->instances[instance_index]->id();
+    const auto original_mesh = volume->mesh_ptr();
+    const Transform3d transform = object->instances[instance_index]->get_matrix() * volume->get_matrix();
+    if (!transform.matrix().allFinite() || std::abs(transform.linear().determinant()) < 1e-12) return;
+    auto is_current = [this, object_index, volume_index, instance_index, object_id, volume_id, instance_id, original_mesh, transform] {
+        if (size_t(object_index) >= model().objects.size()) return false;
+        const auto* object = model().objects[object_index];
+        if (object->id() != object_id || size_t(volume_index) >= object->volumes.size() || size_t(instance_index) >= object->instances.size()) return false;
+        const auto* volume = object->volumes[volume_index];
+        if (volume->id() != volume_id || volume->mesh_ptr() != original_mesh || object->instances[instance_index]->id() != instance_id) return false;
+        if (!(object->instances[instance_index]->get_matrix() * volume->get_matrix()).matrix().isApprox(transform.matrix(), 1e-12)) return false;
+        const auto& selected = get_selection();
+        if (selected.get_volume_idxs().size() != 1) return false;
+        const auto* current = selected.get_first_volume();
+        return current && current->object_idx() == object_index && current->volume_idx() == volume_index && current->instance_idx() == instance_index;
+    };
+    try {
+        auto result = show_editable_texture_dialog(this, *volume, is_current, instance_index);
+        if (!result || !is_current())
+            return;
+        if (result->mixed_commit) {
+            const auto current=p->texture_palette_snapshot();
+            const auto before=result->palette_before;
+            if (!current || !before || current->physical_presets!=before->physical_presets ||
+                current->physical_colors!=before->physical_colors || current->manager.mixed_filaments()!=before->manager.mixed_filaments() ||
+                current->project_has_definitions!=before->project_has_definitions || current->print_has_definitions!=before->print_has_definitions ||
+                current->project_definitions!=before->project_definitions || current->print_definitions!=before->print_definitions)
+                throw std::runtime_error("The filament palette changed before baking; no texture or recipe was applied");
+            auto& bundle=*wxGetApp().preset_bundle;
+            const bool previous_history_active=p->texture_mixed_history_active;
+            try {
+                TexturePreparedTransaction transaction(model(),size_t(object_index),size_t(volume_index),bundle.mixed_filaments,
+                    bundle.project_config,bundle.prints.get_edited_preset().config,result->session,std::move(*result->mixed_commit));
+                const auto previous_time=p->undo_redo_stack().active_snapshot_time();
+                take_snapshot(_u8L("Bake texture and mixed recipes"));
+                if (previous_time==p->undo_redo_stack().active_snapshot_time())
+                    throw std::runtime_error("The texture transaction could not create an undo snapshot; no changes were applied");
+                transaction.publish();
+                p->texture_mixed_history_active=true;
+                p->refresh_texture_palette();
+                object->invalidate_bounding_box();
+                changed_mesh(object_index);
+                wxGetApp().obj_list()->update_item_error_icon(object_index,-1);
+                transaction.finish();
+            } catch (...) {
+                // The transaction has restored the old volume and settings.
+                // Rebuild UI caches against that restored state before reporting.
+                p->texture_mixed_history_active=previous_history_active;
+                try {p->refresh_texture_palette();changed_mesh(object_index);} catch (...) {}
+                throw;
+            }
+            return;
+        } else {
+            take_snapshot(_u8L("Edit texture layers"));
+            result->session.apply(*volume, std::move(result->baked), result->texture_filaments);
+        }
+        object->invalidate_bounding_box();
+        changed_mesh(object_index);
+        wxGetApp().obj_list()->update_item_error_icon(object_index, -1);
+    } catch (const std::exception& error) {
+        MessageDialog(this, from_u8(error.what()), _L("Texture"), wxOK | wxICON_ERROR).ShowModal();
+    }
+
+}
+#endif
+
 void Plater::clear_before_change_mesh(int obj_idx)
 {
     ModelObject* mo = model().objects[obj_idx];
@@ -23500,6 +23839,10 @@ void Plater::changed_mesh(int obj_idx)
     update();
     p->object_list_changed();
     p->schedule_background_process();
+    LifecycleEventContext changed;
+    changed.name = mo->name; changed.id = std::to_string(mo->id().id); changed.index = obj_idx; changed.source = "mesh";
+    fire_lifecycle_event(LifecycleEvent::ObjectChanged, changed);
+
 }
 
 void Plater::changed_object(ModelObject &object){
@@ -23523,6 +23866,10 @@ void Plater::changed_object(ModelObject &object){
     GLCanvas3D* canvas = get_current_canvas3D();
     if (canvas)
         canvas->requires_check_outside_state();
+    LifecycleEventContext changed;
+    changed.name = object.name; changed.id = std::to_string(object.id().id);
+    fire_lifecycle_event(LifecycleEvent::ObjectChanged, changed);
+
 }
 
 void Plater::changed_object(int obj_idx)
@@ -23559,6 +23906,91 @@ void Plater::changed_objects(const std::vector<size_t>& object_idxs)
 
     // update print
     this->p->schedule_background_process();
+    std::vector<LifecycleEventContext> changed;
+    for (size_t index : object_idxs) {
+        if (index >= p->model.objects.size()) continue;
+        const auto* object = p->model.objects[index];
+        LifecycleEventContext context;
+        context.name = object->name; context.id = std::to_string(object->id().id); context.index = int(index);
+        changed.push_back(std::move(context));
+    }
+    for (const auto& context : changed) fire_lifecycle_event(LifecycleEvent::ObjectChanged, context);
+
+}
+
+void Plater::invalidate_slicing_plugins(const std::vector<PluginSlicingChange>& changes)
+{
+    if (changes.empty() || p->printer_technology != ptFFF || !wxGetApp().preset_bundle)
+        return;
+    const auto* bundle = wxGetApp().preset_bundle;
+    std::optional<DynamicPrintConfig> global_config;
+    // full_fff_config indexes filament_presets[0], even on an otherwise empty startup project.
+    const bool valid_filaments = !bundle->filament_presets.empty() &&
+        std::all_of(bundle->filament_presets.begin(), bundle->filament_presets.end(), [&](const std::string& name) {
+            return bundle->filaments.find_preset(name, true) != nullptr;
+        });
+    if (valid_filaments) {
+        try { global_config = bundle->full_config(); }
+        catch (const std::exception& ex) {
+            BOOST_LOG_TRIVIAL(warning) << "Plugin slicing change: current preset configuration unavailable: " << ex.what();
+        }
+    }
+    std::vector<PartPlate*> affected;
+    for (auto* plate : p->partplate_list.get_plate_list()) {
+        bool used = false;
+        if (global_config) {
+            auto effective = *global_config;
+            effective.apply(*plate->config());
+            used = slicing_plugins_affected(effective, changes);
+        }
+        if (auto* print = plate->fff_print()) {
+            // Print::apply and this observer run on the UI thread. Workers only read this config.
+            // A cached result may still belong to an older preset selection.
+            used = used || slicing_plugins_affected(print->full_print_config(), changes);
+        }
+        if (used) affected.push_back(plate);
+    }
+    if (affected.empty()) return;
+    const auto contains = [&](PartPlate* plate) {
+        return std::find(affected.begin(), affected.end(), plate) != affected.end();
+    };
+    const bool current_affected = contains(p->partplate_list.get_curr_plate());
+    const bool background_affected = contains(p->background_process.get_current_plate());
+    if (background_affected) {
+        // No Manager/config locks or GIL are held by the queued GUI bridge.
+        p->background_process.stop();
+        p->background_process.reset_export();
+        p->m_slice_all = false;
+        p->m_is_slicing = false;
+        p->notification_manager->set_slicing_progress_hidden();
+    }
+    for (auto* plate : affected) {
+        if (auto* print = plate->fff_print()) print->invalidate_plugin_state();
+        plate->update_slice_result_valid_state(false);
+        if (auto* result = plate->get_slice_result()) result->reset();
+        plate->thumbnail_data.reset();
+        plate->no_light_thumbnail_data.reset();
+        plate->top_thumbnail_data.reset();
+        plate->pick_thumbnail_data.reset();
+    }
+    if (current_affected) {
+        p->reset_gcode_toolpaths();
+        if (p->preview) p->preview->reload_print();
+        p->notification_manager->set_slicing_progress_hidden();
+    }
+    // Do not steal the worker from an unaffected plate in a multi-plate slice.
+    if (current_affected && global_config && (!p->background_process.running() || background_affected)) {
+        unsigned state = p->update_background_process(true);
+        if (state & priv::UPDATE_BACKGROUND_PROCESS_REFRESH_SCENE)
+            p->view3D->reload_scene(false);
+        if (p->background_processing_enabled())
+            state |= priv::UPDATE_BACKGROUND_PROCESS_RESTART;
+        p->restart_background_process(state);
+    } else if (current_affected && !global_config) {
+        p->main_frame->update_slice_print_status(MainFrame::eEventSliceUpdate, false);
+        p->notification_manager->push_notification(_u8L("Plugin settings changed. Select valid printer and filament presets, then slice again."));
+    }
+    p->view3D->get_canvas3d()->set_as_dirty();
 }
 
 void Plater::schedule_background_process(bool schedule/* = true*/)

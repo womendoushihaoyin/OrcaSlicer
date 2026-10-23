@@ -26,9 +26,14 @@ function usage() {
     echo "For a first use, you want to './${SCRIPT_NAME} -u'"
     echo "   and then './${SCRIPT_NAME} -dsi'"
     echo "To build with tests: './${SCRIPT_NAME} -st' or './${SCRIPT_NAME} -dst'"
+    echo "Plugin opt-in: ORCA_PYTHON_PLUGINS=ON plus ORCA_PLUGIN_PYTHON_ROOT and ORCA_PLUGIN_UV_EXECUTABLE; Python 3.12+ and patchelf required."
 }
 
 SLIC3R_PRECOMPILED_HEADERS="ON"
+export ORCA_PYTHON_PLUGINS="${ORCA_PYTHON_PLUGINS:-OFF}"
+case "$ORCA_PYTHON_PLUGINS" in ON|OFF) ;; *) echo "ORCA_PYTHON_PLUGINS must be ON or OFF" >&2; exit 1 ;; esac
+PLUGIN_RELEASE_DIR="$SCRIPT_PATH/build/plugin-release"
+PLUGIN_RELEASE_HELPER="$SCRIPT_PATH/scripts/packaging/integrate_plugin_runtime.py"
 
 unset name
 while getopts ":1j:bcCdhiprstulL" opt ; do
@@ -267,6 +272,14 @@ if [[ -n "${BUILD_ORCA}" ]] ; then
         rm -fr build
     fi
     read -r -a BUILD_ARGS <<< "${ORCA_EXTRA_BUILD_ARGS}"
+    BUILD_ARGS+=(-DORCA_PYTHON_PLUGINS=OFF -DORCA_LOCAL_PLUGIN_SPIKE=OFF)
+    if [ "$ORCA_PYTHON_PLUGINS" = "ON" ]; then
+        : "${ORCA_PLUGIN_PYTHON_ROOT:?Set the CPython 3.12.13 development/runtime prefix}"
+        : "${ORCA_PLUGIN_UV_EXECUTABLE:?Set the pinned uv 0.11.16 executable}"
+        python3 "$PLUGIN_RELEASE_HELPER" prepare --platform linux --architecture "$(uname -m)" \
+            --python-root "$ORCA_PLUGIN_PYTHON_ROOT" --uv "$ORCA_PLUGIN_UV_EXECUTABLE" --work-dir "$PLUGIN_RELEASE_DIR"
+        BUILD_ARGS+=(-C "$PLUGIN_RELEASE_DIR/plugin-options.cmake")
+    fi
     if [[ -n "${FOUND_GTK3_DEV}" ]] ; then
         BUILD_ARGS+=(-DSLIC3R_GTK=3)
     fi
@@ -314,11 +327,14 @@ if [[ -n "${BUILD_IMAGE}" || -n "${BUILD_ORCA}" ]] ; then
     echo "[9/9] Generating Linux app..."
     build_linux_image="./src/build_linux_image.sh"
     if [[ -e ${build_linux_image} ]] ; then
-        extra_script_args=""
+        extra_script_args=()
         if [[ -n "${BUILD_IMAGE}" ]] ; then
-            extra_script_args="-i"
+            extra_script_args+=(-i)
         fi
-        ${build_linux_image} ${extra_script_args}
+        if [[ -n "${BUILD_DEBUG}" ]] ; then
+            extra_script_args+=(-R Debug)
+        fi
+        ${build_linux_image} "${extra_script_args[@]}"
 
         echo "done"
     fi

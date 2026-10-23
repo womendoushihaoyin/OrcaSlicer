@@ -290,7 +290,12 @@ jobs:
         if: inputs.os == 'windows-2022'
         working-directory: ${{ github.workspace }}/build
         run: |
-          cpack -G NSIS
+          if ($env:ORCA_PYTHON_PLUGINS -eq 'ON') {
+            cpack --config PluginCPackConfig.cmake -G NSIS
+          } else {
+            cpack -G NSIS
+          }
+          exit $LASTEXITCODE
 
       - name: Pack app
         if: inputs.os == 'windows-2022'

@@ -113,6 +113,15 @@ typedef int (*func_get_mw_user_preference)(void *agent, std::function<void(std::
 typedef int (*func_get_mw_user_4ulist)(void *agent, int seed, int limit, std::function<void(std::string)> callback);
 
 
+// Host-owned Bambu module observation, not a cloud-account or printer state.
+// Strings are copied, so callers never retain pointers into an unloaded module.
+struct NetworkModuleSnapshot
+{
+    bool        loaded{false};
+    std::string version;
+    std::string error;
+};
+
 //the NetworkAgent class
 class NetworkAgent
 {
@@ -127,6 +136,9 @@ public:
     static void* get_bambu_source_entry();
 #endif
     static std::string get_version();
+    static NetworkModuleSnapshot network_module_snapshot();
+    // Record the GUI's existing version decision without changing that decision.
+    static void record_network_module_compatibility_error(const std::string& expected, const std::string& actual);
     static void* get_network_function(const char* name);
     static bool use_legacy_network;
     NetworkAgent(std::string log_dir);

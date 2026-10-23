@@ -65,7 +65,8 @@ public:
         SlicingReplaceInitEmptyLayers,
         SlicingNeedSupportOn,
         SlicingEmptyGcodeLayers,
-        SlicingGcodeOverlap
+        SlicingGcodeOverlap,
+        SlicingPreciseSeamWarning
     };
 
     typedef size_t TimeStamp;
@@ -694,6 +695,10 @@ protected:
         { return m_state.invalidate_multiple(il.begin(), il.end(), this->cancel_callback()); }
     bool            invalidate_all_steps()
         { return m_state.invalidate_all(this->cancel_callback()); }
+    // For the slicing worker's own failure path, after all parallel stages have
+    // joined. Calling the UI cancellation callback here could wait on ourselves.
+    bool            invalidate_all_steps_without_cancel()
+        { return m_state.invalidate_all([](){}); }
 
 	bool            is_step_started_unguarded(PrintStepEnum step) const { return m_state.is_started_unguarded(step); }
 	bool            is_step_done_unguarded(PrintStepEnum step) const { return m_state.is_done_unguarded(step); }

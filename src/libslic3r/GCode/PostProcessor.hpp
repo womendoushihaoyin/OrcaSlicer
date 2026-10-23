@@ -8,12 +8,12 @@
 
 namespace Slic3r {
 
-// Run post processing script / scripts if defined.
-// Returns true if a post-processing script was executed.
-// Returns false if no post-processing script was defined.
+// Run classic scripts, then selected slicing plugins at psGCodePostProcess.
+// Returns true if either kind was selected, false if neither was selected.
 // Throws an exception on error.
 // host is one of "File", "PrusaLink", "Repetier", "SL1Host", "OctoPrint", "FlashAir", "Duet", "AstroBox" ...
-// If make_copy, then a temp file will be created for src_path by adding a ".pp" suffix and src_path will be updated.
+// If make_copy, a temporary working file is created and src_path is updated.
+// With plugins, make_copy=false uses a temporary file and commits only on success.
 // In that case the caller is responsible to delete the temp file created.
 // output_name is the final name of the G-code on SD card or when uploaded to PrusaLink or OctoPrint.
 // If uploading to PrusaLink or OctoPrint, then the file will be renamed to output_name first on the target host.

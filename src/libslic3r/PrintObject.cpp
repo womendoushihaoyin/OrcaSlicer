@@ -21,6 +21,7 @@
 #include "Fill/FillLightning.hpp"
 #include "Format/STL.hpp"
 #include "format.hpp"
+#include "SLA/IndexedMesh.hpp"
 
 #include <float.h>
 #include <oneapi/tbb/blocked_range.h>
@@ -78,7 +79,9 @@ PrintObject::PrintObject(Print* print, ModelObject* model_object, const Transfor
     PrintObjectBaseWithState(print, model_object),
     m_trafo(trafo),
     // BBS
-    m_tree_support_preview_cache(nullptr)
+    m_tree_support_preview_cache(nullptr),
+    // Object labels also read this when object exclusion is disabled.
+    m_id(0)
 {
     // Compute centering offet to be applied to our meshes so that we work with smaller coordinates
     // requiring less bits to represent Clipper coordinates.
@@ -591,6 +594,38 @@ void PrintObject::ironing()
     }
 }
 
+bool PrintObject::need_z_contouring() const
+{
+    for (size_t region = 0; region < num_printing_regions(); ++region)
+        if (printing_region(region).config().zaa_enabled)
+            return true;
+    return false;
+}
+
+void PrintObject::contour_z()
+{
+    if (!set_started(posContouring))
+        return;
+    if (need_z_contouring() && m_layers.size() > 1) {
+        m_print->set_status(40, L("Z contouring"));
+        m_print->throw_if_canceled();
+        TriangleMesh mesh = m_model_object->raw_mesh();
+        // Use exactly the object-space transformation used by slice_volumes().
+        // XY is centered; the ray origins below use the same slice_z coordinates.
+        mesh.transform(trafo_centered());
+        const sla::IndexedMesh indexed(mesh);
+        tbb::parallel_for(tbb::blocked_range<size_t>(1, m_layers.size()),
+            [this, &indexed](const tbb::blocked_range<size_t>& range) {
+                for (size_t layer = range.begin(); layer < range.end(); ++layer) {
+                    m_print->throw_if_canceled();
+                    m_layers[layer]->make_contour_z(indexed);
+                }
+            });
+        m_print->throw_if_canceled();
+    }
+    set_done(posContouring);
+}
+
 // BBS
 void PrintObject::clear_overhangs_for_lift()
 {
@@ -702,7 +737,8 @@ void PrintObject::estimate_curled_extrusions()
             SupportSpotsGenerator::estimate_malformations(this->layers(), params);
             m_print->throw_if_canceled();
         }
-        //this->set_done(posEstimateCurledExtrusions);
+        m_print->throw_if_canceled();
+        this->set_done(posEstimateCurledExtrusions);
     }
 }
 
@@ -893,7 +929,14 @@ bool PrintObject::invalidate_state_by_config_options(
     std::vector<PrintObjectStep> steps;
     bool invalidated = false;
     for (const t_config_option_key &opt_key : opt_keys) {
-        if (   opt_key == "brim_width"
+        if (opt_key == "enable_overhang_speed" || opt_key == "inner_wall_acceleration")
+            steps.emplace_back(posEstimateCurledExtrusions);
+        if (opt_key == "zaa_enabled" || opt_key == "zaa_min_z" ||
+            opt_key == "zaa_minimize_perimeter_height" || opt_key == "zaa_dont_alternate_fill_direction") {
+            // Contouring modifies geometry in place, and its minimum Z also moves
+            // the slicing plane. Regenerate the planar source when toggled/edited.
+            steps.emplace_back(posSlice);
+        } else if (   opt_key == "brim_width"
             || opt_key == "brim_object_gap"
             || opt_key == "brim_type"
             || opt_key == "brim_ears_max_angle"
@@ -1283,20 +1326,24 @@ bool PrintObject::invalidate_step(PrintObjectStep step)
 
     // propagate to dependent steps
     if (step == posPerimeters) {
-		invalidated |= this->invalidate_steps({ posPrepareInfill, posInfill, posIroning, posSimplifyPath, posSimplifyInfill });
+		invalidated |= this->invalidate_steps({ posEstimateCurledExtrusions, posPrepareInfill, posInfill, posIroning, posContouring, posSimplifyPath, posSimplifyInfill });
         invalidated |= m_print->invalidate_steps({ psSkirtBrim });
     } else if (step == posPrepareInfill) {
-        invalidated |= this->invalidate_steps({ posInfill, posIroning, posSimplifyPath, posSimplifyInfill });
+        invalidated |= this->invalidate_steps({ posInfill, posIroning, posContouring, posSimplifyPath, posSimplifyInfill });
     } else if (step == posInfill) {
-        invalidated |= this->invalidate_steps({ posIroning, posSimplifyInfill });
+        invalidated |= this->invalidate_steps({ posIroning, posContouring, posSimplifyInfill });
         invalidated |= m_print->invalidate_steps({ psSkirtBrim });
+    } else if (step == posIroning) {
+        invalidated |= this->invalidate_steps({ posContouring, posSimplifyInfill });
+    } else if (step == posContouring) {
+        invalidated |= this->invalidate_steps({ posSimplifyPath, posSimplifyInfill });
     } else if (step == posSlice) {
-		invalidated |= this->invalidate_steps({ posPerimeters, posPrepareInfill, posInfill, posIroning, posSupportMaterial, posSimplifyPath, posSimplifyInfill });
+		invalidated |= this->invalidate_steps({ posPerimeters, posEstimateCurledExtrusions, posPrepareInfill, posInfill, posIroning, posContouring, posSupportMaterial, posSimplifyPath, posSimplifyInfill });
         invalidated |= m_print->invalidate_steps({ psSkirtBrim });
         m_slicing_params.valid = false;
         this->clear_local_z_plan();
     } else if (step == posSupportMaterial) {
-        invalidated |= this->invalidate_steps({ posSimplifySupportPath });
+        invalidated |= this->invalidate_steps({ posEstimateCurledExtrusions, posSimplifySupportPath });
         invalidated |= m_print->invalidate_steps({ psSkirtBrim });
         m_slicing_params.valid = false;
     }

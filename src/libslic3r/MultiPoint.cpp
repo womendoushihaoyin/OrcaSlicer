@@ -423,17 +423,114 @@ Points MultiPoint::concave_hull_2d(const Points& pts, const double tolerence)
 }
 
 
-void MultiPoint3::translate(double x, double y)
+void MultiPoint3::translate(double x, double y, double z)
 {
-    for (Vec3crd &p : points) {
-        p(0) += coord_t(x);
-        p(1) += coord_t(y);
-    }
+    translate(Vec3crd(coord_t(x), coord_t(y), coord_t(z)));
 }
 
 void MultiPoint3::translate(const Point& vector)
 {
     this->translate(vector(0), vector(1));
+}
+
+void MultiPoint3::translate(const Vec3crd& vector)
+{
+    for (Vec3crd& point : points)
+        point += vector;
+}
+
+void MultiPoint3::rotate(double cos_angle, double sin_angle)
+{
+    for (Vec3crd& point : points) {
+        const double x = double(point.x());
+        const double y = double(point.y());
+        point.x() = coord_t(std::round(cos_angle * x - sin_angle * y));
+        point.y() = coord_t(std::round(cos_angle * y + sin_angle * x));
+    }
+}
+
+void MultiPoint3::rotate(double angle, const Vec3crd& center)
+{
+    const double c = std::cos(angle);
+    const double s = std::sin(angle);
+    for (Vec3crd& point : points) {
+        const double x = double(point.x()) - double(center.x());
+        const double y = double(point.y()) - double(center.y());
+        point.x() = coord_t(std::round(double(center.x()) + c * x - s * y));
+        point.y() = coord_t(std::round(double(center.y()) + c * y + s * x));
+    }
+}
+
+int MultiPoint3::find_point(const Point& point, double scaled_epsilon) const
+{
+    int closest = -1;
+    double distance = scaled_epsilon * scaled_epsilon;
+    for (size_t i = 0; i < points.size(); ++i) {
+        const Vec2d delta = points[i].head<2>().cast<double>() - point.cast<double>();
+        const double squared = delta.squaredNorm();
+        if (squared == 0)
+            return int(i);
+        if (squared < distance) {
+            distance = squared;
+            closest = int(i);
+        }
+    }
+    return closest;
+}
+
+int MultiPoint3::find_point(const Vec3crd& point, double scaled_epsilon) const
+{
+    int closest = -1;
+    double distance = scaled_epsilon * scaled_epsilon;
+    for (size_t i = 0; i < points.size(); ++i) {
+        const double squared = (points[i].cast<double>() - point.cast<double>()).squaredNorm();
+        if (squared == 0)
+            return int(i);
+        if (squared < distance) {
+            distance = squared;
+            closest = int(i);
+        }
+    }
+    return closest;
+}
+
+Points3 MultiPoint3::_douglas_peucker(const Points3& points, double tolerance)
+{
+    if (points.size() < 3)
+        return points;
+    const double tolerance_squared = tolerance * tolerance;
+    std::vector<bool> keep(points.size(), false);
+    keep.front() = keep.back() = true;
+    std::vector<std::pair<size_t, size_t>> pending{{0, points.size() - 1}};
+    while (!pending.empty()) {
+        const auto [first, last] = pending.back();
+        pending.pop_back();
+        const Vec3d origin = points[first].cast<double>();
+        const Vec3d direction = points[last].cast<double>() - origin;
+        const double length_squared = direction.squaredNorm();
+        double maximum = tolerance_squared;
+        size_t furthest = first;
+        for (size_t i = first + 1; i < last; ++i) {
+            const Vec3d delta = points[i].cast<double>() - origin;
+            const double t = length_squared == 0 ? 0 : std::clamp(delta.dot(direction) / length_squared, 0., 1.);
+            const double distance = (delta - t * direction).squaredNorm();
+            if (distance > maximum) {
+                maximum = distance;
+                furthest = i;
+            }
+        }
+        if (furthest != first) {
+            keep[furthest] = true;
+            pending.emplace_back(first, furthest);
+            pending.emplace_back(furthest, last);
+        }
+    }
+    Points3 result;
+    result.reserve(points.size());
+    for (size_t i = 0; i < points.size(); ++i)
+        if (keep[i])
+            result.push_back(points[i]);
+    return result;
 }
 
 double MultiPoint3::length() const
@@ -451,6 +548,8 @@ BoundingBox3 MultiPoint3::bounding_box() const
 
 bool MultiPoint3::remove_duplicate_points()
 {
+    if (points.empty())
+        return false;
     size_t j = 0;
     for (size_t i = 1; i < points.size(); ++i) {
         if (points[j] == points[i]) {

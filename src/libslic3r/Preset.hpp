@@ -214,7 +214,7 @@ public:
     //BBS: add type for project-embedded
     bool                is_project_embedded = false;
     ConfigSubstitutions *loading_substitutions{nullptr};
-    bool                is_user() const { return ! this->is_default && ! this->is_system && ! this->is_project_embedded; }
+    bool                is_user() const { return ! this->is_default && ! this->is_system && ! this->is_project_embedded && ! this->is_from_bundle(); }
     //bool                is_user() const { return ! this->is_default && ! this->is_system; }
 
     // Name of the preset, usually derived form the file name.
@@ -223,6 +223,9 @@ public:
     // or a Configuration file bundling the Print + Filament + Printer presets (in that case is_external and possibly is_system will be true),
     // or it could be a G-code (again, is_external will be true).
     std::string         file;
+    // Nonempty only when parsed from an actual local preset bundle.
+    std::string         bundle_id;
+    bool                is_from_bundle() const { return !bundle_id.empty(); }
     // If this is a system profile, then there should be a vendor data available to display at the UI.
     const VendorProfile *vendor      = nullptr;
 

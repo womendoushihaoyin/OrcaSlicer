@@ -15,6 +15,122 @@ namespace Slic3r {
     
 static const double slope_inner_outer_wall_gap = 0.4;
 
+void ExtrusionPath::set_polyline3(Polyline3 polyline)
+{
+    if (!polyline.is_planar())
+        polyline.fitting_result.clear();
+    this->polyline = polyline.to_polyline();
+    m_polyline3 = std::move(polyline);
+}
+
+const Polyline3* ExtrusionPath::polyline3() const
+{
+    if (!m_polyline3)
+        return nullptr;
+    bool synchronized = polyline.size() == m_polyline3->size();
+    for (size_t i = 0; synchronized && i < polyline.size(); ++i)
+        synchronized = polyline.points[i].x() == m_polyline3->points[i].x() &&
+                       polyline.points[i].y() == m_polyline3->points[i].y();
+    if (!synchronized)
+        throw std::logic_error("ExtrusionPath XY geometry changed without updating its 3D path");
+    return &*m_polyline3;
+}
+
+Points3 ExtrusionPath::points3() const
+{
+    const Polyline3* spatial = polyline3();
+    return spatial ? spatial->points : Polyline3(polyline).points;
+}
+
+void ExtrusionPath::reverse()
+{
+    if (polyline3()) {
+        m_polyline3->reverse();
+        polyline = m_polyline3->to_polyline();
+    } else {
+        polyline.reverse();
+    }
+}
+
+bool ExtrusionPath::split_at_index(size_t index, ExtrusionPath* first, ExtrusionPath* second) const
+{
+    if (first == second)
+        return false;
+    if (const Polyline3* spatial = polyline3()) {
+        Polyline3 p1, p2;
+        if (!spatial->split_at_index(index, &p1, &p2))
+            return false;
+        ExtrusionPath first_path(std::move(p1), *this), second_path(std::move(p2), *this);
+        *first = std::move(first_path);
+        *second = std::move(second_path);
+    } else {
+        if (index >= polyline.size())
+            return false;
+        Polyline p1, p2;
+        if (!polyline.split_at_index(index, &p1, &p2))
+            return false;
+        ExtrusionPath first_path(std::move(p1), *this), second_path(std::move(p2), *this);
+        *first = std::move(first_path);
+        *second = std::move(second_path);
+    }
+    return true;
+}
+
+bool ExtrusionPath::split_at_length(double length, ExtrusionPath* first, ExtrusionPath* second) const
+{
+    if (first == second || empty() || !std::isfinite(length) || length < 0 || length > this->length())
+        return false;
+    if (const Polyline3* spatial = polyline3()) {
+        Polyline3 p1, p2;
+        if (!spatial->split_at_length(length, &p1, &p2))
+            return false;
+        ExtrusionPath first_path(std::move(p1), *this), second_path(std::move(p2), *this);
+        *first = std::move(first_path);
+        *second = std::move(second_path);
+    } else {
+        Polyline p1, p2;
+        if (!polyline.split_at_length(length, &p1, &p2))
+            return false;
+        ExtrusionPath first_path(std::move(p1), *this), second_path(std::move(p2), *this);
+        *first = std::move(first_path);
+        *second = std::move(second_path);
+    }
+    return true;
+}
+
+void ExtrusionPath::split_at(Point& point, ExtrusionPath* first, ExtrusionPath* second) const
+{
+    if (first == second)
+        throw std::invalid_argument("Extrusion path split outputs must be distinct");
+    if (const Polyline3* spatial = polyline3()) {
+        Polyline3 p1, p2;
+        spatial->split_at(point, &p1, &p2);
+        ExtrusionPath first_path(std::move(p1), *this), second_path(std::move(p2), *this);
+        *first = std::move(first_path);
+        *second = std::move(second_path);
+    } else {
+        Polyline p1, p2;
+        if (!empty())
+            polyline.split_at(point, &p1, &p2);
+        ExtrusionPath first_path(std::move(p1), *this), second_path(std::move(p2), *this);
+        *first = std::move(first_path);
+        *second = std::move(second_path);
+    }
+}
+
+void ExtrusionPath::append(const ExtrusionPath& path)
+{
+    const Polyline3* spatial = polyline3();
+    const Polyline3* source = path.polyline3();
+    if (spatial || source) {
+        Polyline3 combined = spatial ? *spatial : Polyline3(polyline);
+        combined.append(source ? *source : Polyline3(path.polyline));
+        set_polyline3(std::move(combined));
+    } else {
+        polyline.append(path.polyline);
+    }
+}
+
 void ExtrusionPath::intersect_expolygons(const ExPolygons &collection, ExtrusionEntityCollection* retval) const
 {
     this->_inflate_collection(intersection_pl(Polylines{ polyline }, collection), retval);
@@ -27,22 +143,38 @@ void ExtrusionPath::subtract_expolygons(const ExPolygons &collection, ExtrusionE
 
 void ExtrusionPath::clip_end(double distance)
 {
-    this->polyline.clip_end(distance);
+    if (polyline3()) {
+        m_polyline3->clip_end(distance);
+        polyline = m_polyline3->to_polyline();
+    } else if (!polyline.empty()) {
+        polyline.clip_end(distance);
+    }
 }
 
 void ExtrusionPath::simplify(double tolerance)
 {
-    this->polyline.simplify(tolerance);
+    if (polyline3()) {
+        m_polyline3->simplify(tolerance);
+        polyline = m_polyline3->to_polyline();
+    } else {
+        polyline.simplify(tolerance);
+    }
 }
 
 void ExtrusionPath::simplify_by_fitting_arc(double tolerance)
 {
-    this->polyline.simplify_by_fitting_arc(tolerance);
+    if (polyline3()) {
+        m_polyline3->simplify_by_fitting_arc(tolerance);
+        polyline = m_polyline3->to_polyline();
+    } else {
+        polyline.simplify_by_fitting_arc(tolerance);
+    }
 }
 
 double ExtrusionPath::length() const
 {
-    return this->polyline.length();
+    const Polyline3* spatial = polyline3();
+    return spatial ? spatial->length() : polyline.length();
 }
 
 void ExtrusionPath::_inflate_collection(const Polylines &polylines, ExtrusionEntityCollection* collection) const
@@ -78,7 +210,7 @@ double ExtrusionMultiPath::length() const
 {
     double len = 0;
     for (const ExtrusionPath &path : this->paths)
-        len += path.polyline.length();
+        len += path.length();
     return len;
 }
 
@@ -158,54 +290,35 @@ double ExtrusionLoop::length() const
 {
     double len = 0;
     for (const ExtrusionPath &path : this->paths)
-        len += path.polyline.length();
+        len += path.length();
     return len;
 }
 
 bool ExtrusionLoop::split_at_vertex(const Point &point, const double scaled_epsilon)
 {
-    for (ExtrusionPaths::iterator path = this->paths.begin(); path != this->paths.end(); ++path) {
-        if (int idx = path->polyline.find_point(point, scaled_epsilon); idx != -1) {
-            if (this->paths.size() == 1) {
-                // just change the order of points
-                Polyline p1, p2;
-                path->polyline.split_at_index(idx, &p1, &p2);
-                if (p1.is_valid() && p2.is_valid()) {
-                    p2.append(std::move(p1));
-                    std::swap(path->polyline.points, p2.points);
-                    std::swap(path->polyline.fitting_result, p2.fitting_result);
-                }
-            } else {
-                // new paths list starts with the second half of current path
-                ExtrusionPaths new_paths;
-                Polyline p1, p2;
-                path->polyline.split_at_index(idx, &p1, &p2);
-                new_paths.reserve(this->paths.size() + 1);
-                {
-                    ExtrusionPath p = *path;
-                    std::swap(p.polyline.points, p2.points);
-                    std::swap(p.polyline.fitting_result, p2.fitting_result);
-                    if (p.polyline.is_valid()) new_paths.push_back(p);
-                }
-            
-                // then we add all paths until the end of current path list
-                new_paths.insert(new_paths.end(), path+1, this->paths.end());  // not including this path
-            
-                // then we add all paths since the beginning of current list up to the previous one
-                new_paths.insert(new_paths.end(), this->paths.begin(), path);  // not including this path
-            
-                // finally we add the first half of current path
-                {
-                    ExtrusionPath p = *path;
-                    std::swap(p.polyline.points, p1.points);
-                    std::swap(p.polyline.fitting_result, p1.fitting_result);
-                    if (p.polyline.is_valid()) new_paths.push_back(p);
-                }
-                // we can now override the old path list with the new one and stop looping
-                std::swap(this->paths, new_paths);
+    for (auto path = paths.begin(); path != paths.end(); ++path) {
+        const int index = path->polyline.find_point(point, scaled_epsilon);
+        if (index == -1)
+            continue;
+        ExtrusionPath first, second;
+        path->split_at_index(size_t(index), &first, &second);
+        if (paths.size() == 1) {
+            if (first.polyline.is_valid() && second.polyline.is_valid()) {
+                second.append(first);
+                *path = std::move(second);
             }
-            return true;
+        } else {
+            ExtrusionPaths reordered;
+            reordered.reserve(paths.size() + 1);
+            if (second.polyline.is_valid())
+                reordered.push_back(std::move(second));
+            reordered.insert(reordered.end(), path + 1, paths.end());
+            reordered.insert(reordered.end(), paths.begin(), path);
+            if (first.polyline.is_valid())
+                reordered.push_back(std::move(first));
+            paths = std::move(reordered);
         }
+        return true;
     }
     return false;
 }
@@ -264,31 +377,24 @@ void ExtrusionLoop::split_at(const Point &point, bool prefer_non_overhang, const
     
     // now split path_idx in two parts
     const ExtrusionPath &path = this->paths[path_idx];
-    ExtrusionPath p1(path.role(), path.mm3_per_mm, path.width, path.height);
-    ExtrusionPath p2(path.role(), path.mm3_per_mm, path.width, path.height);
-    path.polyline.split_at(p, &p1.polyline, &p2.polyline);
-    
+    ExtrusionPath p1, p2;
+    path.split_at(p, &p1, &p2);
+
     if (this->paths.size() == 1) {
         if (!p1.polyline.is_valid()) {
-            std::swap(this->paths.front().polyline.points, p2.polyline.points);
-            std::swap(this->paths.front().polyline.fitting_result, p2.polyline.fitting_result);
-        }
-        else if (!p2.polyline.is_valid()) {
-            std::swap(this->paths.front().polyline.points, p1.polyline.points);
-            std::swap(this->paths.front().polyline.fitting_result, p1.polyline.fitting_result);
-        }
-        else {
-            p2.polyline.append(std::move(p1.polyline));
-            std::swap(this->paths.front().polyline.points, p2.polyline.points);
-            std::swap(this->paths.front().polyline.fitting_result, p2.polyline.fitting_result);
+            paths.front() = std::move(p2);
+        } else if (!p2.polyline.is_valid()) {
+            paths.front() = std::move(p1);
+        } else {
+            p2.append(p1);
+            paths.front() = std::move(p2);
         }
     } else {
-        // install the two paths
         this->paths.erase(this->paths.begin() + path_idx);
-        if (p2.polyline.is_valid()) this->paths.insert(this->paths.begin() + path_idx, p2);
-        if (p1.polyline.is_valid()) this->paths.insert(this->paths.begin() + path_idx, p1);
+        if (p2.polyline.is_valid()) this->paths.insert(this->paths.begin() + path_idx, std::move(p2));
+        if (p1.polyline.is_valid()) this->paths.insert(this->paths.begin() + path_idx, std::move(p1));
     }
-    
+
     // split at the new vertex
     this->split_at_vertex(p);
 }
@@ -304,7 +410,7 @@ void ExtrusionLoop::clip_end(double distance, ExtrusionPaths* paths) const
             paths->pop_back();
             distance -= len;
         } else {
-            last.polyline.clip_end(distance);
+            last.clip_end(distance);
             break;
         }
     }
@@ -410,50 +516,52 @@ ExtrusionLoopSloped::ExtrusionLoopSloped(ExtrusionPaths&   original_paths,
                                          ExtrusionLoopRole role)
     : ExtrusionLoop(role)
 {
-    // create slopes
-    const auto add_slop = [this, slope_max_segment_length, seam_gap](const ExtrusionPath &path, const Polyline &poly, double ratio_begin, double ratio_end) {
-        if (poly.empty()) { return; }
-
-        // Ensure `slope_max_segment_length`
-        Polyline detailed_poly;
-        {
-            detailed_poly.append(poly.first_point());
-
-            // Recursively split the line into half until no longer than `slope_max_segment_length`
-            const std::function<void(const Line &)> handle_line = [slope_max_segment_length, &detailed_poly, &handle_line](const Line &line) {
-                if (line.length() <= slope_max_segment_length) {
-                    detailed_poly.append(line.b);
-                } else {
-                    // Then process left half
-                    handle_line({line.a, line.midpoint()});
-                    // Then process right half
-                    handle_line({line.midpoint(), line.b});
-                }
-            };
-
-            for (const auto &l : poly.lines()) { handle_line(l); }
-        }
-
-        starts.emplace_back(detailed_poly, path, ExtrusionPathSloped::Slope{ratio_begin, ratio_begin}, ExtrusionPathSloped::Slope{ratio_end, ratio_end});
-
-        if (is_approx(ratio_end, 1.) && seam_gap > 0) {
-            // Remove the segments that has no extrusion
-            const auto seg_length = detailed_poly.length();
-            if (seg_length > seam_gap) {
-                // Split the segment and remove the last `seam_gap` bit
-                const Polyline orig = detailed_poly;
-                Polyline       tmp;
-                orig.split_at_length(seg_length - seam_gap, &detailed_poly, &tmp);
-
-                ratio_end = lerp(ratio_begin, ratio_end, (seg_length - seam_gap) / seg_length);
-                assert(1. - ratio_end > EPSILON);
+    // Keep the contour Z offsets while adding the independent scarf slope.
+    const auto add_slop = [this, slope_max_segment_length, seam_gap](const ExtrusionPath& path, double ratio_begin, double ratio_end) {
+        if (path.empty())
+            return;
+        Polyline3 poly(path.points3());
+        Polyline3 detailed;
+        detailed.append(poly.first_point());
+        const double maximum = std::max(1., slope_max_segment_length);
+        const bool spatial = path.has_polyline3();
+        const std::function<void(const Line3&)> handle_line = [&detailed, maximum, spatial, &handle_line](const Line3& line) {
+            // Keep the release's integer midpoint behavior for ordinary scarf
+            // paths; enabling 3D support must not change their XY rounding.
+            const Vec3crd midpoint = spatial ?
+                ((line.a.cast<double>() + line.b.cast<double>()) * 0.5).array().round().cast<coord_t>().matrix() :
+                Vec3crd((line.a + line.b) / coord_t(2));
+            if (line.length() <= maximum || midpoint == line.a || midpoint == line.b) {
+                detailed.append(line.b);
             } else {
-                // Remove the entire segment
-                detailed_poly.clear();
+                handle_line(Line3(line.a, midpoint));
+                handle_line(Line3(midpoint, line.b));
+            }
+        };
+        for (const Line3& line : poly.lines())
+            handle_line(line);
+
+        const auto add_slope = [&path](std::vector<ExtrusionPathSloped>& target, const Polyline3& geometry,
+                                      const ExtrusionPathSloped::Slope& begin, const ExtrusionPathSloped::Slope& end) {
+            if (path.has_polyline3())
+                target.emplace_back(geometry, path, begin, end);
+            else
+                target.emplace_back(geometry.to_polyline(), path, begin, end);
+        };
+        add_slope(starts, detailed, {ratio_begin, ratio_begin}, {ratio_end, ratio_end});
+        if (is_approx(ratio_end, 1.) && seam_gap > 0) {
+            const double segment_length = detailed.length();
+            if (segment_length > seam_gap) {
+                const Polyline3 original = detailed;
+                Polyline3 tail;
+                original.split_at_length(segment_length - seam_gap, &detailed, &tail);
+                ratio_end = lerp(ratio_begin, ratio_end, (segment_length - seam_gap) / segment_length);
+            } else {
+                detailed.clear();
             }
         }
-        if (!detailed_poly.empty()) { ends.emplace_back(detailed_poly, path, ExtrusionPathSloped::Slope{1., 1. - ratio_begin}, ExtrusionPathSloped::Slope{1., 1. - ratio_end}); }
-
+        if (!detailed.empty())
+            add_slope(ends, detailed, {1., 1. - ratio_begin}, {1., 1. - ratio_end});
     };
 
     double remaining_length = slope_min_length;
@@ -464,19 +572,19 @@ ExtrusionLoopSloped::ExtrusionLoopSloped(ExtrusionPaths&   original_paths,
         const double path_len = unscale_(path->length());
         if (path_len > remaining_length) {
             // Split current path into slope and non-slope part
-            Polyline slope_path;
-            Polyline flat_path;
-            path->polyline.split_at_length(scale_(remaining_length), &slope_path, &flat_path);
+            ExtrusionPath slope_path;
+            ExtrusionPath flat_path;
+            path->split_at_length(scale_(remaining_length), &slope_path, &flat_path);
 
-            add_slop(*path, slope_path, start_ratio, 1);
+            add_slop(slope_path, start_ratio, 1);
             start_ratio = 1;
 
-            paths.emplace_back(std::move(flat_path), *path);
+            paths.emplace_back(std::move(flat_path));
             remaining_length = 0;
         } else {
             remaining_length -= path_len;
             const double end_ratio = lerp(1.0, start_slope_ratio, remaining_length / slope_min_length);
-            add_slop(*path, path->polyline, start_ratio, end_ratio);
+            add_slop(*path, start_ratio, end_ratio);
             start_ratio = end_ratio;
         }
     }
@@ -521,7 +629,7 @@ void ExtrusionLoopSloped::clip_end(const double distance)
             ends_slope.pop_back();
             clip_dist -= len;
         } else {
-            last_path.polyline.clip_end(clip_dist);
+            last_path.clip_end(clip_dist);
             break;
         }
     }
@@ -543,9 +651,9 @@ void ExtrusionLoopSloped::clip_front(const double distance)
             start_slope.erase(start_slope.begin());
             clip_dist -= len;
         } else {
-            first_path.polyline.reverse();
-            first_path.polyline.clip_end(clip_dist);
-            first_path.polyline.reverse();
+            first_path.reverse();
+            first_path.clip_end(clip_dist);
+            first_path.reverse();
             break;
         }
     }

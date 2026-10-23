@@ -1,4 +1,7 @@
 #include "MainFrame.hpp"
+#ifdef ORCA_LOCAL_PLUGIN_SPIKE
+#include "LocalPluginsDialog.hpp"
+#endif
 
 #include <wx/panel.h>
 #include <wx/notebook.h>
@@ -2636,6 +2639,16 @@ void MainFrame::init_menubar_as_editor()
             [this](wxCommandEvent&) { Close(false); }, "", nullptr);
 #endif
     }
+
+#ifdef ORCA_LOCAL_PLUGIN_SPIKE
+    append_menu_item(fileMenu, wxID_ANY, _L("Local Plugins — development"), _L("Run a trusted local Python Script plugin"),
+                     [this](wxCommandEvent&) { show_local_plugin_spike(this); });
+#endif
+#ifdef ORCA_PYTHON_PLUGINS
+    if (m_plater != nullptr)
+        append_menu_item(fileMenu, wxID_ANY, _L("Apply texture to selected part"), _L("Preview and bake a texture into the selected mesh"),
+            [this](wxCommandEvent&) { m_plater->apply_resource_texture(); });
+#endif
 
     // Edit menu
     wxMenu* editMenu = nullptr;

@@ -323,6 +323,7 @@ PresetBundle& PresetBundle::operator=(const PresetBundle &rhs)
     project_config      = rhs.project_config;
     vendors             = rhs.vendors;
     obsolete_presets    = rhs.obsolete_presets;
+    local_bundle_metadata = rhs.local_bundle_metadata;
     m_errors    = rhs.m_errors;
 
     // Adjust Preset::vendor pointers to point to the copied vendors map.
@@ -337,6 +338,7 @@ PresetBundle& PresetBundle::operator=(const PresetBundle &rhs)
 
 void PresetBundle::reset(bool delete_files)
 {
+    local_bundle_metadata.clear();
     // Clear the existing presets, delete their respective files.
     this->vendors.clear();
     this->prints       .reset(delete_files);
@@ -820,6 +822,10 @@ PresetsConfigSubstitutions PresetBundle::load_user_presets(std::string user, For
     std::string dir_user_presets = data_dir() + "/" + PRESET_USER_DIR + "/" + user;
     fs::path    folder(user_folder / user);
     if (!fs::exists(folder)) fs::create_directory(folder);
+
+    // Bundle parents must be available before ordinary user presets resolve
+    // their inherits fields. This path is local-only and never contacts cloud.
+    load_local_bundles(user);
 
     // BBS do not load sla_print
     // BBS: change directoties by design

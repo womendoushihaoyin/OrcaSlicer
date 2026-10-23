@@ -312,6 +312,7 @@ public:
     };
 
 private:
+    friend struct GCodePath3TestAccess;
     class GCodeOutputStream {
     public:
         GCodeOutputStream(FILE *f, GCodeProcessor &processor) : f(f), m_processor(processor) {}
@@ -644,6 +645,7 @@ private:
     Print* m_curr_print = nullptr;
     unsigned int m_toolchange_count;
     coordf_t m_nominal_z;
+    bool m_last_path_was_contoured = false;
     bool m_need_change_layer_lift_z = false;
     int m_start_gcode_filament = -1;
 

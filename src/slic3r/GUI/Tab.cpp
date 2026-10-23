@@ -1,3 +1,4 @@
+#include "libslic3r/LifecycleEvents.hpp"
 // #include "libslic3r/GCodeSender.hpp"
 //#include "slic3r/Utils/Serial.hpp"
 #include "Tab.hpp"
@@ -6220,6 +6221,19 @@ bool Tab::select_preset(std::string preset_name, bool delete_current /*=false*/,
             }
         }
         load_current_preset();
+        if (is_selected) {
+            LifecycleEventContext ctx;
+            ctx.name = m_presets->get_edited_preset().name;
+            switch (m_type) {
+            case Preset::TYPE_PRINT: ctx.msg = "print"; break;
+            case Preset::TYPE_SLA_PRINT: ctx.msg = "sla_print"; break;
+            case Preset::TYPE_FILAMENT: ctx.msg = "filament"; break;
+            case Preset::TYPE_SLA_MATERIAL: ctx.msg = "sla_material"; break;
+            case Preset::TYPE_PRINTER: ctx.msg = "printer"; break;
+            default: break;
+            }
+            fire_lifecycle_event(LifecycleEvent::PresetSelected, ctx);
+        }
 
         if (delete_third_printer) {
             wxGetApp().CallAfter([filament_presets, process_presets]() {
@@ -6765,6 +6779,11 @@ void Tab::save_preset(std::string name /*= ""*/, bool detach, bool save_to_proje
 
     // update preset comboboxes in DiffPresetDlg
     wxGetApp().mainframe->diff_dialog.update_presets(m_type);
+    LifecycleEventContext saved;
+    saved.name = name; saved.source = "preset";
+    saved.msg = m_type == Preset::TYPE_PRINT ? "print" : m_type == Preset::TYPE_FILAMENT ? "filament" : m_type == Preset::TYPE_PRINTER ? "printer" : "other";
+    fire_lifecycle_event(LifecycleEvent::PresetSaved, saved);
+
 }
 
 // Called for a currently selected preset.

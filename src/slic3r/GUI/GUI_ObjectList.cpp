@@ -1,3 +1,4 @@
+#include "libslic3r/LifecycleEvents.hpp"
 #include "libslic3r/libslic3r.h"
 #include "libslic3r/PresetBundle.hpp"
 #include "GUI_ObjectList.hpp"
@@ -92,6 +93,21 @@ static void take_snapshot(const std::string& snapshot_name)
     Plater* plater = wxGetApp().plater();
     if (plater)
         plater->take_snapshot(snapshot_name);
+}
+
+// The tree hides cut connectors. Resolve against this object rather than the
+// shared UI-to-scene map, which may describe a different object's last rebuild.
+static int model_volume_index_from_tree(const ModelObject& object, int tree_index)
+{
+    if (tree_index < 0)
+        return -1;
+    for (size_t index = 0; index < object.volumes.size(); ++index) {
+        if (object.is_cut() && object.volumes[index]->is_cut_connector())
+            continue;
+        if (tree_index-- == 0)
+            return int(index);
+    }
+    return -1;
 }
 
 class wxRenderer : public wxDelegateRendererNative
@@ -738,7 +754,12 @@ ModelConfig& ObjectList::get_item_config(const wxDataViewItem& item) const
         return s_empty_config;
 
     const int obj_idx = m_objects_model->GetObjectIdByItem(item);
-    const int vol_idx = type & itVolume ? m_objects_model->GetVolumeIdByItem(item) : -1;
+    if (obj_idx < 0 || size_t(obj_idx) >= m_objects->size())
+        return s_empty_config;
+    const int vol_idx = type & itVolume ?
+        model_volume_index_from_tree(*(*m_objects)[obj_idx], m_objects_model->GetVolumeIdByItem(item)) : -1;
+    if ((type & itVolume) && vol_idx < 0)
+        return s_empty_config;
 
     assert(obj_idx >= 0 || ((type & itVolume) && vol_idx >=0));
     return type & itVolume ?(*m_objects)[obj_idx]->volumes[vol_idx]->config :
@@ -963,6 +984,8 @@ void ObjectList::update_filament_values_for_items_when_delete_filament(const siz
 
         // if (object->volumes.size() > 1) {
         for (size_t id = 0; id < object->volumes.size(); id++) {
+            if (object->volumes[id]->is_precise_seam())
+                continue;
             item = m_objects_model->GetItemByVolumeId(i, id);
             if (!item)
                 continue;
@@ -1158,6 +1181,8 @@ void ObjectList::update_filament_in_config(const wxDataViewItem& item)
         return;
 
     const ItemType item_type = m_objects_model->GetItemType(item);
+    if ((item_type & itVolume) && is_precise_seam(m_objects_model->GetVolumeType(item)))
+        return;
     if (item_type & itObject) {
         const int obj_idx = m_objects_model->GetIdByItem(item);
         m_config = &(*m_objects)[obj_idx]->config;
@@ -1187,7 +1212,7 @@ void ObjectList::update_filament_in_config(const wxDataViewItem& item)
     if (item_type & itObject) {
         const int obj_idx = m_objects_model->GetIdByItem(item);
         for (ModelVolume* mv : (*m_objects)[obj_idx]->volumes) {
-            if (mv->config.has("extruder"))
+            if (!mv->is_precise_seam() && mv->config.has("extruder"))
                 mv->config.erase("extruder");
         }
     }
@@ -1223,17 +1248,29 @@ void ObjectList::update_name_in_model(const wxDataViewItem& item) const
     if (m_objects_model->GetItemType(item) & itObject) {
         std::string name = m_objects_model->GetName(item).ToUTF8().data();
         if (obj->name != name) {
+            const std::string previous_name = obj->name;
             obj->name = name;
             // if object has just one volume, rename this volume too
             if (obj->volumes.size() == 1)
                 obj->volumes[0]->name = obj->name;
             Slic3r::save_object_mesh(*obj);
+            LifecycleEventContext ctx;
+            ctx.name = name; ctx.previous_name = previous_name;
+            ctx.id = std::to_string(obj->id().id); ctx.index = obj_idx; ctx.source = "object";
+            fire_lifecycle_event(LifecycleEvent::ObjectRenamed, ctx);
         }
         return;
     }
 
     if (volume_id < 0) return;
-    obj->volumes[volume_id]->name = m_objects_model->GetName(item).ToUTF8().data();
+    auto* volume = obj->volumes[volume_id];
+    const std::string name = m_objects_model->GetName(item).ToUTF8().data();
+    if (volume->name == name) return;
+    LifecycleEventContext ctx;
+    ctx.name = name; ctx.previous_name = volume->name;
+    ctx.id = std::to_string(volume->id().id); ctx.index = volume_id; ctx.source = "volume";
+    volume->name = name;
+    fire_lifecycle_event(LifecycleEvent::ObjectRenamed, ctx);
 }
 
 void ObjectList::update_name_in_list(int obj_idx, int vol_idx) const
@@ -1353,6 +1390,8 @@ void ObjectList::copy_settings_to_clipboard()
     if (m_objects_model->GetItemType(item) & itSettings)
         item = m_objects_model->GetParent(item);
 
+    if (is_precise_seam(m_objects_model->GetVolumeType(item)))
+        return;
     m_clipboard.get_config_cache() = get_item_config(item).get();
 }
 
@@ -1365,6 +1404,8 @@ void ObjectList::paste_settings_into_list()
 
     ItemType item_type = m_objects_model->GetItemType(item);
     if(!(item_type & (itObject | itVolume |itLayer)))
+        return;
+    if (is_precise_seam(m_objects_model->GetVolumeType(item)))
         return;
 
     DynamicPrintConfig& config_cache = m_clipboard.get_config_cache();
@@ -1905,6 +1946,11 @@ bool ObjectList::can_drop(const wxDataViewItem& item, int& src_obj_id, int& src_
         ModelVolumeType item_v_type = m_objects_model->GetVolumeType(item);
         ModelVolumeType dragged_item_v_type = m_objects_model->GetVolumeType(dragged_item);
 
+        // Earlier helpers win within each priority family. Subtypes in the same
+        // family must be draggable past one another, without crossing families.
+        if (is_precise_seam(item_v_type) && is_precise_seam(dragged_item_v_type))
+            return is_precise_seam_strong(item_v_type) == is_precise_seam_strong(dragged_item_v_type);
+
         if (dragged_item_v_type == item_v_type && dragged_item_v_type != ModelVolumeType::MODEL_PART)
             return true;
         if ((dragged_item_v_type != item_v_type) ||   // we can't reorder volumes outside of types
@@ -1994,6 +2040,15 @@ void ObjectList::OnDrop(wxDataViewEvent &event)
     else if (m_dragged_data.type() & itVolume) {
         int from_volume_id = m_dragged_data.sub_obj_idx();
         int to_volume_id   = m_objects_model->GetVolumeIdByItem(item);
+        const int from_tree_id = from_volume_id;
+        const int to_tree_id = to_volume_id;
+        ModelObject* object = (*m_objects)[m_dragged_data.obj_idx()];
+        from_volume_id = model_volume_index_from_tree(*object, from_volume_id);
+        to_volume_id = model_volume_index_from_tree(*object, to_volume_id);
+        if (from_volume_id < 0 || to_volume_id < 0) {
+            m_dragged_data.clear();
+            return;
+        }
         int delta          = to_volume_id < from_volume_id ? -1 : 1;
 
         auto &volumes = (*m_objects)[m_dragged_data.obj_idx()]->volumes;
@@ -2001,7 +2056,7 @@ void ObjectList::OnDrop(wxDataViewEvent &event)
         int cnt = 0;
         for (int id = from_volume_id; cnt < abs(from_volume_id - to_volume_id); id += delta, cnt++) std::swap(volumes[id], volumes[id + delta]);
 
-        select_item(m_objects_model->ReorganizeChildren(from_volume_id, to_volume_id, m_objects_model->GetParent(item)));
+        select_item(m_objects_model->ReorganizeChildren(from_tree_id, to_tree_id, m_objects_model->GetParent(item)));
 
         changed_object(m_dragged_data.obj_idx());
     }
@@ -2450,7 +2505,7 @@ void ObjectList::load_generic_subobject(const std::string& type_name, const Mode
     // BBS: backup
     Slic3r::save_object_mesh(model_object);
 
-    const wxString name = _L("Generic") + "-" + _(type_name);
+    const wxString name = (is_precise_seam(type) ? _L("Precise Seam") : _L("Generic")) + "-" + _(type_name);
     new_volume->name = into_u8(name);
 
     // set a default extruder value, since user can't add it manually
@@ -2486,7 +2541,7 @@ void ObjectList::load_generic_subobject(const std::string& type_name, const Mode
     wxGetApp().params_panel()->switch_to_object(true);
 
     //Show Dialog
-    if (wxGetApp().app_config->get("do_not_show_modifer_tips").empty()) {
+    if (!is_precise_seam(type) && wxGetApp().app_config->get("do_not_show_modifer_tips").empty()) {
         TipsDialog dlg(wxGetApp().mainframe, _L("Add Modifier"), _L("Switch to per-object setting mode to edit modifier settings."), "do_not_show_modifer_tips");
         dlg.ShowModal();
     }
@@ -3428,7 +3483,10 @@ void ObjectList::delete_all_connectors_for_object(int obj_idx)
             obj->delete_connectors();
 
             if (obj->volumes.empty() || !obj->has_solid_mesh()) {
+                LifecycleEventContext deleted;
+                deleted.name = obj->name; deleted.id = std::to_string(obj->id().id); deleted.index = int(idx);
                 model.delete_object(idx);
+                fire_lifecycle_event(LifecycleEvent::ObjectDeleted, deleted);
                 m_objects_model->Delete(m_objects_model->GetItemById(idx));
                 continue;
             }
@@ -3626,6 +3684,9 @@ void ObjectList::part_selection_changed()
                     else if (parent_type & itVolume) {
                         og_name   = _L("Part Settings to modify");
                         volume_id = m_objects_model->GetVolumeIdByItem(parent);
+                        volume_id = model_volume_index_from_tree(*(*m_objects)[obj_idx], volume_id);
+                        if (volume_id < 0)
+                            return;
                         m_config = &(*m_objects)[obj_idx]->volumes[volume_id]->config;
                     }
                     else if (parent_type & itLayer) {
@@ -3637,6 +3698,9 @@ void ObjectList::part_selection_changed()
                 else if (type & itVolume) {
                     og_name = _L("Part manipulation");
                     volume_id = m_objects_model->GetVolumeIdByItem(item);
+                    volume_id = model_volume_index_from_tree(*(*m_objects)[obj_idx], volume_id);
+                    if (volume_id < 0)
+                        return;
                     m_config = &(*m_objects)[obj_idx]->volumes[volume_id]->config;
                     update_and_show_manipulations = true;
                     m_config = &(*m_objects)[obj_idx]->volumes[volume_id]->config;
@@ -3663,6 +3727,11 @@ void ObjectList::part_selection_changed()
                 }
             }
         }
+    }
+
+    if (volume_id >= 0 && obj_idx >= 0 && (*m_objects)[obj_idx]->volumes[volume_id]->is_precise_seam()) {
+        m_config = nullptr;
+        update_and_show_settings = false;
     }
 
     m_selected_object_id = obj_idx;
@@ -3730,7 +3799,8 @@ wxDataViewItem ObjectList::add_settings_item(wxDataViewItem parent_item, const D
     const bool is_layer_settings = m_objects_model->GetItemType(parent_item) == itLayer;
     if (!is_object_settings) {
         ModelVolumeType volume_type = m_objects_model->GetVolumeType(parent_item);
-        if (volume_type == ModelVolumeType::NEGATIVE_VOLUME || volume_type == ModelVolumeType::SUPPORT_BLOCKER || volume_type == ModelVolumeType::SUPPORT_ENFORCER)
+        if (volume_type == ModelVolumeType::NEGATIVE_VOLUME || volume_type == ModelVolumeType::SUPPORT_BLOCKER ||
+            volume_type == ModelVolumeType::SUPPORT_ENFORCER || is_precise_seam(volume_type))
             return ret;
     }
 
@@ -3964,6 +4034,12 @@ void ObjectList::add_object_to_list(size_t obj_idx, bool call_selection_changed,
     std::string warning_bitmap = get_warning_icon_name(model_object->mesh().stats());
     const auto item = m_objects_model->AddObject(model_object, warning_bitmap, model_object->is_cut());
     Expand(m_objects_model->GetParent(item));
+
+    LifecycleEventContext added;
+    added.name = model_object->name;
+    added.id = std::to_string(model_object->id().id);
+    added.index = int(obj_idx);
+    fire_lifecycle_event(LifecycleEvent::ObjectAdded, added);
 
     if (!do_info_update)
         return;
@@ -5320,9 +5396,11 @@ ModelVolume* ObjectList::get_selected_model_volume()
             return nullptr;
     }
 
-    const auto vol_idx = m_objects_model->GetVolumeIdByItem(item);
     const auto obj_idx = get_selected_obj_idx();
-    if (vol_idx < 0 || obj_idx < 0)
+    if (obj_idx < 0 || size_t(obj_idx) >= m_objects->size())
+        return nullptr;
+    const int vol_idx = model_volume_index_from_tree(*(*m_objects)[obj_idx], m_objects_model->GetVolumeIdByItem(item));
+    if (vol_idx < 0)
         return nullptr;
 
     return (*m_objects)[obj_idx]->volumes[vol_idx];
@@ -5334,46 +5412,117 @@ void ObjectList::change_part_type()
     if (!volume)
         return;
 
-    const int obj_idx = get_selected_obj_idx();
-    if (obj_idx < 0) return;
+    wxArrayString names;
+    std::vector<ModelVolumeType> types;
+    auto add_type = [&](const wxString& label, ModelVolumeType type) {
+        names.Add(label);
+        types.push_back(type);
+    };
+    add_type(_L("Part"), ModelVolumeType::MODEL_PART);
+    add_type(_L("Negative Part"), ModelVolumeType::NEGATIVE_VOLUME);
+    add_type(_L("Modifier"), ModelVolumeType::PARAMETER_MODIFIER);
+    if (!volume->is_svg() && !volume->is_text()) {
+        add_type(_L("Support Blocker"), ModelVolumeType::SUPPORT_BLOCKER);
+        add_type(_L("Support Enforcer"), ModelVolumeType::SUPPORT_ENFORCER);
+        add_type(_L("Seam Center"), ModelVolumeType::PRECISE_SEAM_CENTER);
+        add_type(_L("Seam Left"), ModelVolumeType::PRECISE_SEAM_LEFT);
+        add_type(_L("Seam Right"), ModelVolumeType::PRECISE_SEAM_RIGHT);
+        add_type(_L("Seam Enforced"), ModelVolumeType::PRECISE_SEAM_ENFORCED);
+        add_type(_L("Seam Blocked"), ModelVolumeType::PRECISE_SEAM_BLOCKED);
+        add_type(_L("Seam Neutral"), ModelVolumeType::PRECISE_SEAM_NEUTRAL);
+    }
 
-    const ModelVolumeType type = volume->type();
-    if (type == ModelVolumeType::MODEL_PART)
-    {
-        int model_part_cnt = 0;
-        for (auto vol : (*m_objects)[obj_idx]->volumes) {
-            if (vol->type() == ModelVolumeType::MODEL_PART)
-                ++model_part_cnt;
+    // UI indices are not enum values: text/SVG volumes expose a shorter list.
+    const auto current = std::find(types.begin(), types.end(), volume->type());
+    const int initial = current == types.end() ? 0 : int(current - types.begin());
+    SingleChoiceDialog dlg(_L("Type:"), _L("Choose part type"), names, initial);
+    const int selected = dlg.GetSingleChoiceIndex();
+    if (selected >= 0 && size_t(selected) < types.size())
+        set_volume_type(types[selected]);
+}
+
+void ObjectList::set_volume_type(ModelVolumeType new_type)
+{
+    if (new_type < ModelVolumeType::MODEL_PART || new_type > ModelVolumeType::PRECISE_SEAM_NEUTRAL)
+        return;
+
+    // Resolve settings rows to their parent volume and deduplicate before changing
+    // anything. The subtype menu also supports a selection of several helpers.
+    std::map<int, std::vector<ModelVolume*>> selected;
+    wxDataViewItemArray items;
+    GetSelections(items);
+    for (auto item : items) {
+        if (m_objects_model->GetItemType(item) & itSettings)
+            item = m_objects_model->GetParent(item);
+        if (!(m_objects_model->GetItemType(item) & itVolume))
+            continue;
+        const int obj_idx = m_objects_model->GetObjectIdByItem(item);
+        if (obj_idx < 0 || size_t(obj_idx) >= m_objects->size())
+            continue;
+        const int vol_idx = model_volume_index_from_tree(*(*m_objects)[obj_idx], m_objects_model->GetVolumeIdByItem(item));
+        if (vol_idx < 0)
+            continue;
+        ModelVolume* volume = (*m_objects)[obj_idx]->volumes[vol_idx];
+        // Emboss metadata is valid only on the original three volume types.
+        if ((volume->is_svg() || volume->is_text()) && new_type > ModelVolumeType::PARAMETER_MODIFIER)
+            return;
+        auto& volumes = selected[obj_idx];
+        if (std::find(volumes.begin(), volumes.end(), volume) == volumes.end())
+            volumes.push_back(volume);
+    }
+
+    bool changed = false;
+    for (const auto& selection : selected) {
+        const ModelObject* object = (*m_objects)[selection.first];
+        size_t remaining_parts = 0;
+        for (const ModelVolume* volume : object->volumes) {
+            const bool is_selected = std::find(selection.second.begin(), selection.second.end(), volume) != selection.second.end();
+            if ((is_selected ? new_type : volume->type()) == ModelVolumeType::MODEL_PART)
+                ++remaining_parts;
+            changed |= is_selected && volume->type() != new_type;
         }
-
-        if (model_part_cnt == 1) {
-            Slic3r::GUI::show_error(nullptr, _(L("The type of the last solid object part is not to be changed.")));
+        if (remaining_parts == 0) {
+            show_error(nullptr, _L("The type of the last solid object part is not to be changed."));
             return;
         }
     }
-
-    // ORCA: Fix crash when changing type of svg / text modifier
-    wxArrayString names;
-    names.Add(_L("Part"));
-    names.Add(_L("Negative Part"));
-    names.Add(_L("Modifier"));
-    if (!volume->is_svg() && !volume->is_text()) {
-        names.Add(_L("Support Blocker"));
-        names.Add(_L("Support Enforcer"));
-    }
-
-    SingleChoiceDialog dlg(_L("Type:"), _L("Choose part type"), names, int(type));
-    auto new_type = ModelVolumeType(dlg.GetSingleChoiceIndex());
-
-	if (new_type == type || new_type == ModelVolumeType::INVALID)
+    if (!changed)
         return;
 
     take_snapshot("Change part type");
-
-    volume->set_type(new_type);
-    wxDataViewItemArray sel = reorder_volumes_and_get_selection(obj_idx, [volume](const ModelVolume* vol) { return vol == volume; });
-    if (!sel.IsEmpty())
-        select_item(sel.front());
+    wxDataViewItemArray new_selection;
+    for (const auto& selection : selected) {
+        ModelObject* object = (*m_objects)[selection.first];
+        // Iterate in model order so a batch entering a different priority family
+        // keeps its relative order and joins the end of that family.
+        const ModelVolumePtrs original_order = object->volumes;
+        for (ModelVolume* volume : original_order) {
+            if (std::find(selection.second.begin(), selection.second.end(), volume) == selection.second.end())
+                continue;
+            const ModelVolumeType old_type = volume->type();
+            if (old_type == new_type)
+                continue;
+            volume->set_type(new_type);
+            if (is_precise_seam(old_type) != is_precise_seam(new_type) ||
+                (is_precise_seam(old_type) && is_precise_seam_strong(old_type) != is_precise_seam_strong(new_type))) {
+                auto it = std::find(object->volumes.begin(), object->volumes.end(), volume);
+                object->volumes.erase(it);
+                object->volumes.push_back(volume);
+            }
+        }
+        const wxDataViewItemArray rebuilt = reorder_volumes_and_get_selection(selection.first, [&](const ModelVolume* volume) {
+            return std::find(selection.second.begin(), selection.second.end(), volume) != selection.second.end();
+        });
+        for (auto item : rebuilt)
+            new_selection.push_back(item);
+    }
+    if (!new_selection.IsEmpty()) {
+        m_prevent_list_events = true;
+        UnselectAll();
+        SetSelections(new_selection);
+        m_prevent_list_events = false;
+        selection_changed();
+    }
 }
 
 void ObjectList::last_volume_is_deleted(const int obj_idx)
@@ -5970,14 +6119,9 @@ void ObjectList::set_extruder_for_selected_items(const int extruder)
         wxDataViewItem item = (sel_item_type & itInstance) ? m_objects_model->GetObject(item) : sel_item;
         ItemType type = m_objects_model->GetItemType(item);
         if (type & itVolume) {
-            const int obj_idx = m_objects_model->GetObjectIdByItem(item);
-            const int vol_idx = m_objects_model->GetVolumeIdByItem(item);
-
-            if ((obj_idx < m_objects->size()) && (obj_idx < (*m_objects)[obj_idx]->volumes.size())) {
-                auto volume_type = (*m_objects)[obj_idx]->volumes[vol_idx]->type();
-                if (volume_type != ModelVolumeType::MODEL_PART && volume_type != ModelVolumeType::PARAMETER_MODIFIER)
-                    continue;
-            }
+            const ModelVolumeType volume_type = m_objects_model->GetVolumeType(item);
+            if (volume_type != ModelVolumeType::MODEL_PART && volume_type != ModelVolumeType::PARAMETER_MODIFIER)
+                continue;
         }
 
         if (type & itLayerRoot)

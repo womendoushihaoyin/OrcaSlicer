@@ -92,6 +92,11 @@ public:
 	static void set_extra_headers(std::map<std::string, std::string> headers);
 	static std::map<std::string, std::string> get_extra_headers();
 
+    // Application-thread shutdown barrier. Stop producers first. Cancels and
+    // joins asynchronous requests before curl/OpenSSL globals are torn down.
+    // New async requests after this call are returned cancelled without callbacks.
+    static void shutdown_async();
+
 	~Http();
 
 	Http(const Http &) = delete;

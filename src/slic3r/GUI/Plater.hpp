@@ -44,6 +44,7 @@ class Button;
 
 namespace Slic3r {
 
+struct PluginSlicingChange;
 class BuildVolume;
 enum class BuildVolume_Type : unsigned char;
 class Model;
@@ -510,6 +511,7 @@ public:
     //void export_amf();
     //BBS add extra param for exporting 3mf silence
     // BBS: backup
+    bool export_3mf_copy(const boost::filesystem::path& output_path);
     int export_3mf(const boost::filesystem::path& output_path = boost::filesystem::path(), SaveStrategy strategy = SaveStrategy::Default, int export_plate_idx = -1, Export3mfProgressFn proFn = nullptr);
 
     //BBS
@@ -517,6 +519,9 @@ public:
 
     void reload_from_disk();
     void replace_with_stl();
+#ifdef ORCA_PYTHON_PLUGINS
+    void apply_resource_texture();
+#endif
     void reload_all_from_disk();
     bool has_toolpaths_to_export() const;
     void export_toolpaths_to_obj() const;
@@ -533,6 +538,7 @@ public:
     void changed_object(int obj_idx);
     void changed_objects(const std::vector<size_t>& object_idxs);
     void schedule_background_process(bool schedule = true);
+    void invalidate_slicing_plugins(const std::vector<PluginSlicingChange>& changes);
     bool is_background_process_update_scheduled() const;
     void suppress_background_process(const bool stop_background_process) ;
     /* -1: send current gcode if not specified

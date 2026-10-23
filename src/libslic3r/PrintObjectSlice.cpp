@@ -42,6 +42,36 @@ static void dump_surface_emboss_mixed_layer_state(
     const PrintObjectRegions::LayerRangeRegions &layer_range,
     const std::vector<ExPolygons>               *segmentation_layer);
 
+static coordf_t compute_slice_z(PrintObject* print_object, size_t i_layer, coordf_t lo, coordf_t hi)
+{
+    bool zaa_active   = false;
+    coordf_t z_offset = 0.0;
+
+    size_t num_regions = print_object->num_printing_regions();
+    for (size_t rid = 0; rid < num_regions; ++rid) {
+        const auto& rcfg = print_object->printing_region(rid).config();
+        if (rcfg.zaa_enabled) {
+            if (!std::isfinite(rcfg.zaa_min_z.value) || rcfg.zaa_min_z < 0 ||
+                (i_layer != 0 && rcfg.zaa_min_z > hi - lo + EPSILON))
+                throw SlicingError("Z contouring minimum Z height must fit inside every affected layer");
+            if (!zaa_active || rcfg.zaa_min_z < z_offset)
+                z_offset = rcfg.zaa_min_z;
+            zaa_active = true;
+        }
+    }
+
+    if (!zaa_active || i_layer == 0) {
+        return 0.5 * (lo + hi);
+    }
+
+    coordf_t slice_z = lo + z_offset;
+    if ((slice_z < lo && !is_approx(slice_z, lo)) || (slice_z > hi && !is_approx(slice_z, hi))) {
+        throw SlicingError("Z contouring slicing plane lies outside the layer");
+    }
+    return slice_z;
+}
+
+
 LayerPtrs new_layers(
     PrintObject                 *print_object,
     // Object layers (pairs of bottom/top Z coordinate), without the raft.
@@ -52,10 +82,16 @@ LayerPtrs new_layers(
     auto     id   = int(print_object->slicing_parameters().raft_layers());
     coordf_t zmin = print_object->slicing_parameters().object_print_z_min;
     Layer   *prev = nullptr;
+    // Validate all contour planes before allocating raw Layer pointers, so an
+    // invalid minimum height cannot leave partially allocated layers behind.
+    std::vector<coordf_t> slice_planes;
+    slice_planes.reserve(object_layers.size() / 2);
+    for (size_t i = 0; i < object_layers.size(); i += 2)
+        slice_planes.push_back(compute_slice_z(print_object, i, object_layers[i], object_layers[i + 1]));
     for (size_t i_layer = 0; i_layer < object_layers.size(); i_layer += 2) {
         coordf_t lo = object_layers[i_layer];
         coordf_t hi = object_layers[i_layer + 1];
-        coordf_t slice_z = 0.5 * (lo + hi);
+        coordf_t slice_z = slice_planes[i_layer / 2];
         Layer *layer = new Layer(id ++, print_object, hi - lo, hi + zmin, slice_z);
         out.emplace_back(layer);
         if (prev != nullptr) {
@@ -5682,6 +5718,18 @@ std::vector<Polygons> PrintObject::slice_support_volumes(const ModelVolumeType m
         }
     }
     return slices;
+}
+
+std::vector<ExPolygons> PrintObject::slice_single_volume_regions(const ModelVolume* volume) const
+{
+    if (volume == nullptr)
+        return {};
+    // Match the existing slicing heights and the frame used by release_2.4.1 slice_volumes() without flattening holes.
+    const std::vector<float> zs = zs_from_layers(this->layers());
+    MeshSlicingParamsEx params;
+    params.trafo = this->trafo_centered();
+    const Print *print = this->print();
+    return slice_volume(*volume, zs, params, [print]() { print->throw_if_canceled(); });
 }
 
 } // namespace Slic3r

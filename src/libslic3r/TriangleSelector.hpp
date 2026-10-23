@@ -333,6 +333,8 @@ public:
     indexed_triangle_set get_facets(EnforcerBlockerType state) const;
     // Get facets at a given state. Triangulate T-joints.
     indexed_triangle_set get_facets_strict(EnforcerBlockerType state) const;
+    // Optional exact sub-triangle -> original triangle mapping, including T-joint triangulation.
+    indexed_triangle_set get_facets_strict(EnforcerBlockerType state, std::vector<int> *out_source) const;
     // Get edges around the selected area by seed fill.
     std::vector<Vec2i32> get_seed_fill_contour() const;
 

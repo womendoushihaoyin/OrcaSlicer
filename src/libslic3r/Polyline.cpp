@@ -5,6 +5,7 @@
 #include "Line.hpp"
 #include "Polygon.hpp"
 #include <iostream>
+#include <limits>
 #include <utility>
 
 namespace Slic3r {
@@ -633,6 +634,269 @@ void ThickPolyline::start_at_index(int index)
         std::rotate(this->points.begin(), this->points.begin() + index, this->points.end());
         std::rotate(this->width.begin(), this->width.begin() + 2 * index, this->width.end());
         this->points.emplace_back(this->points.front());
+    }
+}
+
+Polyline3::Polyline3(const Polyline& polyline, coord_t z) : fitting_result(polyline.fitting_result)
+{
+    points.reserve(polyline.size());
+    for (const Point& point : polyline.points)
+        points.emplace_back(point.x(), point.y(), z);
+}
+
+bool Polyline3::is_planar() const
+{
+    return points.empty() || std::all_of(points.begin(), points.end(), [this](const Vec3crd& point) {
+        return point.z() == points.front().z();
+    });
+}
+
+Polyline Polyline3::to_polyline() const
+{
+    Polyline result;
+    result.points.reserve(points.size());
+    for (const Vec3crd& point : points)
+        result.points.emplace_back(point.x(), point.y());
+    if (is_planar())
+        result.fitting_result = fitting_result;
+    return result;
+}
+
+void Polyline3::reverse()
+{
+    MultiPoint3::reverse();
+    for (PathFittingData& fitting : fitting_result) {
+        std::swap(fitting.start_point_index, fitting.end_point_index);
+        fitting.start_point_index = size() - 1 - fitting.start_point_index;
+        fitting.end_point_index = size() - 1 - fitting.end_point_index;
+        if (fitting.is_arc_move())
+            fitting.reverse_arc_path();
+    }
+    std::reverse(fitting_result.begin(), fitting_result.end());
+}
+
+void Polyline3::clip_end(double distance)
+{
+    if (empty() || distance <= 0)
+        return;
+    if (is_planar()) {
+        const coord_t z = points.front().z();
+        Polyline projected = to_polyline();
+        projected.clip_end(distance);
+        *this = Polyline3(projected, z);
+        return;
+    }
+    fitting_result.clear();
+    while (distance > 0 && !empty()) {
+        const Vec3d last = points.back().cast<double>();
+        points.pop_back();
+        if (empty())
+            break;
+        const Vec3d delta = points.back().cast<double>() - last;
+        const double segment_length = delta.norm();
+        if (segment_length > distance) {
+            const Vec3d endpoint = last + delta * (distance / segment_length);
+            points.push_back(endpoint.array().round().cast<coord_t>().matrix());
+            break;
+        }
+        distance -= segment_length;
+    }
+}
+
+void Polyline3::simplify(double tolerance)
+{
+    points = MultiPoint3::_douglas_peucker(points, tolerance);
+    fitting_result.clear();
+}
+
+void Polyline3::simplify_by_fitting_arc(double tolerance)
+{
+    if (empty()) {
+        fitting_result.clear();
+    } else if (is_planar()) {
+        const coord_t z = points.front().z();
+        Polyline projected = to_polyline();
+        projected.simplify_by_fitting_arc(tolerance);
+        *this = Polyline3(projected, z);
+    } else {
+        // XY arc fitting has no representation for a varying Z profile.
+        simplify(tolerance);
+    }
+}
+
+void Polyline3::append(const Vec3crd& point)
+{
+    if (!empty() && points.back() == point)
+        return;
+    if (!fitting_result.empty() && !empty() && is_planar() && points.front().z() == point.z()) {
+        Polyline projected = to_polyline();
+        projected.append(Point(point.x(), point.y()));
+        *this = Polyline3(projected, point.z());
+    } else {
+        points.push_back(point);
+        fitting_result.clear();
+    }
+}
+
+void Polyline3::append(const Polyline3& polyline)
+{
+    if (polyline.empty())
+        return;
+    if (this == &polyline) {
+        const Polyline3 copy(polyline);
+        append(copy);
+    } else if (empty()) {
+        *this = polyline;
+    } else if (is_planar() && polyline.is_planar() && points.front().z() == polyline.points.front().z()) {
+        const coord_t z = points.front().z();
+        Polyline projected = to_polyline();
+        projected.append(polyline.to_polyline());
+        *this = Polyline3(projected, z);
+    } else {
+        auto first = polyline.points.begin();
+        if (points.back() == *first)
+            ++first;
+        points.insert(points.end(), first, polyline.points.end());
+        fitting_result.clear();
+    }
+}
+
+bool Polyline3::split_at_index(size_t index, Polyline3* p1, Polyline3* p2) const
+{
+    if (index >= size() || p1 == p2)
+        return false;
+    Polyline3 first, second;
+    if (is_planar()) {
+        Polyline projected_first, projected_second;
+        to_polyline().split_at_index(index, &projected_first, &projected_second);
+        first = Polyline3(projected_first, points.front().z());
+        second = Polyline3(projected_second, points.front().z());
+    } else {
+        first.points.assign(points.begin(), points.begin() + index + 1);
+        second.points.assign(points.begin() + index, points.end());
+    }
+    *p1 = std::move(first);
+    *p2 = std::move(second);
+    return true;
+}
+
+void Polyline3::split_at_segment(size_t segment, const Vec3crd& point, Polyline3* p1, Polyline3* p2) const
+{
+    if (point == points[segment]) {
+        split_at_index(segment, p1, p2);
+    } else if (point == points[segment + 1]) {
+        split_at_index(segment + 1, p1, p2);
+    } else {
+        Polyline3 first, second;
+        first.points.assign(points.begin(), points.begin() + segment + 1);
+        first.append(point);
+        second.points.push_back(point);
+        second.points.insert(second.points.end(), points.begin() + segment + 1, points.end());
+        *p1 = std::move(first);
+        *p2 = std::move(second);
+    }
+}
+
+bool Polyline3::split_at_length(double length, Polyline3* p1, Polyline3* p2) const
+{
+    if (empty() || !std::isfinite(length) || length < 0 || length > this->length() || p1 == p2)
+        return false;
+    if (length == 0)
+        return split_at_index(0, p1, p2);
+    if (is_planar()) {
+        Polyline first, second;
+        if (!to_polyline().split_at_length(length, &first, &second))
+            return false;
+        const coord_t z = points.front().z();
+        *p1 = Polyline3(first, z);
+        *p2 = Polyline3(second, z);
+        return true;
+    }
+    double remaining = length;
+    for (size_t i = 1; i < size(); ++i) {
+        const Vec3d start = points[i - 1].cast<double>();
+        const Vec3d delta = points[i].cast<double>() - start;
+        const double segment_length = delta.norm();
+        if (segment_length > 0 && remaining <= segment_length) {
+            const Vec3d split = start + delta * (remaining / segment_length);
+            split_at_segment(i - 1, split.array().round().cast<coord_t>().matrix(), p1, p2);
+            return true;
+        }
+        remaining -= segment_length;
+    }
+    return split_at_index(size() - 1, p1, p2);
+}
+
+void Polyline3::split_at(Point& point, Polyline3* p1, Polyline3* p2) const
+{
+    if (empty()) {
+        p1->clear();
+        p2->clear();
+        return;
+    }
+    if (is_planar()) {
+        Polyline first, second;
+        to_polyline().split_at(point, &first, &second);
+        const coord_t z = points.front().z();
+        *p1 = Polyline3(first, z);
+        *p2 = Polyline3(second, z);
+        return;
+    }
+    size_t segment = 0;
+    double minimum = std::numeric_limits<double>::max();
+    Vec3crd closest = points.front();
+    for (size_t i = 1; i < size(); ++i) {
+        const Vec3d start = points[i - 1].cast<double>();
+        const Vec3d delta = points[i].cast<double>() - start;
+        const double squared = delta.head<2>().squaredNorm();
+        const double t = squared == 0 ? 0 : std::clamp((point.cast<double>() - start.head<2>()).dot(delta.head<2>()) / squared, 0., 1.);
+        const Vec3d projected = start + t * delta;
+        const double distance = (projected.head<2>() - point.cast<double>()).squaredNorm();
+        if (distance < minimum) {
+            minimum = distance;
+            segment = i - 1;
+            closest = projected.array().round().cast<coord_t>().matrix();
+        }
+    }
+    point = Point(closest.x(), closest.y());
+    split_at_segment(segment, closest, p1, p2);
+}
+
+void Polyline3::split_at(Vec3crd& point, Polyline3* p1, Polyline3* p2) const
+{
+    if (size() < 2) {
+        if (empty()) {
+            p1->clear();
+            p2->clear();
+        } else {
+            point = points.front();
+            split_at_index(0, p1, p2);
+        }
+        return;
+    }
+    size_t segment = 0;
+    double minimum = std::numeric_limits<double>::max();
+    Vec3crd closest = points.front();
+    for (size_t i = 1; i < size(); ++i) {
+        const Vec3d start = points[i - 1].cast<double>();
+        const Vec3d delta = points[i].cast<double>() - start;
+        const double squared = delta.squaredNorm();
+        const double t = squared == 0 ? 0 : std::clamp((point.cast<double>() - start).dot(delta) / squared, 0., 1.);
+        const Vec3d projected = start + t * delta;
+        const double distance = (projected - point.cast<double>()).squaredNorm();
+        if (distance < minimum) {
+            minimum = distance;
+            segment = i - 1;
+            closest = projected.array().round().cast<coord_t>().matrix();
+        }
+    }
+    point = closest;
+    if (is_planar()) {
+        Point xy(point.x(), point.y());
+        split_at(xy, p1, p2);
+        point = Vec3crd(xy.x(), xy.y(), point.z());
+    } else {
+        split_at_segment(segment, point, p1, p2);
     }
 }
 

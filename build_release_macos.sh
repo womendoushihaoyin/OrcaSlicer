@@ -47,6 +47,7 @@ while getopts ":dpa:snt:xbc:1h" opt; do
         echo "   -b: Build without reconfiguring CMake"
         echo "   -c: Set CMake build configuration, default is Release"
         echo "   -1: Use single job for building"
+        echo "Plugin opt-in: ORCA_PYTHON_PLUGINS=ON, ORCA_PLUGIN_PYTHON_ROOT and ORCA_PLUGIN_UV_EXECUTABLE (Python 3.12+ packaging driver)."
         exit 0
         ;;
     * )
@@ -112,6 +113,13 @@ DEPS_DIR="$PROJECT_DIR/deps"
 DEPS_BUILD_DIR="$DEPS_DIR/build/$ARCH"
 DEPS="$DEPS_BUILD_DIR/OrcaSlicer_deps"
 
+# Explicit OFF also clears a previous plugin-enabled CMake cache.
+ORCA_PYTHON_PLUGINS="${ORCA_PYTHON_PLUGINS:-OFF}"
+case "$ORCA_PYTHON_PLUGINS" in ON|OFF) ;; *) echo "ORCA_PYTHON_PLUGINS must be ON or OFF" >&2; exit 1 ;; esac
+PLUGIN_CMAKE_ARGS=(-DORCA_PYTHON_PLUGINS=OFF -DORCA_LOCAL_PLUGIN_SPIKE=OFF)
+PLUGIN_RELEASE_DIR="$PROJECT_DIR/build/plugin-release-$ARCH"
+PLUGIN_RELEASE_HELPER="$PROJECT_DIR/scripts/packaging/integrate_plugin_runtime.py"
+
 # For Multi-config generators like Ninja and Xcode
 export BUILD_DIR_CONFIG_SUBDIR="/$BUILD_CONFIG"
 
@@ -155,6 +163,13 @@ function pack_deps() {
 }
 
 function build_slicer() {
+    if [ "$ORCA_PYTHON_PLUGINS" = "ON" ]; then
+        : "${ORCA_PLUGIN_PYTHON_ROOT:?Set the CPython 3.12.13 development/runtime prefix}"
+        : "${ORCA_PLUGIN_UV_EXECUTABLE:?Set the pinned uv 0.11.16 executable}"
+        python3 "$PLUGIN_RELEASE_HELPER" prepare --platform macos --architecture "$ARCH" \
+            --python-root "$ORCA_PLUGIN_PYTHON_ROOT" --uv "$ORCA_PLUGIN_UV_EXECUTABLE" --work-dir "$PLUGIN_RELEASE_DIR"
+        PLUGIN_CMAKE_ARGS=(-C "$PLUGIN_RELEASE_DIR/plugin-options.cmake")
+    fi
     echo "Staging snapmaker_connect..."
     python3 "${PROJECT_DIR}/scripts/packaging/stage_connect_bundle.py" \
         --lock "${PROJECT_DIR}/.github/connect-bundle.lock.json" \
@@ -180,6 +195,7 @@ function build_slicer() {
                     -G "${SLICER_CMAKE_GENERATOR}" \
                     -DBBL_RELEASE_TO_PUBLIC=1 \
                     -DORCA_TOOLS=ON \
+                    "${PLUGIN_CMAKE_ARGS[@]}" \
                     ${ORCA_UPDATER_SIG_KEY:+-DORCA_UPDATER_SIG_KEY="$ORCA_UPDATER_SIG_KEY"} \
                     -DCMAKE_PREFIX_PATH="$DEPS/usr/local" \
                     -DCMAKE_INSTALL_PREFIX="$PWD/Snapmaker_Orca" \
@@ -190,6 +206,10 @@ function build_slicer() {
                     -DCMAKE_OSX_ARCHITECTURES="${_ARCH}" \
                     -DCMAKE_OSX_DEPLOYMENT_TARGET="${OSX_DEPLOYMENT_TARGET}"
             fi
+            PLUGIN_CACHE_ARGS=()
+            if [ "$ORCA_PYTHON_PLUGINS" = "ON" ]; then PLUGIN_CACHE_ARGS=(--work-dir "$PLUGIN_RELEASE_DIR"); fi
+            python3 "$PLUGIN_RELEASE_HELPER" check-cache --cache "$PWD/CMakeCache.txt" \
+                --enabled "$ORCA_PYTHON_PLUGINS" "${PLUGIN_CACHE_ARGS[@]}"
             cmake --build . --config "$BUILD_CONFIG" --target "$SLICER_BUILD_TARGET"
             # Explicitly build profile_validator if ORCA_TOOLS is enabled
             if [ "$SLICER_BUILD_TARGET" = "all" ] || [ "$SLICER_BUILD_TARGET" = "ALL_BUILD" ]; then
@@ -260,6 +280,12 @@ function build_slicer() {
             fi
         else
             echo "Warning: libsentry.dylib not found at ${LIBSENTRY}"
+        fi
+
+        if [ "$ORCA_PYTHON_PLUGINS" = "ON" ]; then
+            python3 "$PLUGIN_RELEASE_HELPER" deploy --work-dir "$PLUGIN_RELEASE_DIR" \
+                --app-dir "$PWD/Snapmaker Orca.app" --host Contents/MacOS/Snapmaker_Orca \
+                --cache "$PROJECT_BUILD_DIR/CMakeCache.txt"
         fi
 
         # Copy Snapmaker_Orca_profile_validator.app if it exists

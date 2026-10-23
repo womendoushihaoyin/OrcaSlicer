@@ -125,6 +125,7 @@ public:
     float       angle;
     // Orca: is_using_template_angle
     bool        is_using_template_angle{false};
+    bool        dont_alternate_fill_direction{false};
     // In scaled coordinates. Maximum lenght of a perimeter segment connecting two infill lines.
     // Used by the FillRectilinear2, FillGrid2, FillTriangles, FillStars and FillCubic.
     // If left to zero, the links will not be limited.

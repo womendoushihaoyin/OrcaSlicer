@@ -114,6 +114,13 @@ void OpenGLManager::GLInfo::detect() const
         float* max_anisotropy = const_cast<float*>(&m_max_anisotropy);
         glsafe(::glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, max_anisotropy));
     }
+    // Query only when the context supports profiles (GL 3.2+). The plugin API
+    // reads this cached result without making GL calls from a worker thread.
+    if (GLEW_VERSION_3_2) {
+        GLint profile = 0;
+        glsafe(::glGetIntegerv(GL_CONTEXT_PROFILE_MASK, &profile));
+        *const_cast<bool*>(&m_core_profile) = (profile & GL_CONTEXT_CORE_PROFILE_BIT) != 0;
+    }
     *const_cast<bool*>(&m_detected) = true;
 }
 

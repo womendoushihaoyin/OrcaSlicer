@@ -582,7 +582,7 @@ void Preset::load_info(const std::string& file)
 void Preset::save_info(std::string file)
 {
     //BBS: add project embedded preset logic
-    if (this->is_project_embedded)
+    if (this->is_project_embedded || this->is_from_bundle())
         return;
     if (file.empty()) {
         fs::path idx_file(this->file);
@@ -607,7 +607,7 @@ void Preset::save_info(std::string file)
 void Preset::remove_files()
 {
     //BBS: add project embedded preset logic
-    if (this->is_project_embedded)
+    if (this->is_project_embedded || this->is_from_bundle())
         return;
     // Erase the preset file.
     boost::nowide::remove(this->file.c_str());
@@ -621,7 +621,8 @@ void Preset::remove_files()
 void Preset::save(DynamicPrintConfig* parent_config)
 {
     //BBS: add project embedded preset logic
-    if (this->is_project_embedded)
+    // Bundle files are maintained by their provider; edit them through Save As.
+    if (this->is_project_embedded || this->is_from_bundle())
         return;
     //BBS: change to json format
     //this->config.save(this->file);
@@ -955,6 +956,7 @@ static std::vector<std::string> s_Preset_print_options {
     "outer_wall_line_width", "sparse_infill_line_width", "internal_solid_infill_line_width",
     "skin_infill_line_width","skeleton_infill_line_width",
     "top_surface_line_width", "support_line_width", "infill_wall_overlap","top_bottom_infill_wall_overlap", "bridge_flow", "internal_bridge_flow",
+    "zaa_enabled", "zaa_dont_alternate_fill_direction", "zaa_min_z", "zaa_minimize_perimeter_height",
     "elefant_foot_compensation", "elefant_foot_compensation_layers", "xy_contour_compensation", "xy_hole_compensation", "resolution", "enable_prime_tower",
     "prime_tower_width", "prime_tower_brim_width", "prime_volume", "prime_tower_brim_chamfer", "prime_tower_brim_chamfer_max_width", "enable_tower_interface_features", "enable_tower_interface_cooldown_during_tower",
     "wipe_tower_no_sparse_layers", "compatible_printers", "compatible_printers_condition", "inherits",
@@ -967,7 +969,7 @@ static std::vector<std::string> s_Preset_print_options {
      "initial_layer_infill_speed", "only_one_wall_top", 
      "timelapse_type",
      "wall_generator", "wall_transition_length", "wall_transition_filter_deviation", "wall_transition_angle",
-     "wall_distribution_count", "min_feature_size", "min_bead_width", "post_process", "min_length_factor",
+     "wall_distribution_count", "min_feature_size", "min_bead_width", "post_process", "slicing_pipeline_plugin", "plugins", "print_plugin_config_overrides", "min_length_factor",
      "small_perimeter_speed", "small_perimeter_threshold","bridge_angle","internal_bridge_angle", "filter_out_gap_fill", "travel_acceleration","first_layer_travel_acceleration","inner_wall_acceleration", "min_width_top_surface",
      "default_jerk", "outer_wall_jerk", "inner_wall_jerk", "infill_jerk", "top_surface_jerk", "initial_layer_jerk","travel_jerk","first_layer_travel_jerk","default_junction_deviation",
      "top_solid_infill_flow_ratio","bottom_solid_infill_flow_ratio","only_one_wall_first_layer", "print_flow_ratio", "seam_gap",
@@ -1489,7 +1491,7 @@ Preset* PresetCollection::get_preset_differed_for_save(Preset& preset)
 //BBS:get the differencen values to update
 int PresetCollection::get_differed_values_to_update(Preset& preset, std::map<std::string, std::string>& key_values)
 {
-    if (preset.is_system || preset.is_default || preset.is_project_embedded) {
+    if (preset.is_system || preset.is_default || preset.is_project_embedded || preset.is_from_bundle()) {
         BOOST_LOG_TRIVIAL(error) << __FUNCTION__ << boost::format(" Error: not a user preset! Should not happen, name %1%") %preset.name;
         ++m_errors;
         return -1;
@@ -2364,6 +2366,7 @@ Preset& PresetCollection::load_preset(const std::string &path, const std::string
 bool PresetCollection::clone_presets(std::vector<Preset const *> const &presets, std::vector<std::string> &failures, std::function<void(Preset &, Preset::Type &)> modifier, bool force_rewritten)
 {
     std::vector<Preset> new_presets;
+    bool protected_collision = false;
     for (auto curr_preset : presets) {
         new_presets.push_back(*curr_preset);
         auto &preset = new_presets.back();
@@ -2371,6 +2374,7 @@ bool PresetCollection::clone_presets(std::vector<Preset const *> const &presets,
         preset.renamed_from.clear();
         preset.m_excluded_from.clear();
         preset.setting_id.clear();
+        preset.bundle_id.clear();
         preset.inherits().clear();
         preset.is_default  = false;
         preset.is_system   = false;
@@ -2378,8 +2382,10 @@ bool PresetCollection::clone_presets(std::vector<Preset const *> const &presets,
         preset.is_visible = true;
         preset.is_project_embedded = false;
         modifier(preset, m_type);
-        if (find_preset(preset.name) && !force_rewritten) {
+        const auto* existing = find_preset(preset.name);
+        if (existing && (!force_rewritten || existing->is_from_bundle())) {
             failures.push_back(preset.name);
+            protected_collision = protected_collision || existing->is_from_bundle();
         }
         preset.file                = this->path_for_preset(preset);
         if (m_type == Preset::TYPE_PRINT)
@@ -2389,7 +2395,7 @@ bool PresetCollection::clone_presets(std::vector<Preset const *> const &presets,
         else if (m_type == Preset::TYPE_PRINTER)
             preset.config.option<ConfigOptionString>("printer_settings_id", true)->value = preset.name;
     }
-    if (!failures.empty() && !force_rewritten)
+    if (!failures.empty() && (!force_rewritten || protected_collision))
         return false;
     lock();
     auto old_name = this->get_edited_preset().name;
@@ -2480,7 +2486,7 @@ void PresetCollection::save_current_preset(const std::string &new_name, bool det
         // Preset with the same name found.
         Preset &preset = *it;
         //BBS: add project embedded preset logic
-        if (preset.is_default || preset.is_system) {
+        if (preset.is_default || preset.is_system || preset.is_from_bundle()) {
         //if (preset.is_default || preset.is_external || preset.is_system)
             // Cannot overwrite the default preset.
             //BBS: add lock logic for sync preset in background
@@ -2532,9 +2538,10 @@ void PresetCollection::save_current_preset(const std::string &new_name, bool det
         	// Clear the link to the parent profile.
         	inherits.clear();
             BOOST_LOG_TRIVIAL(warning) << __FUNCTION__ << boost::format(": save preset %1% , with detach")%new_name;
-        } else if (is_base_preset(preset)) {
+        } else if (preset.is_from_bundle() || is_base_preset(preset)) {
             inherits = old_name;
         }
+        preset.bundle_id.clear();
         // Orca: check if compatible_printers exists and is not empty, set it to the current printer if it is empty
         if (nullptr != _current_printer && preset.is_system && m_type == Preset::TYPE_FILAMENT) {
             ConfigOptionStrings* compatible_printers = preset.config.option<ConfigOptionStrings>("compatible_printers");
@@ -2588,7 +2595,7 @@ void PresetCollection::save_current_preset(const std::string &new_name, bool det
 bool PresetCollection::delete_current_preset()
 {
     Preset &selected = this->get_selected_preset();
-    if (selected.is_default)
+    if (selected.is_default || selected.is_from_bundle())
         return false;
 
     if (get_preset_base(selected) == &selected) {
@@ -2622,9 +2629,11 @@ bool PresetCollection::delete_current_preset()
 bool PresetCollection::delete_preset(const std::string& name)
 {
     auto it = this->find_preset_internal(name);
+    if (it == m_presets.end() || it->name != name)
+        return false;
 
     Preset& preset = *it;
-    if (preset.is_default)
+    if (preset.is_default || preset.is_from_bundle())
         return false;
     //BBS: add project embedded preset logic and refine is_external
     //if (!preset.is_external && !preset.is_system) {

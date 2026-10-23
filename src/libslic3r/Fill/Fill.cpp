@@ -1203,6 +1203,8 @@ void Layer::make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive:
         f->z 		= this->print_z;
         f->angle 	= surface_fill.params.angle;
         f->is_using_template_angle = surface_fill.params.is_using_template_angle;
+        const auto& contour_config = m_regions[surface_fill.region_id]->region().config();
+        f->dont_alternate_fill_direction = contour_config.zaa_enabled && contour_config.zaa_dont_alternate_fill_direction;
         f->adapt_fill_octree   = (surface_fill.params.pattern == ipSupportCubic) ? support_fill_octree : adaptive_fill_octree;
         f->print_config        = &this->object()->print()->config();
         f->print_object_config = &this->object()->config();
@@ -1395,6 +1397,8 @@ Polylines Layer::generate_sparse_infill_polylines_for_anchoring(FillAdaptive::Oc
         f->z        = this->print_z;
         f->angle    = surface_fill.params.angle;
         f->is_using_template_angle = surface_fill.params.is_using_template_angle;
+        const auto& contour_config = m_regions[surface_fill.region_id]->region().config();
+        f->dont_alternate_fill_direction = contour_config.zaa_enabled && contour_config.zaa_dont_alternate_fill_direction;
         f->adapt_fill_octree   = (surface_fill.params.pattern == ipSupportCubic) ? support_fill_octree : adaptive_fill_octree;
         f->print_config        = &this->object()->print()->config();
         f->print_object_config = &this->object()->config();
@@ -1646,6 +1650,8 @@ void Layer::make_ironing()
         // Create the filler object.
         f->spacing = ironing_params.line_spacing;
         f->angle = float(ironing_params.angle);
+        const auto& contour_config = ironing_params.layerm->region().config();
+        f->dont_alternate_fill_direction = contour_config.zaa_enabled && contour_config.zaa_dont_alternate_fill_direction;
         f->link_max_length = (coord_t) scale_(3. * f->spacing);
 		double  extrusion_height = ironing_params.height * f->spacing / nozzle_dmr;
 		float  extrusion_width  = Flow::rounded_rectangle_extrusion_width_from_spacing(float(nozzle_dmr), float(extrusion_height));

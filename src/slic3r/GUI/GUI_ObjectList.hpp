@@ -412,6 +412,7 @@ public:
 
     ModelVolume* get_selected_model_volume();
     void change_part_type();
+    void set_volume_type(ModelVolumeType new_type);
 
     void last_volume_is_deleted(const int obj_idx);
     void update_and_show_object_settings_item();

@@ -541,13 +541,16 @@ void ObjectDataViewModel::UpdateBitmapForNode(ObjectDataViewModelNode *node)
 {
     bool is_volume_node = node->GetType() & itVolume;
     int  vol_type       = static_cast<int>(node->GetVolumeType());
-    is_volume_node &= (vol_type >= int(ModelVolumeType::MODEL_PART) && vol_type <= int(ModelVolumeType::SUPPORT_ENFORCER));
+    is_volume_node &= (vol_type >= 0 && size_t(vol_type) < m_volume_bmps.size());
+    // Emboss icons only exist for Part / Negative / Modifier. Imported auxiliary
+    // volumes may still carry emboss metadata, so fall back to their volume icon.
+    const wxBitmap& volume_bitmap = !is_volume_node ? m_empty_bmp :
+        node->is_text_volume() && size_t(vol_type) < m_text_volume_bmps.size() ? m_text_volume_bmps[vol_type] :
+        node->is_svg_volume() && size_t(vol_type) < m_svg_volume_bmps.size() ? m_svg_volume_bmps[vol_type] :
+        m_volume_bmps[vol_type];
 
     if (!node->has_warning_icon() && !node->has_lock()) {
-        node->SetBitmap(is_volume_node ? (
-            node->is_text_volume() ? m_text_volume_bmps.at(vol_type) : 
-            node->is_svg_volume() ? m_svg_volume_bmps.at(vol_type) : 
-            m_volume_bmps.at(vol_type)) : m_empty_bmp);
+        node->SetBitmap(volume_bitmap);
         return;
     }
 
@@ -558,6 +561,10 @@ void ObjectDataViewModel::UpdateBitmapForNode(ObjectDataViewModelNode *node)
         scaled_bitmap_name += LockIcon;
     if (is_volume_node)
         scaled_bitmap_name += std::to_string(vol_type);
+    if (node->is_text_volume())
+        scaled_bitmap_name += "-text";
+    else if (node->is_svg_volume())
+        scaled_bitmap_name += "-svg";
     scaled_bitmap_name += (wxGetApp().dark_mode() ? "-dm" : "-lm");
 
     if (!m_bitmap_cache)
@@ -576,10 +583,7 @@ void ObjectDataViewModel::UpdateBitmapForNode(ObjectDataViewModelNode *node)
         if (is_volume_node) {
             if (!bmps.empty()) // ORCA: Add spacing between icons if there are multiple
                 bmps.emplace_back(create_scaled_bitmap("dot", nullptr, int(wxGetApp().em_unit() / 10) * 4));
-            bmps.emplace_back(
-                node->is_text_volume() ? m_text_volume_bmps[vol_type] :
-                node->is_svg_volume() ? m_svg_volume_bmps[vol_type] : 
-                m_volume_bmps[vol_type]);
+            bmps.emplace_back(volume_bitmap);
         }
         bmp = m_bitmap_cache->insert(scaled_bitmap_name, bmps);
     }
@@ -2236,7 +2240,7 @@ void ObjectDataViewModel::SetVolumeType(const wxDataViewItem &item, const Slic3r
 
     ObjectDataViewModelNode *node = static_cast<ObjectDataViewModelNode*>(item.GetID());
     node->SetVolumeType(volume_type);
-    node->SetBitmap(m_volume_bmps[int(volume_type)]);
+    UpdateBitmapForNode(node);
     if (volume_type != Slic3r::ModelVolumeType::MODEL_PART && volume_type != Slic3r::ModelVolumeType::PARAMETER_MODIFIER)
         node->SetExtruder("");          // hide extruder
     else if (node->GetExtruder().IsEmpty())

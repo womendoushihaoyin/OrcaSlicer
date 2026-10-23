@@ -1,6 +1,11 @@
 @REM Snapmaker_Orca build script for Windows
 @echo off
 set WP=%CD%
+if not defined ORCA_PYTHON_PLUGINS set "ORCA_PYTHON_PLUGINS=OFF"
+if /I not "%ORCA_PYTHON_PLUGINS%"=="ON" if /I not "%ORCA_PYTHON_PLUGINS%"=="OFF" (
+    echo ORCA_PYTHON_PLUGINS must be ON or OFF.
+    exit /b 1
+)
 
 @REM Pack deps
 if "%1"=="pack" (
@@ -70,14 +75,37 @@ cd %WP%
 mkdir %build_dir%
 cd %build_dir%
 
+set "PLUGIN_CMAKE_ARGS=-DORCA_PYTHON_PLUGINS=OFF -DORCA_LOCAL_PLUGIN_SPIKE=OFF"
+if /I "%ORCA_PYTHON_PLUGINS%"=="ON" (
+    if not defined ORCA_PLUGIN_PYTHON_ROOT echo Set ORCA_PLUGIN_PYTHON_ROOT to CPython 3.12.13.
+    if not defined ORCA_PLUGIN_PYTHON_ROOT exit /b 1
+    if not defined ORCA_PLUGIN_UV_EXECUTABLE echo Set ORCA_PLUGIN_UV_EXECUTABLE to uv 0.11.16.
+    if not defined ORCA_PLUGIN_UV_EXECUTABLE exit /b 1
+    python "%WP%\scripts\packaging\integrate_plugin_runtime.py" prepare --platform windows --architecture x86_64 --python-root "%ORCA_PLUGIN_PYTHON_ROOT%" --uv "%ORCA_PLUGIN_UV_EXECUTABLE%" --work-dir "%CD%\plugin-release"
+    if errorlevel 1 exit /b 1
+    set PLUGIN_CMAKE_ARGS=-C "%CD%\plugin-release\plugin-options.cmake"
+)
+
 python ..\scripts\packaging\stage_connect_bundle.py --lock ..\.github\connect-bundle.lock.json --platform windows-x64 --resources-dir ..\resources
 if errorlevel 1 exit /b 1
 
 echo on
-cmake .. -G "Visual Studio 17 2022" -A x64 -DBBL_RELEASE_TO_PUBLIC=1 -DORCA_TOOLS=ON %SIG_FLAG% -DCMAKE_PREFIX_PATH="%DEPS%/usr/local" -DOPENSSL_ROOT_DIR="%DEPS%/usr/local" -DCMAKE_INSTALL_PREFIX="./Snapmaker_Orca" -DCMAKE_BUILD_TYPE=%build_type% -DWIN10SDK_PATH="%WindowsSdkDir%Include\%WindowsSDKVersion%\"
+cmake .. -G "Visual Studio 17 2022" -A x64 -DBBL_RELEASE_TO_PUBLIC=1 -DORCA_TOOLS=ON %PLUGIN_CMAKE_ARGS% %SIG_FLAG% -DCMAKE_PREFIX_PATH="%DEPS%/usr/local" -DOPENSSL_ROOT_DIR="%DEPS%/usr/local" -DCMAKE_INSTALL_PREFIX="./Snapmaker_Orca" -DCMAKE_BUILD_TYPE=%build_type% -DWIN10SDK_PATH="%WindowsSdkDir%Include\%WindowsSDKVersion%\"
+if errorlevel 1 exit /b 1
 cmake --build . --config %build_type% --target ALL_BUILD -- -m
+if errorlevel 1 exit /b 1
 @echo off
 cd ..
 call scripts/run_gettext.bat
 cd %build_dir%
 cmake --build . --target install --config %build_type%
+if errorlevel 1 exit /b 1
+if /I "%ORCA_PYTHON_PLUGINS%"=="ON" (
+    python "%WP%\scripts\packaging\integrate_plugin_runtime.py" deploy --work-dir "%CD%\plugin-release" --app-dir "%CD%\Snapmaker_Orca" --host Snapmaker_Orca.dll --host snapmaker-orca.exe --cache "%CD%\CMakeCache.txt" --cpack-config "%CD%\CPackConfig.cmake"
+    if errorlevel 1 exit /b 1
+) else (
+    if exist "Snapmaker_Orca\plugin-runtime.json" (
+        echo Stale plugin runtime in install tree; remove the build\Snapmaker_Orca directory and rerun the OFF build.
+        exit /b 1
+    )
+)

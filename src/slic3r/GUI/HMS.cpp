@@ -43,6 +43,8 @@ int get_hms_info_version(std::string& version)
 
 int HMSQuery::download_hms_related(std::string hms_type, json* receive_json)
 {
+    if (m_stopping.load())
+        return -1;
     std::string local_version = "0";
     load_from_local(local_version, hms_type, receive_json);
     AppConfig* config = wxGetApp().app_config;
@@ -61,7 +63,10 @@ int HMSQuery::download_hms_related(std::string hms_type, json* receive_json)
 
     BOOST_LOG_TRIVIAL(info) << "hms: download url = " << url;
     Slic3r::Http http = Slic3r::Http::get(url);
-    http.on_complete([this, receive_json, hms_type](std::string body, unsigned status) {
+    http.on_progress([this](Http::Progress, bool& cancel) { cancel = m_stopping.load(); })
+        .on_complete([this, receive_json, hms_type](std::string body, unsigned status) {
+        if (m_stopping.load())
+            return;
         try {
             json j = json::parse(body);
             if (j.contains("result")) {
@@ -326,14 +331,28 @@ wxString HMSQuery::query_print_error_url_action(int print_error, std::string dev
     return _query_error_url_action(std::string(buf), dev_id, button_action);
 }
 
+HMSQuery::~HMSQuery() { shutdown(); }
+
+void HMSQuery::shutdown()
+{
+    m_stopping.store(true);
+    for (auto& worker : m_check_threads)
+        if (worker.joinable())
+            worker.join();
+    m_check_threads.clear();
+}
 
 int HMSQuery::check_hms_info()
 {
-    boost::thread check_thread = boost::thread([this] {
-
-        download_hms_related(QUERY_HMS_INFO, &m_hms_info_json);
-        download_hms_related(QUERY_HMS_ACTION, &m_hms_action_json);
-        return 0;
+    if (m_stopping.load())
+        return -1;
+    m_check_threads.emplace_back([this] {
+        try {
+            download_hms_related(QUERY_HMS_INFO, &m_hms_info_json);
+            download_hms_related(QUERY_HMS_ACTION, &m_hms_action_json);
+        } catch (const std::exception& error) {
+            BOOST_LOG_TRIVIAL(error) << "HMS update failed: " << error.what();
+        }
     });
     return 0;
 }

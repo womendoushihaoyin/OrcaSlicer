@@ -1,4 +1,8 @@
 #include "PostProcessor.hpp"
+#include "PluginPostProcess.hpp"
+#include <boost/nowide/cstdio.hpp>
+#include <cerrno>
+#include <system_error>
 
 #include "libslic3r/Utils.hpp"
 #include "libslic3r/format.hpp"
@@ -225,154 +229,104 @@ void gcode_add_line_number(const std::string& path, const DynamicPrintConfig& co
     fs.close();
 }
 
-// Run post processing script / scripts if defined.
-// Returns true if a post-processing script was executed.
-// Returns false if no post-processing script was defined.
-// Throws an exception on error.
-// host is one of "File", "PrusaLink", "Repetier", "SL1Host", "OctoPrint", "FlashAir", "Duet", "AstroBox" ...
-// For a "File" target, a temp file will be created for src_path by adding a ".pp" suffix and src_path will be updated.
-// In that case the caller is responsible to delete the temp file created.
-// output_name is the final name of the G-code on SD card or when uploaded to PrusaLink or OctoPrint.
-// If uploading to PrusaLink or OctoPrint, then the file will be renamed to output_name first on the target host.
-// The post-processing script may change the output_name.
+// Classic scripts run before the selected slicing plugins' final G-code seam.
+// Plugin jobs always use a working copy. On success, make_copy=false commits it
+// over the input without changing its path (also required by the upload caller).
 bool run_post_process_scripts(std::string &src_path, bool make_copy, const std::string &host, std::string &output_name, const DynamicPrintConfig &config)
 {
-    const auto *post_process = config.opt<ConfigOptionStrings>("post_process");
-    if (// likely running in SLA mode
-        post_process == nullptr || 
-        // no post-processing script
-        post_process->values.empty())
-        return false;
+    namespace fs = boost::filesystem;
+    const auto* scripts = config.opt<ConfigOptionStrings>("post_process");
+    const auto* plugins = config.opt<ConfigOptionStrings>("slicing_pipeline_plugin");
+    const bool have_scripts = scripts && !scripts->values.empty();
+    const bool have_plugins = plugins && !plugins->values.empty();
+    if (!have_scripts && !have_plugins) return false;
 
-    std::string path;
-    if (make_copy) {
-        // Don't run the post-processing script on the input file, it will be memory mapped by the G-code viewer.
-        // Make a copy.
-        path = src_path + ".pp";
-        // First delete an old file if it exists.
-        try {
-            if (boost::filesystem::exists(path))
-                boost::filesystem::remove(path);
-        } catch (const std::exception &err) {
-            BOOST_LOG_TRIVIAL(error) << Slic3r::format("Failed deleting an old temporary file %1% before running a post-processing script: %2%", path, err.what());
-        }
-        // Second make a copy.
-        std::string error_message;
-        if (copy_file(src_path, path, error_message, false) != SUCCESS)
-            throw Slic3r::RuntimeError(Slic3r::format("Failed making a temporary copy of G-code file %1% before running a post-processing script: %2%", src_path, error_message));
-    } else {
-        // Don't make a copy of the G-code before running the post-processing script.
-        path = src_path;
-    }
-
-    auto delete_copy = [&path, &src_path, make_copy]() {
-        if (make_copy)
-            try {
-                if (boost::filesystem::exists(path))
-                    boost::filesystem::remove(path);
-            } catch (const std::exception &err) {
-                BOOST_LOG_TRIVIAL(error) << Slic3r::format("Failed deleting a temporary copy %1% of a G-code file %2% : %3%", path, src_path, err.what());
-            }
+    // Preflight the complete selection and hold its runtime leases through scripts,
+    // callbacks and commit. A missing runtime never silently exports different data.
+    GCodePluginLease dispatch(config);
+    if (have_plugins && !dispatch) throw RuntimeError("G-code plugin runtime is unavailable");
+    const std::string original = src_path;
+    std::string candidate_name = output_name;
+    const bool working_copy = make_copy || have_plugins;
+    const std::string path = have_plugins ? fs::unique_path(original + ".%%%%-%%%%-%%%%.pp").string() :
+                             make_copy ? original + ".pp" : original;
+    const std::string name_file = path + ".output_name";
+    auto remove_file = [](const std::string& file) {
+        boost::system::error_code ec;
+        fs::remove(file, ec);
+        if (ec) BOOST_LOG_TRIVIAL(warning) << "Post-processing temporary file cleanup failed: " << file << ": " << ec.message();
     };
-
-    auto gcode_file = boost::filesystem::path(path);
-    if (! boost::filesystem::exists(gcode_file))
-        throw Slic3r::RuntimeError(std::string("Post-processor can't find exported gcode file"));
-
-    // Store print configuration into environment variables.
-    config.setenv_();
-    // Let the post-processing script know the target host ("File", "PrusaLink", "Repetier", "SL1Host", "OctoPrint", "FlashAir", "Duet", "AstroBox" ...)
-    boost::nowide::setenv("SLIC3R_PP_HOST", host.c_str(), 1);
-    // Let the post-processing script know the final file name. For "File" host, it is a full path of the target file name and its location, for example pointing to an SD card.
-    // For "PrusaLink" or "OctoPrint", it is a file name optionally with a directory on the target host.
-    boost::nowide::setenv("SLIC3R_PP_OUTPUT_NAME", output_name.c_str(), 1);
-
-    // Path to an optional file that the post-processing script may create and populate it with a single line containing the output_name replacement.
-    std::string path_output_name = path + ".output_name";
-    auto remove_output_name_file = [&path_output_name, &src_path]() {
-        try {
-            if (boost::filesystem::exists(path_output_name))
-                boost::filesystem::remove(path_output_name);
-        } catch (const std::exception &err) {
-            BOOST_LOG_TRIVIAL(error) << Slic3r::format("Failed deleting a file %1% carrying the final name / path of a G-code file %2%: %3%", path_output_name, src_path, err.what());
+    auto read_output_name = [&] {
+        if (!fs::exists(name_file)) return;
+        boost::nowide::ifstream input(name_file);
+        std::string name;
+        if (!std::getline(input, name) || name.empty()) throw RuntimeError("Unable to read desired new path from output name file");
+        input.close();
+        if (host == "File") {
+            fs::path target(name);
+            if (target.is_relative() && target.has_filename() && target.parent_path().empty())
+                target = fs::path(candidate_name).parent_path() / target;
+            if (!target.is_absolute() || !target.has_filename()) throw RuntimeError("Unable to parse desired new path from output name file");
+            if (!fs::is_directory(target.parent_path())) throw RuntimeError("Output directory does not exist: " + target.parent_path().string());
+            name = target.string();
         }
+        candidate_name = std::move(name);
+        remove_file(name_file);
     };
-    // Remove possible stalled path_output_name of the previous run.
-    remove_output_name_file();
-
     try {
-        for (const std::string &scripts : post_process->values) {
-    		std::vector<std::string> lines;
-    		boost::split(lines, scripts, boost::is_any_of("\r\n"));
-            for (std::string script : lines) {
-                // Ignore empty post processing script lines.
+        if (!fs::is_regular_file(original)) throw RuntimeError("Post-processor can't find exported gcode file");
+        if (working_copy) {
+            remove_file(path);
+            std::string error;
+            if (copy_file(original, path, error, false) != SUCCESS)
+                throw RuntimeError("Failed making a temporary copy of G-code file: " + error);
+        }
+        remove_file(name_file);
+        config.setenv_();
+        boost::nowide::setenv("SLIC3R_PP_HOST", host.c_str(), 1);
+        boost::nowide::setenv("SLIC3R_PP_OUTPUT_NAME", candidate_name.c_str(), 1);
+        if (have_scripts) for (const auto& script_list : scripts->values) {
+            std::vector<std::string> lines;
+            boost::split(lines, script_list, boost::is_any_of("\r\n"));
+            for (auto script : lines) {
                 boost::trim(script);
-                if (script.empty())
-                    continue;
-                BOOST_LOG_TRIVIAL(info) << "Executing script " << script << " on file " << path;
-                std::string std_err;
-                const int result = run_script(script, gcode_file.string(), std_err);
-                if (result != 0) {
-                    const std::string msg = std_err.empty() ? (boost::format("Post-processing script %1% on file %2% failed.\nError code: %3%") % script % path % result).str()
-                        : (boost::format("Post-processing script %1% on file %2% failed.\nError code: %3%\nOutput:\n%4%") % script % path % result % std_err).str();
-                    BOOST_LOG_TRIVIAL(error) << msg;
-                    delete_copy();
-                    throw Slic3r::RuntimeError(msg);
-                }
-                if (! boost::filesystem::exists(gcode_file)) {
-                    const std::string msg = (boost::format(_(L(
-                        "Post-processing script %1% failed.\n\n"
-                        "The post-processing script is expected to change the G-code file %2% in place, but the G-code file was deleted and likely saved under a new name.\n"
-                        "Please adjust the post-processing script to change the G-code in place and consult the manual on how to optionally rename the post-processed G-code file.\n")))
-                        % script % path).str();
-                    BOOST_LOG_TRIVIAL(error) << msg;
-                    throw Slic3r::RuntimeError(msg);
-                }
+                if (script.empty()) continue;
+                std::string stderr_text;
+                const int result = run_script(script, path, stderr_text);
+                if (result != 0)
+                    throw RuntimeError(Slic3r::format("Post-processing script %1% failed. Error code: %2%\n%3%", script, result, stderr_text));
+                if (!fs::is_regular_file(path)) throw RuntimeError("Post-processing script deleted the G-code working file");
             }
         }
-        if (boost::filesystem::exists(path_output_name)) {
-            try {
-                // Read a single line from path_output_name, which should contain the new output name of the post-processed G-code.
-                boost::nowide::fstream f;
-                f.open(path_output_name, std::ios::in);
-                std::string new_output_name;
-                std::getline(f, new_output_name);
-                f.close();
-
-                if (host == "File") {
-                    namespace fs = boost::filesystem;
-                    fs::path op(new_output_name);
-                    if (op.is_relative() && op.has_filename() && op.parent_path().empty()) {
-                        // Is this just a filename? Make it an absolute path.
-                        auto outpath = fs::path(output_name).parent_path();
-                        outpath /= op.string();
-                        new_output_name = outpath.string();
-                    }
-                    else {
-                        if (! op.is_absolute() || ! op.has_filename())
-                            throw Slic3r::RuntimeError("Unable to parse desired new path from output name file");
-                    }
-                    if (! fs::exists(fs::path(new_output_name).parent_path()))
-                        throw Slic3r::RuntimeError(Slic3r::format("Output directory does not exist: %1%",
-                                                                  fs::path(new_output_name).parent_path().string()));
-                }
-
-                BOOST_LOG_TRIVIAL(trace) << "Post-processing script changed the file name from " << output_name << " to " << new_output_name;
-                output_name = new_output_name;
-            } catch (const std::exception &err) {
-                throw Slic3r::RuntimeError(Slic3r::format("run_post_process_scripts: Failed reading a file %1% "
-                                                          "carrying the final name / path of a G-code file: %2%",
-                                                          path_output_name, err.what()));
-            }
-            remove_output_name_file();
+        read_output_name();
+        if (have_plugins) {
+            boost::nowide::setenv("SLIC3R_PP_OUTPUT_NAME", candidate_name.c_str(), 1);
+            dispatch(path, host, candidate_name);
+        }
+        // The fixed upstream plugin contract exposes a read-only output_name;
+        // only classic scripts rename it. Do not leave an unsupported sidecar behind.
+        remove_file(name_file);
+        if (have_plugins && !make_copy) {
+            // Do not use rename_file(): its POSIX implementation deletes the old
+            // destination first, losing the original if the subsequent rename fails.
+#ifdef _WIN32
+            if (!MoveFileExW(boost::nowide::widen(path).c_str(), boost::nowide::widen(original).c_str(),
+                             MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
+                throw RuntimeError("Failed committing post-processed G-code: " + std::system_category().message(GetLastError()));
+#else
+            if (boost::nowide::rename(path.c_str(), original.c_str()) != 0)
+                throw RuntimeError("Failed committing post-processed G-code: " + std::generic_category().message(errno));
+#endif
         }
     } catch (...) {
-        remove_output_name_file();
-        delete_copy();
+        remove_file(name_file);
+        if (working_copy) remove_file(path);
         throw;
     }
-
-    src_path = std::move(path);
+    // Delay caller-visible changes until success. src_path and output_name may
+    // alias in BackgroundSlicingProcess's BBL path; its source path must win.
+    output_name = std::move(candidate_name);
+    src_path = make_copy ? path : original;
     return true;
 }
 

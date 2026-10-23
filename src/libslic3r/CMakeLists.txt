@@ -230,6 +230,9 @@ set(lisbslic3r_sources
     GCodeReader.hpp
     GCode/RetractWhenCrossingPerimeters.cpp
     GCode/RetractWhenCrossingPerimeters.hpp
+    GCode/PreciseSeam.cpp
+    GCode/PreciseSeam.hpp
+    GCode/PreciseSeamInternal.hpp
     GCode/SeamPlacer.cpp
     GCode/SeamPlacer.hpp
     #GCodeSender.cpp
@@ -342,6 +345,7 @@ set(lisbslic3r_sources
     PolygonTrimmer.hpp
     Polyline.cpp
     Polyline.hpp
+    PresetBundleLocal.cpp
     PresetBundle.cpp
     PresetBundle.hpp
     Preset.cpp
@@ -355,6 +359,7 @@ set(lisbslic3r_sources
     PrintBase.hpp
     PrintConfig.cpp
     PrintConfig.hpp
+    ContourZ.cpp
     Print.cpp
     Print.hpp
     PrintObject.cpp
@@ -452,6 +457,10 @@ set(lisbslic3r_sources
     Time.hpp
     Timer.cpp
     Timer.hpp
+    TextureDisplacementLayers.cpp
+    TextureDisplacementLayers.hpp
+    TextureDisplacementUV.cpp
+    TextureDisplacementUV.hpp
     TriangleMesh.cpp
     TriangleMesh.hpp
     TriangleMeshSlicer.cpp

@@ -1,3 +1,6 @@
+#include "LifecycleEvents.hpp"
+#include "LifecycleOperation.hpp"
+#include "SlicingPipeline.hpp"
 #include "Config.hpp"
 #include "Exception.hpp"
 #include "Print.hpp"
@@ -527,6 +530,16 @@ static float effective_max_wipe_tower_volume(const PrintConfig& config)
 // ORCA: Now this is a parameter
 //float Print::min_skirt_length = 0;
 
+void Print::invalidate_plugin_state()
+{
+    std::scoped_lock<std::mutex> lock(this->state_mutex());
+    // A plugin may be running before the first milestone was marked started.
+    this->call_cancel_callback();
+    for (PrintObject* object : m_objects)
+        object->invalidate_all_steps();
+    this->invalidate_all_steps();
+}
+
 void Print::clear()
 {
 	std::scoped_lock<std::mutex> lock(this->state_mutex());
@@ -856,6 +869,11 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver & /* n
             osteps.emplace_back(posSimplifyInfill);
             osteps.emplace_back(posSimplifySupportPath);
             steps.emplace_back(psSkirtBrim);
+        }
+        else if (opt_key == "slicing_pipeline_plugin" || opt_key == "plugins" || opt_key == "print_plugin_config_overrides") {
+            // Changing a selected capability or its settings changes the geometry, not only G-code.
+            osteps.emplace_back(posSlice);
+            invalidated |= this->invalidate_all_steps();
         }
         else if (opt_key == "z_hop_types") {
             osteps.emplace_back(posDetectOverhangsForLift);
@@ -2408,12 +2426,49 @@ void Print::process(long long *time_cost_with_cache, bool use_cache)
     if (time_cost_with_cache)
         *time_cost_with_cache = 0;
 
+    SlicingPipelineLease pipeline(*this);
+    if (!pipeline && !m_config.slicing_pipeline_plugin.values.empty())
+        throw SlicingError("This print requires slicing plugins, but the plugin runtime is unavailable. Enable the runtime or clear the preset's slicing plugins.");
+    if (m_plugin_pipeline_signature != pipeline.signature()) {
+        // A reload or global capability configuration edit does not necessarily
+        // change PrintConfig. Rebuild geometry on the next pass nonetheless.
+        std::lock_guard<std::mutex> state_lock(this->state_mutex());
+        for (PrintObject* item : m_objects) item->invalidate_all_steps_without_cancel();
+        this->invalidate_all_steps_without_cancel();
+        m_plugin_pipeline_signature = pipeline.signature();
+    }
+    auto run_pipeline_hook = [&](SlicingPipelineStepPlugin step, const PrintObject* object) {
+        if (!pipeline) return;
+        try {
+            throw_if_canceled();
+            pipeline(*this, object, step);
+            throw_if_canceled();
+        } catch (...) {
+            // A callback may have mutated live data after set_done(). Never let a
+            // retry/export reuse a partially changed graph. No parallel stage is
+            // active at these seams; invalidate without cancelling our own worker.
+            std::lock_guard<std::mutex> state_lock(this->state_mutex());
+            for (PrintObject* item : m_objects) item->invalidate_all_steps_without_cancel();
+            this->invalidate_all_steps_without_cancel();
+            throw;
+        }
+    };
+    auto hook_after = [&](PrintObject* object, bool was_done, PrintObjectStep step, SlicingPipelineStepPlugin plugin_step) {
+        if (pipeline && !was_done && object->is_step_done(step)) run_pipeline_hook(plugin_step, object);
+    };
+
     name_tbb_thread_pool_threads_set_locale();
 
     //compute the PrintObject with the same geometries
     BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(": this=%1%, enter, use_cache=%2%, object size=%3%")%this%use_cache%m_objects.size();
     if (m_objects.empty())
         return;
+
+    LifecycleEventContext lifecycle;
+    lifecycle.id = std::to_string(m_model.id().id);
+    lifecycle.name = get_model_name();
+    lifecycle.cancellation_check = [this] { return canceled(); };
+    fire_lifecycle_event(LifecycleEvent::SliceStarted, lifecycle);
 
     for (PrintObject *obj : m_objects)
         obj->clear_shared_object();
@@ -2465,6 +2520,16 @@ void Print::process(long long *time_cost_with_cache, bool use_cache)
     int object_count = m_objects.size();
     std::set<PrintObject*> need_slicing_objects;
     std::set<PrintObject*> re_slicing_objects;
+    // Legacy disk caches contain neither plugin execution identity nor contour
+    // XYZ offsets. Recompute rather than silently reuse incomplete geometry.
+    if (use_cache && (pipeline || std::any_of(m_objects.begin(), m_objects.end(), [](const PrintObject* object) {
+            return object->need_z_contouring();
+        }))) {
+        use_cache = false;
+        std::lock_guard<std::mutex> state_lock(this->state_mutex());
+        for (PrintObject* item : m_objects) item->invalidate_all_steps_without_cancel();
+        this->invalidate_all_steps_without_cancel();
+    }
     if (!use_cache) {
         for (int index = 0; index < object_count; index++)
         {
@@ -2515,9 +2580,23 @@ void Print::process(long long *time_cost_with_cache, bool use_cache)
     BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(": total object counts %1% in current print, need to slice %2%")%m_objects.size()%need_slicing_objects.size();
     BOOST_LOG_TRIVIAL(info) << "Starting the slicing process." << log_memory_info();
     if (!use_cache) {
+        // Separate the slice boundary only while a dispatcher is attached. The
+        // inactive path retains release_2.4.1's original ordering.
+        if (pipeline) {
+            for (PrintObject* obj : m_objects) {
+                if (need_slicing_objects.count(obj) == 0) continue;
+                const bool was_done = obj->is_step_done(posSlice);
+                obj->slice();
+                hook_after(obj, was_done, posSlice, SlicingPipelineStepPlugin::posSlice);
+                if (!was_done && obj->is_step_done(posSlice))
+                    for (Layer* layer : obj->layers()) layer->backup_untyped_slices();
+            }
+        }
         for (PrintObject *obj : m_objects) {
             if (need_slicing_objects.count(obj) != 0) {
+                const bool was_done = obj->is_step_done(posPerimeters);
                 obj->make_perimeters();
+                hook_after(obj, was_done, posPerimeters, SlicingPipelineStepPlugin::posPerimeters);
             }
             else {
                 if (obj->set_started(posSlice))
@@ -2528,7 +2607,9 @@ void Print::process(long long *time_cost_with_cache, bool use_cache)
         }
         for (PrintObject *obj : m_objects) {
             if (need_slicing_objects.count(obj) != 0) {
+                const bool was_done = obj->is_step_done(posEstimateCurledExtrusions);
                 obj->estimate_curled_extrusions();
+                hook_after(obj, was_done, posEstimateCurledExtrusions, SlicingPipelineStepPlugin::posEstimateCurledExtrusions);
             }
             else {
                 if (obj->set_started(posEstimateCurledExtrusions))
@@ -2537,7 +2618,14 @@ void Print::process(long long *time_cost_with_cache, bool use_cache)
         }
         for (PrintObject *obj : m_objects) {
             if (need_slicing_objects.count(obj) != 0) {
+                if (pipeline) {
+                    const bool prepare_was_done = obj->is_step_done(posPrepareInfill);
+                    obj->prepare_infill();
+                    hook_after(obj, prepare_was_done, posPrepareInfill, SlicingPipelineStepPlugin::posPrepareInfill);
+                }
+                const bool was_done = obj->is_step_done(posInfill);
                 obj->infill();
+                hook_after(obj, was_done, posInfill, SlicingPipelineStepPlugin::posInfill);
             }
             else {
                 if (obj->set_started(posPrepareInfill))
@@ -2548,13 +2636,30 @@ void Print::process(long long *time_cost_with_cache, bool use_cache)
         }
         for (PrintObject *obj : m_objects) {
             if (need_slicing_objects.count(obj) != 0) {
+                const bool was_done = obj->is_step_done(posIroning);
                 obj->ironing();
+                hook_after(obj, was_done, posIroning, SlicingPipelineStepPlugin::posIroning);
             }
             else {
                 if (obj->set_started(posIroning))
                     obj->set_done(posIroning);
             }
         }
+
+        for (PrintObject* obj : m_objects) {
+            if (need_slicing_objects.count(obj) != 0 && obj->need_z_contouring()) {
+                const bool was_done = obj->is_step_done(posContouring);
+                obj->contour_z();
+                hook_after(obj, was_done, posContouring, SlicingPipelineStepPlugin::posContouring);
+            } else if (obj->set_started(posContouring)) {
+                obj->set_done(posContouring);
+            }
+        }
+
+        std::vector<char> support_was_done(m_objects.size(), 1);
+        if (pipeline)
+            for (size_t i = 0; i < m_objects.size(); ++i)
+                support_was_done[i] = m_objects[i]->is_step_done(posSupportMaterial);
 
         tbb::parallel_for(tbb::blocked_range<int>(0, int(m_objects.size())),
             [this, need_slicing_objects](const tbb::blocked_range<int>& range) {
@@ -2571,9 +2676,17 @@ void Print::process(long long *time_cost_with_cache, bool use_cache)
             }
         );
 
+        // Python must run serially after native support workers have joined.
+        if (pipeline)
+            for (size_t i = 0; i < m_objects.size(); ++i)
+                if (need_slicing_objects.count(m_objects[i]) != 0)
+                    hook_after(m_objects[i], support_was_done[i], posSupportMaterial, SlicingPipelineStepPlugin::posSupportMaterial);
+
         for (PrintObject* obj : m_objects) {
             if (need_slicing_objects.count(obj) != 0) {
+                const bool was_done = obj->is_step_done(posDetectOverhangsForLift);
                 obj->detect_overhangs_for_lift();
+                hook_after(obj, was_done, posDetectOverhangsForLift, SlicingPipelineStepPlugin::posDetectOverhangsForLift);
             }
             else {
                 if (obj->set_started(posDetectOverhangsForLift))
@@ -2630,6 +2743,7 @@ void Print::process(long long *time_cost_with_cache, bool use_cache)
                 throw Slic3r::SlicingError("The print is empty. The model is not printable with current print settings.");
         }
         this->set_done(psWipeTower);
+        run_pipeline_hook(SlicingPipelineStepPlugin::psWipeTower, nullptr);
     }
     if (this->has_wipe_tower()) {
         m_fake_wipe_tower.set_pos({ m_config.wipe_tower_x.get_at(m_plate_index), m_config.wipe_tower_y.get_at(m_plate_index) });
@@ -2715,6 +2829,7 @@ void Print::process(long long *time_cost_with_cache, bool use_cache)
 
         this->finalize_first_layer_convex_hull();
         this->set_done(psSkirtBrim);
+        run_pipeline_hook(SlicingPipelineStepPlugin::psSkirtBrim, nullptr);
 
         if (time_cost_with_cache) {
             end_time = (long long)Slic3r::Utils::get_current_time_utc();
@@ -2725,7 +2840,9 @@ void Print::process(long long *time_cost_with_cache, bool use_cache)
     for (PrintObject *obj : m_objects) {
         if (((!use_cache)&&(need_slicing_objects.count(obj) != 0))
             || (use_cache &&(re_slicing_objects.count(obj) != 0))){
+            const bool was_done = obj->is_step_done(posSimplifyPath);
             obj->simplify_extrusion_path();
+            if (!use_cache) hook_after(obj, was_done, posSimplifyPath, SlicingPipelineStepPlugin::posSimplifyPath);
         }
         else {
             if (obj->set_started(posSimplifyPath))
@@ -2767,6 +2884,7 @@ void Print::process(long long *time_cost_with_cache, bool use_cache)
     }
 
     BOOST_LOG_TRIVIAL(info) << "Slicing process finished." << log_memory_info();
+    fire_lifecycle_event(LifecycleEvent::SliceGeometryFinished, lifecycle);
 }
 
 // G-code export process, running at a background thread.
@@ -3562,6 +3680,12 @@ void Print::set_gcode_file_invalidated()
 //BBS: add gcode file preload logic
 void Print::export_gcode_from_previous_file(const std::string& file, GCodeProcessorResult* result, ThumbnailsGeneratorCallback thumbnail_cb)
 {
+    LifecycleEventContext lifecycle;
+    lifecycle.id = std::to_string(m_model.id().id);
+    lifecycle.name = get_model_name();
+    lifecycle.msg = file;
+    lifecycle.cancellation_check = [this] { return canceled(); };
+    LifecycleOperation lifecycle_operation(LifecycleEvent::GCodeExportStarted, LifecycleEvent::GCodeExportFinished, std::move(lifecycle));
     try {
         GCodeProcessor processor;
         GCodeProcessor::s_IsBBLPrinter = is_BBL_printer();
@@ -3578,6 +3702,7 @@ void Print::export_gcode_from_previous_file(const std::string& file, GCodeProces
     }
 
     BOOST_LOG_TRIVIAL(info) << __FUNCTION__ <<  boost::format(":  process the G-code file %1% successfully")%file.c_str();
+    lifecycle_operation.finish();
 }
 
 std::tuple<float, float> Print::object_skirt_offset(double margin_height) const
@@ -4453,6 +4578,11 @@ static void from_json(const json& j, groupedVolumeSlices& firstlayer_group)
 
 int Print::export_cached_data(const std::string& directory, bool with_space)
 {
+    if (!m_config.slicing_pipeline_plugin.values.empty() ||
+        std::any_of(m_objects.begin(), m_objects.end(), [](const PrintObject* object) { return object->need_z_contouring(); })) {
+        BOOST_LOG_TRIVIAL(error) << "Legacy slice cache cannot serialize plugin or contoured toolpaths; export G-code instead.";
+        return CLI_EXPORT_CACHE_WRITE_FAILED;
+    }
     int ret = 0;
     boost::filesystem::path directory_path(directory);
 
@@ -4721,6 +4851,11 @@ int Print::export_cached_data(const std::string& directory, bool with_space)
 
 int Print::load_cached_data(const std::string& directory)
 {
+    if (!m_config.slicing_pipeline_plugin.values.empty() ||
+        std::any_of(m_objects.begin(), m_objects.end(), [](const PrintObject* object) { return object->need_z_contouring(); })) {
+        BOOST_LOG_TRIVIAL(error) << "Legacy slice cache cannot validate plugin or contoured toolpaths; slicing is required.";
+        return CLI_IMPORT_CACHE_LOAD_FAILED;
+    }
     int ret = 0;
     boost::filesystem::path directory_path(directory);
 

@@ -1,0 +1,60 @@
+name: Local plugin runtime native validation
+
+# Manual only. This builds no application, publishes no release, and uses no
+# signing credentials. A green result covers the runtime overlay on that runner.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  runtime:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2022, macos-15]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install ELF packaging tool
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y patchelf
+      - name: Acquire pinned inputs in runner temporary storage
+        shell: python
+        run: |
+          import os, pathlib, shutil, subprocess, sys, venv
+          root = pathlib.Path(os.environ['RUNNER_TEMP']) / 'plugin-runtime-inputs'
+          root.mkdir()
+          venv.EnvBuilder(with_pip=True).create(root / 'tools')
+          scripts = root / 'tools' / ('Scripts' if os.name == 'nt' else 'bin')
+          python = scripts / ('python.exe' if os.name == 'nt' else 'python')
+          subprocess.run([str(python), '-m', 'pip', 'install', '--disable-pip-version-check', 'uv==0.11.16'], check=True)
+          uv = scripts / ('uv.exe' if os.name == 'nt' else 'uv')
+          subprocess.run([str(uv), '--no-config', 'python', 'install', '3.12.13', '--no-bin', '--no-registry', '--install-dir', str(root / 'python')], check=True)
+          roots = list((root / 'python').glob('cpython-3.12.13-*'))
+          assert len(roots) == 1, roots
+          subprocess.run([str(python), '-m', 'pip', 'download', '--disable-pip-version-check', '--only-binary=:all:', '--python-version', '3.12', '--implementation', 'cp', '--abi', 'cp312', '--dest', str(root / 'wheels'), 'numpy==2.2.6'], check=True)
+          with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as stream:
+              stream.write('PLUGIN_RUNTIME_INPUTS=' + str(root) + '\n')
+              stream.write('PLUGIN_PYTHON_ROOT=' + str(roots[0]) + '\n')
+              stream.write('PLUGIN_UV=' + str(uv) + '\n')
+      - name: Stage, move, check native libraries and install offline wheels
+        shell: python
+        run: |
+          import os, pathlib, subprocess, sys
+          root = pathlib.Path(os.environ['PLUGIN_RUNTIME_INPUTS'])
+          subprocess.run([sys.executable, 'scripts/test_plugin_runtime_ci.py', '--python-root', os.environ['PLUGIN_PYTHON_ROOT'], '--uv', os.environ['PLUGIN_UV'], '--wheelhouse', str(root / 'wheels'), '--output', 'plugin-runtime-artifacts'], check=True)
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: plugin-runtime-${{ matrix.os }}
+          path: |
+            plugin-runtime-artifacts/results.json
+            plugin-runtime-artifacts/summary.json
+            plugin-runtime-artifacts/runtime-and-wheelhouse.tar.gz
+          if-no-files-found: warn

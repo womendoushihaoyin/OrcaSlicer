@@ -8,6 +8,8 @@
 #include <assert.h>
 #include <string_view>
 #include <numeric>
+#include <optional>
+#include <stdexcept>
 
 namespace Slic3r {
 
@@ -170,7 +172,9 @@ public:
         , m_can_reverse(rhs.m_can_reverse)
         , m_role(rhs.m_role)
         , m_no_extrusion(rhs.m_no_extrusion)
+        , m_polyline3(rhs.m_polyline3)
     {
+        rhs.polyline3();
         this->inset_idx = rhs.inset_idx;
     }
     ExtrusionPath(ExtrusionPath &&rhs)
@@ -181,7 +185,9 @@ public:
         , m_can_reverse(rhs.m_can_reverse)
         , m_role(rhs.m_role)
         , m_no_extrusion(rhs.m_no_extrusion)
+        , m_polyline3(std::move(rhs.m_polyline3))
     {
+        this->polyline3();
         this->inset_idx = rhs.inset_idx;
     }
     ExtrusionPath(const Polyline &polyline, const ExtrusionPath &rhs)
@@ -193,6 +199,8 @@ public:
         , m_role(rhs.m_role)
         , m_no_extrusion(rhs.m_no_extrusion)
     {
+        if (rhs.has_polyline3())
+            throw std::logic_error("Replacing a 3D extrusion path requires a Polyline3");
         this->inset_idx = rhs.inset_idx;
     }
     ExtrusionPath(Polyline &&polyline, const ExtrusionPath &rhs)
@@ -204,10 +212,18 @@ public:
         , m_role(rhs.m_role)
         , m_no_extrusion(rhs.m_no_extrusion)
     {
+        if (rhs.has_polyline3())
+            throw std::logic_error("Replacing a 3D extrusion path requires a Polyline3");
         this->inset_idx = rhs.inset_idx;
     }
 
+    ExtrusionPath(Polyline3 polyline, const ExtrusionPath& rhs) : ExtrusionPath(rhs)
+    {
+        set_polyline3(std::move(polyline));
+    }
+
     ExtrusionPath& operator=(const ExtrusionPath& rhs) {
+        rhs.polyline3();
         m_can_reverse = rhs.m_can_reverse;
         m_role = rhs.m_role;
         m_no_extrusion = rhs.m_no_extrusion;
@@ -215,10 +231,14 @@ public:
         this->width = rhs.width;
         this->height = rhs.height;
         this->polyline = rhs.polyline;
+        this->m_polyline3 = rhs.m_polyline3;
         this->inset_idx = rhs.inset_idx;
         return *this;
     }
     ExtrusionPath& operator=(ExtrusionPath&& rhs) {
+        if (this == &rhs)
+            return *this;
+        rhs.polyline3();
         m_can_reverse = rhs.m_can_reverse;
         m_role = rhs.m_role;
         m_no_extrusion = rhs.m_no_extrusion;
@@ -226,6 +246,7 @@ public:
         this->width = rhs.width;
         this->height = rhs.height;
         this->polyline = std::move(rhs.polyline);
+        this->m_polyline3 = std::move(rhs.m_polyline3);
         this->inset_idx = rhs.inset_idx;
         return *this;
     }
@@ -233,7 +254,19 @@ public:
 	ExtrusionEntity* clone() const override { return new ExtrusionPath(*this); }
     // Create a new object, initialize it with this object using the move semantics.
 	ExtrusionEntity* clone_move() override { return new ExtrusionPath(std::move(*this)); }
-    void reverse() override { this->polyline.reverse(); }
+    // Z is a scaled offset from the layer's print_z. XY remains available to
+    // release_2.4.1 consumers; mutations of a 3D path must use these methods.
+    void set_polyline3(Polyline3 polyline);
+    const Polyline3* polyline3() const;
+    bool has_polyline3() const { return polyline3() != nullptr; }
+    Points3 points3() const;
+    void clear_polyline3() { m_polyline3.reset(); }
+    void set_polyline(Polyline polyline) { this->polyline = std::move(polyline); clear_polyline3(); }
+    void reverse() override;
+    bool split_at_index(size_t index, ExtrusionPath* first, ExtrusionPath* second) const;
+    bool split_at_length(double length, ExtrusionPath* first, ExtrusionPath* second) const;
+    void split_at(Point& point, ExtrusionPath* first, ExtrusionPath* second) const;
+    void append(const ExtrusionPath& path);
     const Point& first_point() const override { return this->polyline.points.front(); }
     const Point& last_point() const override { return this->polyline.points.back(); }
     size_t size() const { return this->polyline.size(); }
@@ -264,7 +297,7 @@ public:
     double min_mm3_per_mm() const override { return this->mm3_per_mm; }
     Polyline as_polyline() const override { return this->polyline; }
     void   collect_polylines(Polylines &dst) const override { if (! this->polyline.empty()) dst.emplace_back(this->polyline); }
-    void   collect_points(Points &dst) const override { append(dst, this->polyline.points); }
+    void   collect_points(Points &dst) const override { Slic3r::append(dst, this->polyline.points); }
     double total_volume() const override { return mm3_per_mm * unscale<double>(length()); }
 
     //BBS: add new simplifing method by fitting arc
@@ -282,6 +315,7 @@ private:
     ExtrusionRole m_role;
     //BBS
     bool m_no_extrusion = false;
+    std::optional<Polyline3> m_polyline3;
 };
 
 class ExtrusionPathSloped : public ExtrusionPath
@@ -306,6 +340,9 @@ public:
         : ExtrusionPath(polyline, rhs), slope_begin(begin), slope_end(end)
     {}
     ExtrusionPathSloped(Polyline&& polyline, const ExtrusionPath& rhs, const Slope& begin, const Slope& end)
+        : ExtrusionPath(std::move(polyline), rhs), slope_begin(begin), slope_end(end)
+    {}
+    ExtrusionPathSloped(Polyline3 polyline, const ExtrusionPath& rhs, const Slope& begin, const Slope& end)
         : ExtrusionPath(std::move(polyline), rhs), slope_begin(begin), slope_end(end)
     {}
 

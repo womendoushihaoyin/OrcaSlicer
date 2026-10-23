@@ -235,6 +235,10 @@ bool ObjectSettings::update_settings_list()
             object_configs.emplace(object, &object->config);
         } 
         else if(type == itVolume){
+            // Helper settings are retained for conversion back to a modifier,
+            // but must not enter the active per-volume parameter editor.
+            if (is_precise_seam(objects_model->GetVolumeType(item)))
+                continue;
             is_volume_settings = true;
             if (parent_object && parent_object != object)
                 return false;

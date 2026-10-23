@@ -3,6 +3,8 @@
 
 #include <wx/webview.h>
 
+wxDECLARE_EVENT(EVT_WEBVIEW_RECREATED, wxCommandEvent);
+
 class WebView
 {
 public:

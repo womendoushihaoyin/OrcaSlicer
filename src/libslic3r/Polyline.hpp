@@ -290,7 +290,33 @@ inline ThickPolylines to_thick_polylines(Polylines&& polylines, const coordf_t w
 class Polyline3 : public MultiPoint3
 {
 public:
-    virtual Lines3 lines() const;
+    Polyline3() = default;
+    explicit Polyline3(const Points3& points) { this->points = points; }
+    explicit Polyline3(Points3&& points) { this->points = std::move(points); }
+    explicit Polyline3(const Polyline& polyline, coord_t z = 0);
+
+    Lines3 lines() const override;
+    Polyline to_polyline() const;
+    bool is_planar() const;
+    void clear() { MultiPoint3::clear(); fitting_result.clear(); }
+    void reverse();
+    void clip_end(double distance);
+    void clip_start(double distance) { reverse(); clip_end(distance); reverse(); }
+    void simplify(double tolerance);
+    // XY arcs are only valid for a constant Z. Varying Z uses 3D simplification.
+    void simplify_by_fitting_arc(double tolerance);
+    void append(const Vec3crd& point);
+    void append(const Polyline3& polyline);
+    void append_before(const Vec3crd& point) { reverse(); append(point); reverse(); }
+    bool split_at_index(size_t index, Polyline3* p1, Polyline3* p2) const;
+    bool split_at_length(double length, Polyline3* p1, Polyline3* p2) const;
+    // 2D queries project onto XY segments and interpolate their Z coordinate.
+    void split_at(Point& point, Polyline3* p1, Polyline3* p2) const;
+    void split_at(Vec3crd& point, Polyline3* p1, Polyline3* p2) const;
+    std::vector<PathFittingData> fitting_result;
+
+private:
+    void split_at_segment(size_t segment, const Vec3crd& point, Polyline3* p1, Polyline3* p2) const;
 };
 
 typedef std::vector<Polyline3> Polylines3;

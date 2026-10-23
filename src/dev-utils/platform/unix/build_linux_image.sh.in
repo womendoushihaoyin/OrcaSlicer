@@ -38,6 +38,13 @@ while getopts ":ihR:" opt; do
   esac
 done
 
+PLUGIN_CACHE_ARGS=()
+if [ "${ORCA_PYTHON_PLUGINS:-OFF}" = "ON" ]; then
+    PLUGIN_CACHE_ARGS=(--work-dir "$PWD/plugin-release")
+fi
+python3 "${REPO_ROOT}/scripts/packaging/integrate_plugin_runtime.py" check-cache \
+    --cache "$PWD/CMakeCache.txt" --enabled "${ORCA_PYTHON_PLUGINS:-OFF}" "${PLUGIN_CACHE_ARGS[@]}"
+
 copy_directory_if_present() {
     local src_dir="$1"
     local dst_dir="$2"
@@ -169,7 +176,12 @@ echo -n "[9/9] Generating Linux app..."
         echo "Error: @SLIC3R_APP_CMD@ binary not found in any configuration directory"
         exit 1
     fi
-    cp -fl "${ORIGINAL_BINARY_LOCATION}" "$BIN_DIR/@SLIC3R_APP_CMD@"
+    if [ "${ORCA_PYTHON_PLUGINS:-OFF}" = "ON" ]; then
+        # patchelf must never mutate a hard link to the original build output.
+        cp -f "${ORIGINAL_BINARY_LOCATION}" "$BIN_DIR/@SLIC3R_APP_CMD@"
+    else
+        cp -fl "${ORIGINAL_BINARY_LOCATION}" "$BIN_DIR/@SLIC3R_APP_CMD@"
+    fi
 
     if [ "$BUNDLE_DESKTOP_STACK" = "1" ]; then
         GSTREAMER_PLUGIN_SOURCE_DIR="$(find_pkg_config_dir pluginsdir gstreamer-1.0 || true)"
@@ -387,7 +399,13 @@ EOF
     chmod ug+x @SLIC3R_APP_CMD@
     cp -fl @SLIC3R_APP_CMD@ "$APPDIR/@SLIC3R_APP_CMD@"
 
-    if [ -x "${CHECK_SCRIPT}" ] && [ -z "${ORCA_SKIP_APPIMAGE_AUDIT}" ]; then
+    if [ "${ORCA_PYTHON_PLUGINS:-OFF}" = "ON" ]; then
+        python3 "${REPO_ROOT}/scripts/packaging/integrate_plugin_runtime.py" deploy \
+            --work-dir "$PWD/plugin-release" --app-dir "$PWD/$APPDIR" \
+            --cache "$PWD/CMakeCache.txt" --host "bin/@SLIC3R_APP_CMD@"
+        # A plugin release may not skip the complete application dependency audit.
+        "${CHECK_SCRIPT}" "$APPDIR" "$BIN_DIR/@SLIC3R_APP_CMD@"
+    elif [ -x "${CHECK_SCRIPT}" ] && [ -z "${ORCA_SKIP_APPIMAGE_AUDIT}" ]; then
         "${CHECK_SCRIPT}" "$APPDIR" "$BIN_DIR/@SLIC3R_APP_CMD@"
     fi
 # } &> $ROOT/Build.log # Capture all command output

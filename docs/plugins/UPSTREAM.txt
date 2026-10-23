@@ -1,0 +1,69 @@
+OrcaSlicer plugin migration source baseline
+Repository: https://github.com/OrcaSlicer/OrcaSlicer
+Commit: 14a1aa333b6da3ecadf853a4a6285b0f193b7605
+Copied public interfaces: LifecycleEvents.hpp, PythonPluginInterface.hpp, PyPluginPackage.hpp, ScriptPluginCapability.hpp.
+pybind11: upstream vendored headers report 3.0.1; FetchContent pins v3.0.1 plus SHA256.
+CPython target: 3.12.13.
+Historical S02 used an opt-in trusted Script spike. The current ORCA_PYTHON_PLUGINS implementation migrates the pinned upstream production core; it remains incomplete and disabled by default.
+
+Additional unchanged upstream file (same pinned commit):
+src/slic3r/plugin/PluginDescriptor.hpp
+
+Production-core migration (same pinned commit):
+- PluginManager, PluginLoader, PluginConfig, PluginAuditManager, PluginFsUtils,
+  PythonInterpreter, PythonPluginBridge, PyPluginTrampoline, PluginBindingUtils.
+- Script, Pages, SlicingPipeline and ResourceTexture capabilities and trampolines.
+- Host Geometry, Mesh, Model, UI, App, Presets and Slicing graph bindings (partial; see explicit gaps).
+- resources/web/dialog/js/plugin-config-ui.js (upstream configuration bridge; trailing blank lines normalized).
+- GUI WebDialog, WebPanel, DockPanel, PluginProgressDialog;
+  Widgets WebHosting and WebViewHostDialog.
+
+Historical release_2.4.1 migration checkpoint (pending notes are superseded by the 2026-10-23 corrections below):
+- Local/cloud separation through an optional PluginCloudBackend; no OrcaCloud account construction.
+- Atomic sidecar/config files, transactional uv dependency installation and bundled CPython/uv lookup.
+  Same-filename local package replacement uses a journal, candidate/previous directories and config snapshots; commit follows successful activation and persistence. See LOCAL_RECOVERY.md for limits.
+- Runtime lease lock ownership shared by nested same-thread leases.
+- Quoted/Unicode data-directory support in Python stderr initialization.
+- Host app information via real Snapmaker provider; precise-seam Model symbols absent in the baseline remain unbound pending kernel migration.
+- SlicingPipeline is registered; PrinterAgent remains deferred; no placeholder stage implementations.
+- Host UI adapts docking to the existing Plater wxAuiManager and retains callback audit identities.
+- WebPanel/WebDialog wait for the real bootstrap after Snapmaker macOS WebView bridge installation.
+- Pages use the actual Notebook through PluginPagesLocal; multi-page overflow/icons and cross-platform parity still pending.
+- Apple libtool -toc64 for GUI archives above 4 GiB.
+
+Added local implementation and tests are not claimed as unchanged upstream code.
+The full phase-one acceptance list and known gaps remain in TODO.md and VERIFICATION.md.
+
+Latest host/config adaptations:
+- Plater export_3mf_copy preserves SVG archive paths and model design_info through RAII; Silence preserves project path.
+- Read-only Preset/PresetCollection/PresetBundle bindings use release data. Local bundle origin and transactional reload are now bound and pass the dedicated native bundle test.
+- FFF full_config access rejects an empty filament selection instead of indexing element zero.
+- Local configuration shell uses the upstream sandboxed iframe bridge and pins the selected capability identity in C++.
+- WebViewHostDialog queues JS replies through a weak window reference.
+- Dependency installation uses an OS file lock, released by the kernel after an abrupt process exit.
+
+Slicing migration checkpoint (see the later acceptance corrections for completed capabilities):
+- PluginHostSlicing.cpp binds the live graph. ExtrusionPath.points now returns an owned, read-only N x 3 snapshot; native spatial offsets are retained and genuinely planar paths have zero offsets.
+- SlicingPipeline.hpp and Print.cpp adapt the pinned process boundaries through a core-only dispatcher lease, retaining the original inactive ordering. The production Python dispatcher and a developer process-preset selector are now connected.
+- Slice mutations refresh raw_slices; support callbacks follow the native parallel join; only recomputed object stages fire. Callback failure/cancellation invalidates the graph without calling the UI cancellation wait from its own worker.
+- posContouring follows the actual migrated ContourZ kernel; psGCodePostProcess runs at the transactional final-file post-processing boundary. Curled-extrusion estimation now marks its real completion seam before dispatch.
+
+Production slicing dispatcher adaptations (2026-10-22):
+- PluginSlicing resolves the entire manifest strictly and pins capability consumers for the whole Print::process pass.
+- Effective configs use a thread-local per-pass snapshot, never the live GUI preset; blocking UI calls from slicing are rejected.
+- Static PrintConfig stores selection, manifest and overrides for invalidation; runtime instance generation/config signatures rebuild on the next process pass after global config edits or same-version reloads.
+- Core uses a factory/lease with teardown drain. Registry acquisition increments consumer references atomically with lookup; active unload/disable/removal/replacement is refused; Script dispatch also takes this pin.
+- ctx.orca_version reports the actual Snapmaker_VERSION through the existing host header.
+- All 13 public stage enum/context bindings now have real native seams. Conditional stages are tested with qualifying fixtures; no-op and warm in-memory paths retain their conditional behavior.
+- Release on-disk slice caches cannot preserve plugin identities/configuration or XYZ paths. Plugin/contour tasks refuse these legacy caches and rebuild rather than silently restoring a lossy graph.
+- XY-only release wipe is disabled for spatial paths. Local-Z micro-layer height overrides combined with contouring currently raise an explicit unsupported-combination error.
+- Configuration/package changes enqueue per-plate invalidation outside Python/config locks. Automatic restart remains conditional on the host build and setting.
+- ResourceTexture has a validated package registry, image ownership and the pinned native TextureBake pipeline. The current GUI consumer bakes into mesh; editable texture layers/UV/painting are not yet fully migrated.
+- A production executable exports 10 actual SDK modules; generated .pyi and a hashed manifest are checked against its introspection. This does not claim the remaining PreciseSeam or device symbols exist.
+
+2026-10-23 acceptance corrections (supersede earlier pending notes above):
+- PreciseSeam public model bindings and six native types/three predicates are migrated and tested.
+- Local-Z/Contour cumulative physical Z and volume accounting now support the tested combination;
+  ironing/scarf/adaptive PA combinations remain explicitly rejected.
+- Editable layers, painting, UV authoring/groups/cut, image adjustment, project persistence and four-filament GUI output have actual production evidence in VERIFICATION.md.
+- TextureProjectorFrame.hpp/.cpp originate from the same fixed commit. Snapmaker adds wxFRAME_TOOL_WINDOW because its editor is modal: Cocoa must use NSPanel/worksWhenModal to receive native frame input. First actual GUI failure is retained as projector18; corrected production validation remains pending.

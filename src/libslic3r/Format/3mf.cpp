@@ -125,6 +125,8 @@ static constexpr const char* VOLUME_TYPE = "volume";
 static constexpr const char* NAME_KEY = "name";
 static constexpr const char* MODIFIER_KEY = "modifier";
 static constexpr const char* VOLUME_TYPE_KEY = "volume_type";
+static constexpr const char* PRECISE_SEAM_TYPE_KEY = "precise_seam_type";
+static constexpr char PRECISE_SEAM_CONFIG_PREFIX[] = "precise_seam_config:";
 static constexpr const char* MATRIX_KEY = "matrix";
 static constexpr const char* SOURCE_FILE_KEY = "source_file";
 static constexpr const char* SOURCE_OBJECT_ID_KEY = "source_object_id";
@@ -368,6 +370,8 @@ ModelVolumeType type_from_string(const std::string &s)
     if (s == "ParameterModifier") return ModelVolumeType::PARAMETER_MODIFIER;
     if (s == "SupportEnforcer") return ModelVolumeType::SUPPORT_ENFORCER;
     if (s == "SupportBlocker") return ModelVolumeType::SUPPORT_BLOCKER;
+    if (s.compare(0, 13, "precise_seam_") == 0)
+        return ModelVolume::type_from_string(s);
     // Default value if invalud type string received.
     return ModelVolumeType::MODEL_PART;
 }
@@ -2047,7 +2051,11 @@ ModelVolumeType type_from_string(const std::string &s)
         };
 
         auto itor = std::find(valid_keys.begin(), valid_keys.end(), key);
-        if (itor == valid_keys.end()) {
+        // Keep our helper extension through the legacy Prusa whitelist. The
+        // volume reader activates dormant options only for a known seam mode.
+        const bool precise_seam_metadata = type == VOLUME_TYPE &&
+            (key == PRECISE_SEAM_TYPE_KEY || boost::starts_with(key, PRECISE_SEAM_CONFIG_PREFIX));
+        if (itor == valid_keys.end() && !precise_seam_metadata) {
             // do nothing if not valid keys
             return true;
         }
@@ -2180,6 +2188,7 @@ ModelVolumeType type_from_string(const std::string &s)
             volume->mmu_segmentation_facets.shrink_to_fit();
             volume->fuzzy_skin_facets.shrink_to_fit();
 
+            ModelVolumeType precise_seam_type = ModelVolumeType::INVALID;
             // apply the remaining volume's metadata
             for (const Metadata& metadata : volume_data.metadata) {
                 if (metadata.key == NAME_KEY)
@@ -2188,6 +2197,10 @@ ModelVolumeType type_from_string(const std::string &s)
 					volume->set_type(ModelVolumeType::PARAMETER_MODIFIER);
                 else if (metadata.key == VOLUME_TYPE_KEY)
                     volume->set_type(type_from_string(metadata.value));
+                else if (metadata.key == PRECISE_SEAM_TYPE_KEY)
+                    precise_seam_type = ModelVolume::type_from_string(metadata.value);
+                else if (boost::starts_with(metadata.key, PRECISE_SEAM_CONFIG_PREFIX))
+                    continue;
                 else if (metadata.key == SOURCE_FILE_KEY)
                     volume->source.input_file = metadata.value;
                 else if (metadata.key == SOURCE_OBJECT_ID_KEY)
@@ -2207,6 +2220,18 @@ ModelVolumeType type_from_string(const std::string &s)
                 else
                     volume->config.set_deserialize(metadata.key, metadata.value, config_substitutions);
             }
+            if (volume->is_modifier() && is_precise_seam(precise_seam_type))
+                volume->set_type(precise_seam_type);
+            if (volume->is_precise_seam()) {
+                for (const Metadata& metadata : volume_data.metadata) {
+                    if (boost::starts_with(metadata.key, PRECISE_SEAM_CONFIG_PREFIX)) {
+                        const auto key = metadata.key.substr(sizeof(PRECISE_SEAM_CONFIG_PREFIX) - 1);
+                        if (!key.empty())
+                            volume->config.set_deserialize(key, metadata.value, config_substitutions);
+                    }
+                }
+            }
+
 
             // this may happen for 3mf saved by 3rd part softwares
             if (volume->name.empty()) {
@@ -3123,11 +3148,18 @@ ModelVolumeType type_from_string(const std::string &s)
                                 stream << "   <" << METADATA_TAG << " " << TYPE_ATTR << "=\"" << VOLUME_TYPE << "\" " << KEY_ATTR << "=\"" << NAME_KEY << "\" " << VALUE_ATTR << "=\"" << xml_escape(volume->name) << "\"/>\n";
 
                             // stores volume's modifier field (legacy, to support old slicers)
-                            if (volume->is_modifier())
+                            // Readers with only the legacy flag still see helper geometry as a modifier.
+                            if (volume->is_modifier() || volume->is_precise_seam())
                                 stream << "   <" << METADATA_TAG << " " << TYPE_ATTR << "=\"" << VOLUME_TYPE << "\" " << KEY_ATTR << "=\"" << MODIFIER_KEY << "\" " << VALUE_ATTR << "=\"1\"/>\n";
-                            // stores volume's type (overrides the modifier field above)
+                            // This Prusa-format reader uses ParameterModifier, not Bambu's modifier_part.
+                            // The base type overrides the legacy flag, so it must also be backward-compatible.
+                            // Use the same spelling for ordinary modifiers, including a downgraded seam helper.
+                            const bool store_as_modifier = volume->is_modifier() || volume->is_precise_seam();
                             stream << "   <" << METADATA_TAG << " " << TYPE_ATTR << "=\"" << VOLUME_TYPE << "\" " << KEY_ATTR << "=\"" << VOLUME_TYPE_KEY << "\" " <<
-                                VALUE_ATTR << "=\"" << ModelVolume::type_to_string(volume->type()) << "\"/>\n";
+                                VALUE_ATTR << "=\"" << (store_as_modifier ? "ParameterModifier" : ModelVolume::type_to_string(volume->type())) << "\"/>\n";
+                            if (volume->is_precise_seam())
+                                stream << "   <" << METADATA_TAG << " " << TYPE_ATTR << "=\"" << VOLUME_TYPE << "\" " << KEY_ATTR << "=\"" << PRECISE_SEAM_TYPE_KEY << "\" " <<
+                                    VALUE_ATTR << "=\"" << ModelVolume::type_to_string(volume->type()) << "\"/>\n";
 
                             // stores volume's local matrix
                             stream << "   <" << METADATA_TAG << " " << TYPE_ATTR << "=\"" << VOLUME_TYPE << "\" " << KEY_ATTR << "=\"" << MATRIX_KEY << "\" " << VALUE_ATTR << "=\"";
@@ -3162,7 +3194,7 @@ ModelVolumeType type_from_string(const std::string &s)
 
                             // stores volume's config data
                             for (const std::string& key : volume->config.keys()) {
-                                stream << "   <" << METADATA_TAG << " " << TYPE_ATTR << "=\"" << VOLUME_TYPE << "\" " << KEY_ATTR << "=\"" << key << "\" " << VALUE_ATTR << "=\"" << volume->config.opt_serialize(key) << "\"/>\n";
+                                stream << "   <" << METADATA_TAG << " " << TYPE_ATTR << "=\"" << VOLUME_TYPE << "\" " << KEY_ATTR << "=\"" << (volume->is_precise_seam() ? PRECISE_SEAM_CONFIG_PREFIX + key : key) << "\" " << VALUE_ATTR << "=\"" << (volume->is_precise_seam() ? xml_escape(volume->config.opt_serialize(key)) : volume->config.opt_serialize(key)) << "\"/>\n";
                             }
 
                             // stores mesh's statistics

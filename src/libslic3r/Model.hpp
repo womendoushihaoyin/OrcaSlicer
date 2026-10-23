@@ -19,6 +19,7 @@
 #include "TextConfiguration.hpp"
 #include "EmbossShape.hpp"
 #include "TriangleSelector.hpp"
+#include "TextureDisplacementLayers.hpp"
 
 //BBS: add bbs 3mf
 #include "Format/bbs_3mf.hpp"
@@ -47,6 +48,7 @@ namespace cereal {
 }
 
 namespace Slic3r {
+namespace GUI { class TexturePreparedTransaction; }
 enum class ConversionType;
 
 class BuildVolume;
@@ -345,7 +347,20 @@ enum class ModelVolumeType : int {
     PARAMETER_MODIFIER,
     SUPPORT_BLOCKER,
     SUPPORT_ENFORCER,
+    // Precise seam modifiers (6 subtypes for seam placement control).
+    // Order is critical: strong types first, then weak. Range checks in is_precise_seam*() depend on it.
+    PRECISE_SEAM_CENTER,
+    PRECISE_SEAM_LEFT,
+    PRECISE_SEAM_RIGHT,
+    PRECISE_SEAM_ENFORCED,
+    PRECISE_SEAM_BLOCKED,
+    PRECISE_SEAM_NEUTRAL,
 };
+
+// Free functions for checking ModelVolumeType without a ModelVolume object.
+inline bool is_precise_seam(ModelVolumeType t)       { return t >= ModelVolumeType::PRECISE_SEAM_CENTER && t <= ModelVolumeType::PRECISE_SEAM_NEUTRAL; }
+inline bool is_precise_seam_strong(ModelVolumeType t) { return t >= ModelVolumeType::PRECISE_SEAM_CENTER && t <= ModelVolumeType::PRECISE_SEAM_RIGHT; }
+inline bool is_precise_seam_weak(ModelVolumeType t)   { return t >= ModelVolumeType::PRECISE_SEAM_ENFORCED && t <= ModelVolumeType::PRECISE_SEAM_NEUTRAL; }
 
 // A printable object, possibly having multiple print volumes (each with its own set of parameters and materials),
 // and possibly having multiple modifier volumes, each modifier volume with its set of parameters and materials.
@@ -884,6 +899,89 @@ public:
     // List of mesh facets painted for fuzzy skin.
     FacetsAnnotation    fuzzy_skin_facets;
 
+    // One independent paint mask per texture-displacement layer slot (see texture_displacement_layers
+    // below). Unlike the other facets fields above, a triangle may be painted (ENFORCER) in more
+    // than one of these simultaneously -- that overlap is what makes the layers "blend".
+    //
+    // These are 8 plain named fields rather than a std::array<FacetsAnnotation, N>: FacetsAnnotation's
+    // default/copy constructors are private and friended only to ModelVolume, but std::array's own
+    // implicitly-defined default/copy constructors are generated with std::array's access rights,
+    // not ModelVolume's -- so an array of FacetsAnnotation ends up with its default/copy
+    // constructors implicitly deleted regardless of the friend declaration. Use
+    // texture_displacement_facet(slot) below for array-like indexed access.
+    FacetsAnnotation texture_displacement_facets_0;
+    FacetsAnnotation texture_displacement_facets_1;
+    FacetsAnnotation texture_displacement_facets_2;
+    FacetsAnnotation texture_displacement_facets_3;
+    FacetsAnnotation texture_displacement_facets_4;
+    FacetsAnnotation texture_displacement_facets_5;
+    FacetsAnnotation texture_displacement_facets_6;
+    FacetsAnnotation texture_displacement_facets_7;
+
+    FacetsAnnotation& texture_displacement_facet(int slot) {
+        switch (slot) {
+        case 0: return texture_displacement_facets_0;
+        case 1: return texture_displacement_facets_1;
+        case 2: return texture_displacement_facets_2;
+        case 3: return texture_displacement_facets_3;
+        case 4: return texture_displacement_facets_4;
+        case 5: return texture_displacement_facets_5;
+        case 6: return texture_displacement_facets_6;
+        default: assert(slot == 7); return texture_displacement_facets_7;
+        }
+    }
+    const FacetsAnnotation& texture_displacement_facet(int slot) const { return const_cast<ModelVolume*>(this)->texture_displacement_facet(slot); }
+
+    // Small helpers for the constructor asserts below (kept out of line-noise at each call site).
+    bool texture_displacement_facets_ids_valid() const {
+        for (int i = 0; i < int(TEXTURE_DISPLACEMENT_MAX_LAYERS); ++i)
+            if (!texture_displacement_facet(i).id().valid() || texture_displacement_facet(i).id() == this->id())
+                return false;
+        return true;
+    }
+    bool texture_displacement_facets_ids_invalid() const {
+        for (int i = 0; i < int(TEXTURE_DISPLACEMENT_MAX_LAYERS); ++i)
+            if (texture_displacement_facet(i).id().valid())
+                return false;
+        return true;
+    }
+    bool texture_displacement_facets_all_empty() const {
+        for (int i = 0; i < int(TEXTURE_DISPLACEMENT_MAX_LAYERS); ++i)
+            if (!texture_displacement_facet(i).empty())
+                return false;
+        return true;
+    }
+
+    // Texture assets (height maps) and their projection/displacement parameters. Element order
+    // is not meaningful for baking (layers are applied in TextureDisplacementLayer::slot order,
+    // see build_texture_displacement()); it only reflects UI insertion order.
+    std::vector<TextureDisplacementLayer> texture_displacement_layers;
+
+    // Whole-stack displacement settings (border handling, post-process smoothing) - see
+    // TextureDisplacementOptions. They live beside the layers rather than on one of them because
+    // they are not a property of any single layer.
+    TextureDisplacementOptions texture_displacement_options;
+
+    // The model's own texture coordinates, as the file it was imported from carried them: three per
+    // triangle of mesh().its, in its triangle order (corner k of triangle i at 3i+k), V already
+    // flipped to the sampling convention (V = 0 is the image's top row). Empty when the source had
+    // none. The texture metadata extension preserves this channel through 3MF.
+    //
+    // Per corner rather than per vertex because that is what a UV layout is: the two sides of a seam
+    // are the same vertex with two different coordinates, and collapsing them would smear the texture
+    // across every island boundary. TextureProjectionMethod::ModelUV maps through it, which is what
+    // lets a model that already carries a UV channel be textured on the artist's own layout instead
+    // of on a fresh unwrap.
+    //
+    // Indexed by triangle, so anything that *replaces* the mesh has to bring it across (or drop it):
+    // see transfer_uv_channel(), and reset_texture_uv() for the cases that cannot.
+    std::vector<Vec2f> texture_uv;
+
+    bool has_texture_uv() const { return !texture_uv.empty() && texture_uv.size() == mesh().its.indices.size() * 3; }
+    // Forgets the channel. For a mesh change that nothing can carry it across - a split, a boolean -
+    // where leaving it would map the texture by another mesh's triangle numbering.
+    void reset_texture_uv() { texture_uv.clear(); }
+
     // BBS: quick access for volume extruders, 1 based
     mutable std::vector<int> mmuseg_extruders;
     mutable Timestamp        mmuseg_ts;
@@ -909,6 +1007,9 @@ public:
 	bool                is_support_enforcer()   const { return m_type == ModelVolumeType::SUPPORT_ENFORCER; }
 	bool                is_support_blocker()    const { return m_type == ModelVolumeType::SUPPORT_BLOCKER; }
 	bool                is_support_modifier()   const { return m_type == ModelVolumeType::SUPPORT_BLOCKER || m_type == ModelVolumeType::SUPPORT_ENFORCER; }
+    bool                is_precise_seam() const { return Slic3r::is_precise_seam(m_type); }
+    bool                is_precise_seam_strong() const { return Slic3r::is_precise_seam_strong(m_type); }
+    bool                is_precise_seam_weak() const { return Slic3r::is_precise_seam_weak(m_type); }
     bool                is_text()               const { return text_configuration.has_value(); }
     bool                is_svg() const { return emboss_shape.has_value()  && !text_configuration.has_value(); }
     bool                is_the_only_one_part() const; // behave like an object
@@ -1009,12 +1110,21 @@ public:
         this->seam_facets.set_new_unique_id();
         this->mmu_segmentation_facets.set_new_unique_id();
         this->fuzzy_skin_facets.set_new_unique_id();
+        for (int i = 0; i < int(TEXTURE_DISPLACEMENT_MAX_LAYERS); ++i)
+            this->texture_displacement_facet(i).set_new_unique_id();
     }
 
     bool is_fdm_support_painted() const { return !this->supported_facets.empty(); }
     bool is_seam_painted() const { return !this->seam_facets.empty(); }
     bool is_mm_painted() const { return !this->mmu_segmentation_facets.empty(); }
     bool is_fuzzy_skin_painted() const { return !this->fuzzy_skin_facets.empty(); }
+    bool is_texture_displacement_painted() const { return !this->texture_displacement_facets_all_empty(); }
+    // Call before replacing topology unless the caller explicitly transfers these channels.
+    void reset_texture_paint_and_uv() {
+        for (int i = 0; i < int(TEXTURE_DISPLACEMENT_MAX_LAYERS); ++i)
+            texture_displacement_facet(i).reset();
+        reset_texture_uv();
+    }
 
     // Id of the source ModelObject this volume was cloned from when objects were
     // assembled (merged) into a multi-part object. Opaque group label only compared for
@@ -1078,6 +1188,7 @@ private:
         assert(this->seam_facets.id().valid());
         assert(this->mmu_segmentation_facets.id().valid());
         assert(this->fuzzy_skin_facets.id().valid());
+        assert(this->texture_displacement_facets_ids_valid());
         assert(this->id() != this->config.id());
         assert(this->id() != this->supported_facets.id());
         assert(this->id() != this->seam_facets.id());
@@ -1094,6 +1205,7 @@ private:
         assert(this->seam_facets.id().valid());
         assert(this->mmu_segmentation_facets.id().valid());
         assert(this->fuzzy_skin_facets.id().valid());
+        assert(this->texture_displacement_facets_ids_valid());
         assert(this->id() != this->config.id());
         assert(this->id() != this->supported_facets.id());
         assert(this->id() != this->seam_facets.id());
@@ -1108,6 +1220,7 @@ private:
         assert(this->seam_facets.id().valid());
         assert(this->mmu_segmentation_facets.id().valid());
         assert(this->fuzzy_skin_facets.id().valid());
+        assert(this->texture_displacement_facets_ids_valid());
         assert(this->id() != this->config.id());
         assert(this->id() != this->supported_facets.id());
         assert(this->id() != this->seam_facets.id());
@@ -1121,7 +1234,15 @@ private:
         name(other.name), source(other.source), m_mesh(other.m_mesh), m_convex_hull(other.m_convex_hull),
         config(other.config), m_type(other.m_type), object(object), m_transformation(other.m_transformation),
         supported_facets(other.supported_facets), seam_facets(other.seam_facets), mmu_segmentation_facets(other.mmu_segmentation_facets),
-        fuzzy_skin_facets(other.fuzzy_skin_facets), cut_info(other.cut_info), text_configuration(other.text_configuration),
+        fuzzy_skin_facets(other.fuzzy_skin_facets),
+        texture_displacement_facets_0(other.texture_displacement_facets_0), texture_displacement_facets_1(other.texture_displacement_facets_1),
+        texture_displacement_facets_2(other.texture_displacement_facets_2), texture_displacement_facets_3(other.texture_displacement_facets_3),
+        texture_displacement_facets_4(other.texture_displacement_facets_4), texture_displacement_facets_5(other.texture_displacement_facets_5),
+        texture_displacement_facets_6(other.texture_displacement_facets_6), texture_displacement_facets_7(other.texture_displacement_facets_7),
+        texture_displacement_layers(other.texture_displacement_layers),
+        texture_displacement_options(other.texture_displacement_options),
+        texture_uv(other.texture_uv),
+        cut_info(other.cut_info), text_configuration(other.text_configuration),
         emboss_shape(other.emboss_shape), m_merged_group_id(other.m_merged_group_id)
     {
 		assert(this->id().valid()); 
@@ -1130,6 +1251,7 @@ private:
         assert(this->seam_facets.id().valid());
         assert(this->mmu_segmentation_facets.id().valid());
         assert(this->fuzzy_skin_facets.id().valid());
+        assert(this->texture_displacement_facets_ids_valid());
         assert(this->id() != this->config.id());
         assert(this->id() != this->supported_facets.id());
         assert(this->id() != this->seam_facets.id());
@@ -1154,6 +1276,7 @@ private:
         assert(this->seam_facets.id().valid());
         assert(this->mmu_segmentation_facets.id().valid());
         assert(this->fuzzy_skin_facets.id().valid());
+        assert(this->texture_displacement_facets_ids_valid());
         assert(this->id() != this->config.id());
         assert(this->id() != this->supported_facets.id());
         assert(this->id() != this->seam_facets.id());
@@ -1183,13 +1306,15 @@ private:
 	friend class cereal::access;
 	friend class UndoRedo::StackImpl;
 	// Used for deserialization, therefore no IDs are allocated.
-	ModelVolume() : ObjectBase(-1), config(-1), supported_facets(-1), seam_facets(-1), mmu_segmentation_facets(-1), fuzzy_skin_facets(-1), object(nullptr) {
+	ModelVolume() : ObjectBase(-1), config(-1), supported_facets(-1), seam_facets(-1), mmu_segmentation_facets(-1), fuzzy_skin_facets(-1),
+        texture_displacement_facets_0(-1), texture_displacement_facets_1(-1), texture_displacement_facets_2(-1), texture_displacement_facets_3(-1), texture_displacement_facets_4(-1), texture_displacement_facets_5(-1), texture_displacement_facets_6(-1), texture_displacement_facets_7(-1), object(nullptr) {
 		assert(this->id().invalid());
         assert(this->config.id().invalid());
         assert(this->supported_facets.id().invalid());
         assert(this->seam_facets.id().invalid());
         assert(this->mmu_segmentation_facets.id().invalid());
         assert(this->fuzzy_skin_facets.id().invalid());
+        assert(this->texture_displacement_facets_ids_invalid());
 	}
 	template<class Archive> void load(Archive &ar) {
 		bool has_convex_hull;
@@ -1210,6 +1335,13 @@ private:
         mesh_changed |= t != mmu_segmentation_facets.timestamp();
         cereal::load_by_value(ar, fuzzy_skin_facets);
         mesh_changed |= t != fuzzy_skin_facets.timestamp();
+        for (int i = 0; i < int(TEXTURE_DISPLACEMENT_MAX_LAYERS); ++i) {
+            auto& facets = texture_displacement_facet(i);
+            const auto previous = facets.timestamp();
+            cereal::load_by_value(ar, facets);
+            mesh_changed |= previous != facets.timestamp();
+        }
+        ar(texture_displacement_layers, texture_displacement_options, texture_uv);
         cereal::load_by_value(ar, config);
         cereal::load(ar, text_configuration);
         cereal::load(ar, emboss_shape);
@@ -1232,6 +1364,9 @@ private:
         cereal::save_by_value(ar, seam_facets);
         cereal::save_by_value(ar, mmu_segmentation_facets);
         cereal::save_by_value(ar, fuzzy_skin_facets);
+        for (int i = 0; i < int(TEXTURE_DISPLACEMENT_MAX_LAYERS); ++i)
+            cereal::save_by_value(ar, texture_displacement_facet(i));
+        ar(texture_displacement_layers, texture_displacement_options, texture_uv);
         cereal::save_by_value(ar, config);
         cereal::save(ar, text_configuration);
         cereal::save(ar, emboss_shape);
@@ -1737,6 +1872,7 @@ private:
 	void assign_new_unique_ids_recursive();
 	void update_links_bottom_up_recursive();
 
+    friend class GUI::TexturePreparedTransaction;
 	friend class cereal::access;
 	friend class UndoRedo::StackImpl;
     template<class Archive> void load(Archive& ar) {

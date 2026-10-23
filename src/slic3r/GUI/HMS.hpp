@@ -12,6 +12,9 @@
 #include "libslic3r/Thread.hpp"
 #include "nlohmann/json.hpp"
 
+#include <atomic>
+#include <vector>
+
 namespace Slic3r {
 namespace GUI {
 
@@ -20,6 +23,11 @@ namespace GUI {
 #define QUERY_HMS_ACTION	"query_hms_action"
 
 class HMSQuery {
+private:
+    // Started and drained on the GUI thread; cancellation is read by workers.
+    std::vector<boost::thread> m_check_threads;
+    std::atomic<bool> m_stopping{false};
+
 protected:
 	json m_hms_info_json;
 	json m_hms_action_json;
@@ -32,6 +40,9 @@ protected:
     wxString _query_error_url_action(std::string long_error_code, std::string dev_id, std::vector<int>& button_action);
 public:
 	HMSQuery() {}
+    ~HMSQuery();
+    // Call before the application configuration and wxApp are destroyed.
+    void shutdown();
 	int check_hms_info();
 	wxString query_hms_msg(std::string long_error_code);
     bool query_print_error_msg(int print_error, wxString &error_msg);

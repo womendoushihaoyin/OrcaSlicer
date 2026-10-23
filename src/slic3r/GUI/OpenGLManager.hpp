@@ -24,6 +24,7 @@ public:
     class GLInfo
     {
         bool m_detected{ false };
+        bool m_core_profile{ false };
         int m_max_tex_size{ 0 };
         float m_max_anisotropy{ 0.0f };
 
@@ -34,6 +35,8 @@ public:
 
     public:
         GLInfo() = default;
+        bool is_detected() const { return m_detected; }
+        bool is_core_profile() const { return m_core_profile; }
 
         const std::string& get_version() const;
         const std::string& get_glsl_version() const;

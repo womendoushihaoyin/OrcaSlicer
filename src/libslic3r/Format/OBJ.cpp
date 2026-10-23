@@ -110,6 +110,9 @@ bool load_obj(const char *path, TriangleMesh *meshptr, ObjInfo& obj_info, std::s
             obj_info.vertex_colors.emplace_back(color);
         }
     }
+    obj_info.uvs.clear();
+    if (!data.textureCoordinates.empty())
+        obj_info.uvs.reserve(num_faces + num_quads);
     int indices[ONE_FACE_SIZE];
     int uvs[ONE_FACE_SIZE];
     for (size_t i = 0; i < data.vertices.size();)
@@ -133,8 +136,25 @@ bool load_obj(const char *path, TriangleMesh *meshptr, ObjInfo& obj_info, std::s
                 }
             if (cnt) {
                 assert(cnt == 3 || cnt == 4);
+                // Every triangulated face owns three texture coordinates, including UV seams.
+                // Keep this channel even for an OBJ without materials: geometry placement does not
+                // depend on whether a face also names a colour texture.
+                const auto append_uv = [&](int a, int b, int c) {
+                    constexpr size_t texture_coordinate_stride = 2; // release_2.4.1 ObjParser stores u, v
+                    if (data.textureCoordinates.empty()) return;
+                    const size_t count = data.textureCoordinates.size() / texture_coordinate_stride;
+                    const auto at = [&](int corner) -> Vec2f {
+                        const int index = uvs[corner];
+                        if (index < 0 || size_t(index) >= count) return Vec2f::Zero();
+                        Vec2f uv(data.textureCoordinates[size_t(index) * texture_coordinate_stride],
+                                 data.textureCoordinates[size_t(index) * texture_coordinate_stride + 1]);
+                        return uv.allFinite() ? uv : Vec2f::Zero();
+                    };
+                    obj_info.uvs.push_back({at(a), at(b), at(c)});
+                };
                 // Insert one or two faces (triangulate a quad).
                 its.indices.emplace_back(indices[0], indices[1], indices[2]);
+                append_uv(0, 1, 2);
                 int  face_index =its.indices.size() - 1;
                 RGBA face_color;
                 auto set_face_color = [&uvs, &data, &mtl_data, &obj_info, &face_color](int face_index, const std::string mtl_name) {
@@ -161,13 +181,6 @@ bool load_obj(const char *path, TriangleMesh *meshptr, ObjInfo& obj_info, std::s
                             if (obj_info.pngs.find(png_name) == obj_info.pngs.end()) { obj_info.pngs[png_name] = false; }
                             obj_info.uv_map_pngs[face_index] = png_name;
                         }
-                        if (data.textureCoordinates.size() > 0) {
-                            Vec2f                uv0(data.textureCoordinates[uvs[0] * 2], data.textureCoordinates[uvs[0] * 2 + 1]);
-                            Vec2f                uv1(data.textureCoordinates[uvs[1] * 2], data.textureCoordinates[uvs[1] * 2 + 1]);
-                            Vec2f                uv2(data.textureCoordinates[uvs[2] * 2], data.textureCoordinates[uvs[2] * 2 + 1]);
-                            std::array<Vec2f, 3> uv_array{uv0, uv1, uv2};
-                            obj_info.uvs.emplace_back(uv_array);
-                        }
                         obj_info.face_colors.emplace_back(face_color);
                     }
                 };
@@ -189,6 +202,7 @@ bool load_obj(const char *path, TriangleMesh *meshptr, ObjInfo& obj_info, std::s
                 }
                 if (cnt == 4) {
                     its.indices.emplace_back(indices[0], indices[2], indices[3]);
+                    append_uv(0, 2, 3);
                     int face_index = its.indices.size() - 1;
                     if (exist_mtl) {
                         set_face_color_by_mtl(face_index);
@@ -203,8 +217,10 @@ bool load_obj(const char *path, TriangleMesh *meshptr, ObjInfo& obj_info, std::s
         message = _L("This OBJ file couldn't be read because it's empty.");
         return false;
     }
-    if (meshptr->volume() < 0)
+    if (meshptr->volume() < 0) {
         meshptr->flip_triangles();
+        for (auto& uv : obj_info.uvs) std::swap(uv[1], uv[2]);
+    }
     return true;
 }
 
@@ -221,7 +237,14 @@ bool load_obj(const char *path, Model *model, ObjInfo& obj_info, std::string &me
             object_name.assign((last_slash == nullptr) ? path : last_slash + 1);
         } else
            object_name.assign(object_name_in);
-        model->add_object(object_name.c_str(), path, std::move(mesh));
+        auto* object = model->add_object(object_name.c_str(), path, std::move(mesh));
+        auto& volume = *object->volumes.front();
+        if (obj_info.uvs.size() == volume.mesh().its.indices.size()) {
+            volume.texture_uv.reserve(obj_info.uvs.size() * 3);
+            // OBJ vt has V upwards; texture images and the height sampler use top-to-bottom rows.
+            for (const auto& face : obj_info.uvs)
+                for (const Vec2f& uv : face) volume.texture_uv.emplace_back(uv.x(), 1.f - uv.y());
+        }
     }
 
     return ret;

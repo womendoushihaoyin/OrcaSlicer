@@ -130,6 +130,7 @@ enum PrintObjectStep {
     // BBS
     posDetectOverhangsForLift,
     posSimplifyWall, posSimplifyInfill,
+    posContouring, // Appended to preserve release_2.4.1 step ordinals.
     posCount,
 };
 
@@ -510,6 +511,7 @@ public:
 
     // Called by make_perimeters()
     void slice();
+    std::vector<ExPolygons> slice_single_volume_regions(const ModelVolume* volume) const;
 
     // Helpers to slice support enforcer / blocker meshes by the support generator.
     std::vector<Polygons>       slice_support_volumes(const ModelVolumeType model_volume_type) const;
@@ -567,6 +569,8 @@ private:
     void prepare_infill();
     void infill();
     void ironing();
+    bool need_z_contouring() const;
+    void contour_z();
     void generate_support_material();
     void estimate_curled_extrusions();
     void simplify_extrusion_path();
@@ -920,6 +924,9 @@ public:
     // Make sure the background processing has no access to this model_object during this call!
     void                auto_assign_extruders(ModelObject* model_object) const;
 
+    // Stop active work and invalidate every plugin-visible milestone as one state mutation.
+    void invalidate_plugin_state();
+
     const PrintConfig&          config() const { return m_config; }
     const PrintObjectConfig&    default_object_config() const { return m_default_object_config; }
     const PrintRegionConfig& default_region_config() const { return m_default_region_config; }
@@ -1058,6 +1065,7 @@ private:
     Polygons            first_layer_islands() const;
 
     PrintConfig                             m_config;
+    std::string                             m_plugin_pipeline_signature;
     PrintObjectConfig                       m_default_object_config;
     PrintRegionConfig                       m_default_region_config;
     MixedFilamentManager                    m_mixed_filament_mgr;

@@ -2,6 +2,9 @@
 #include "libslic3r/AllowlistManager.hpp"
 #include "libslic3r/FilamentHotBedNozzleRules.hpp"
 #include "GUI_App.hpp"
+#ifdef ORCA_LOCAL_PLUGIN_SPIKE
+#include "LocalPluginsDialog.hpp"
+#endif
 #include "GUI_Init.hpp"
 #include "GUI_ObjectList.hpp"
 #include "GUI_Factories.hpp"
@@ -1801,6 +1804,7 @@ bool GUI_App::check_networking_version()
         }
     }
 
+    NetworkAgent::record_network_module_compatibility_error(studio_ver, network_ver);
     m_networking_compatible = false;
     return false;
 }
@@ -2064,7 +2068,13 @@ GUI_App::~GUI_App()
 {
     GUI_App::m_app_alive.store(false);
 
+    delete hms_query;
+    hms_query = nullptr;
+
     BOOST_LOG_TRIVIAL(info) << __FUNCTION__<< boost::format(": enter");
+    // Also cover partial startup: the updater worker may still use configuration.
+    delete preset_updater;
+    preset_updater = nullptr;
     if (app_config != nullptr) {
         BOOST_LOG_TRIVIAL(info) << __FUNCTION__<< boost::format(": destroy app_config");
         delete app_config;
@@ -2075,10 +2085,6 @@ GUI_App::~GUI_App()
         delete preset_bundle;
     }
 
-    if (preset_updater != nullptr) {
-        BOOST_LOG_TRIVIAL(info) << __FUNCTION__<< boost::format(": destroy preset updater");
-        delete preset_updater;
-    }
 
     AllowlistManager::uninit();
 
@@ -2400,6 +2406,17 @@ bool GUI_App::OnInit()
 
 int GUI_App::OnExit()
 {
+    // HMS uses synchronous HTTP on owned workers; the async Http barrier alone
+    // cannot protect its access to app_config / wxGetApp during shutdown.
+    if (hms_query)
+        hms_query->shutdown();
+    // PresetUpdater owns synchronous HTTP work, so drain it while its config
+    // and preset bundle still exist, before closing the global async registry.
+    delete preset_updater;
+    preset_updater = nullptr;
+#ifdef ORCA_LOCAL_PLUGIN_SPIKE
+    shutdown_local_plugin_spike();
+#endif
     ::Slic3r::SnapLog::v1::SnapLogClient::instance().shutdown();
 
     stop_gateway_service();
@@ -2446,7 +2463,14 @@ int GUI_App::OnExit()
         BOOST_LOG_TRIVIAL(error) << "Failed to clean up encrypt bbl network log file";
     }
 
-    return wxApp::OnExit();
+    // Async version/update requests must finish before process-level curl and
+    // OpenSSL cleanup. Their detached workers otherwise race a quick GUI exit.
+    Http::shutdown_async();
+    const int result = wxApp::OnExit();
+#ifdef ORCA_LOCAL_PLUGIN_SPIKE
+    record_local_plugin_smoke_exit(result);
+#endif
+    return result;
 }
 
 class wxBoostLog : public wxLog
@@ -2982,6 +3006,28 @@ bool GUI_App::on_init_inner()
             this->post_init();
 
             update_publish_status();
+
+#ifdef ORCA_LOCAL_PLUGIN_SPIKE
+            // Explicit automation hook in opt-in development builds only. Launch with an
+            // isolated --datadir; never use the user's normal application profile.
+            // Schedule only after post_init RETURNS: m_post_initialized is set before
+            // it enters and is not a completion flag. The timer also waits for queued
+            // startup dialogs to close before plugins may display UI or close the app.
+            schedule_local_plugin_start([this] { return m_post_initialized && !m_is_closing; }, [this] {
+                wxString smoke_file;
+                wxString smoke_report;
+                if (wxGetEnv("ORCA_LOCAL_PLUGIN_SMOKE_FILE", &smoke_file) &&
+                    wxGetEnv("ORCA_LOCAL_PLUGIN_SMOKE_REPORT", &smoke_report)) {
+                    std::ofstream(std::filesystem::u8path(smoke_report.ToUTF8().data()).concat(".startup"))
+                        << "post_init complete; no modal dialogs\n";
+                    run_local_plugin_smoke(std::filesystem::u8path(smoke_file.ToUTF8().data()),
+                                           std::filesystem::u8path(smoke_report.ToUTF8().data()));
+                    mainframe->Close();
+                } else {
+                    start_local_plugin_spike();
+                }
+            });
+#endif
         }
 
         if (m_post_initialized && app_config->dirty())
@@ -3057,6 +3103,8 @@ bool GUI_App::on_init_inner()
     BOOST_LOG_TRIVIAL(info) << "SnapLogClient initialized";
 
     profiler.mark("on_init_inner return");
+
+
 
     return true;
 }

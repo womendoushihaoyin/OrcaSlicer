@@ -6,6 +6,7 @@
 #include "FilamentColorLibrary.hpp"
 #include "enum_bitmask.hpp"
 #include "MixedFilament.hpp"
+#include "LocalPresetBundleMetadata.hpp"
 
 #include <memory>
 #include <unordered_map>
@@ -58,6 +59,13 @@ public:
 
     void            setup_directories();
     void            copy_files(const std::string& from);
+
+    // Local bundle operations used by orca.host.preset.bundles. Reload parses
+    // into a candidate and keeps current presets untouched on any failure.
+    bool reload_local_bundle(const std::string& preset_folder, const std::string& bundle_id, std::string* error = nullptr);
+    std::vector<std::string> list_local_bundle_ids(const std::string& preset_folder) const;
+    void load_local_bundles(const std::string& preset_folder);
+    std::map<std::string, LocalPresetBundleMetadata> local_bundle_metadata;
 
     struct PresetPreferences {
         std::string printer_model_id;// name of a preferred printer model

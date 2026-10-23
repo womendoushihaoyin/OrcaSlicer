@@ -1,5 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <mutex>
+#include <exception>
 #if defined(_MSC_VER) || defined(_WIN32)
 #include <Windows.h>
 #else
@@ -25,6 +27,60 @@ static HMODULE source_module = NULL;
 static void* netwoking_module = NULL;
 static void* source_module = NULL;
 #endif
+
+namespace {
+// Serializes module lifecycle/diagnostics only. Business calls through the legacy
+// agent's function pointers retain their existing threading/lifetime contract.
+std::recursive_mutex module_mutex;
+std::string network_load_error;
+std::string source_load_error;
+std::string version_error;
+std::string compatibility_error;
+std::string unload_error;
+
+std::string last_loader_error()
+{
+#if defined(_MSC_VER) || defined(_WIN32)
+    const DWORD code = GetLastError(); // Capture before formatting or logging.
+    LPWSTR message = nullptr;
+    const DWORD size = FormatMessageW(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM |
+                                         FORMAT_MESSAGE_IGNORE_INSERTS,
+                                     nullptr, code, 0, reinterpret_cast<LPWSTR>(&message), 0, nullptr);
+    std::string text;
+    if (size && message) {
+        const int bytes = WideCharToMultiByte(CP_UTF8, 0, message, static_cast<int>(size), nullptr, 0, nullptr, nullptr);
+        if (bytes > 0) {
+            text.resize(static_cast<size_t>(bytes));
+            WideCharToMultiByte(CP_UTF8, 0, message, static_cast<int>(size), &text[0], bytes, nullptr, nullptr);
+        }
+    }
+    if (message)
+        LocalFree(message);
+    return "Windows error " + std::to_string(code) + (text.empty() ? std::string{} : ": " + text);
+#else
+    const char* error = dlerror();
+    return error ? std::string(error) : "dynamic loader returned failure without diagnostic text";
+#endif
+}
+
+void append_diagnostic(std::string& destination, const std::string& diagnostic)
+{
+    if (diagnostic.empty())
+        return;
+    if (!destination.empty())
+        destination += "\n";
+    destination += diagnostic;
+}
+
+void clear_module_diagnostics()
+{
+    network_load_error.clear();
+    source_load_error.clear();
+    version_error.clear();
+    compatibility_error.clear();
+    unload_error.clear();
+}
+} // namespace
 
 bool NetworkAgent::use_legacy_network = true;
 
@@ -224,6 +280,7 @@ std::string NetworkAgent::get_libpath_in_current_directory(std::string library_n
 
 int NetworkAgent::initialize_network_module(bool using_backup)
 {
+    const std::lock_guard<std::recursive_mutex> lock(module_mutex);
     //int ret = -1;
     std::string library;
     std::string data_dir_str = data_dir();
@@ -241,6 +298,10 @@ int NetworkAgent::initialize_network_module(bool using_backup)
     memset(lib_wstr, 0, sizeof(lib_wstr));
     ::MultiByteToWideChar(CP_UTF8, NULL, library.c_str(), strlen(library.c_str())+1, lib_wstr, sizeof(lib_wstr) / sizeof(lib_wstr[0]));
     netwoking_module = LoadLibrary(lib_wstr);
+    if (!netwoking_module) {
+        const std::string detail = last_loader_error();
+        network_load_error = "Load Bambu network module '" + library + "': " + detail;
+    }
     /*if (!netwoking_module) {
         library = std::string(BAMBU_NETWORK_LIBRARY) + ".dll";
         memset(lib_wstr, 0, sizeof(lib_wstr));
@@ -259,6 +320,10 @@ int NetworkAgent::initialize_network_module(bool using_backup)
         memset(lib_wstr, 0, sizeof(lib_wstr));
         ::MultiByteToWideChar(CP_UTF8, NULL, library_path.c_str(), strlen(library_path.c_str())+1, lib_wstr, sizeof(lib_wstr) / sizeof(lib_wstr[0]));
         netwoking_module = LoadLibrary(lib_wstr);
+        if (!netwoking_module) {
+            const std::string detail = last_loader_error();
+            append_diagnostic(network_load_error, "Load Bambu network fallback '" + library_path + "': " + detail);
+        }
     }
 #else
     #if defined(__WXMAC__)
@@ -275,8 +340,9 @@ int NetworkAgent::initialize_network_module(bool using_backup)
         library = std::string("lib") + BAMBU_NETWORK_LIBRARY + ".so";
         #endif*/
         //netwoking_module = dlopen( library.c_str(), RTLD_LAZY);
-        char* dll_error = dlerror();
-        printf("error, dlerror is %s\n", dll_error);
+        const std::string dll_error = last_loader_error();
+        network_load_error = "Load Bambu network module '" + library + "': " + dll_error;
+        printf("error, dlerror is %s\n", dll_error.c_str());
         BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(", error, dlerror is %1%")%dll_error;
     }
     printf("after dlopen, network_module is %p\n", netwoking_module);
@@ -287,6 +353,10 @@ int NetworkAgent::initialize_network_module(bool using_backup)
         return -1;
     }
     BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(", successfully loaded library %1%, module %2%")%library %netwoking_module;
+
+    // A successful new load supersedes diagnostics from the previous attempt.
+    // Cleanup unloads deliberately do not clear a failed attempt's diagnostic.
+    clear_module_diagnostics();
 
     //load the functions
     check_debug_consistent_ptr        =  reinterpret_cast<func_check_debug_consistent>(get_network_function("bambu_network_check_debug_consistent"));
@@ -397,23 +467,36 @@ int NetworkAgent::initialize_network_module(bool using_backup)
 
 int NetworkAgent::unload_network_module()
 {
+    const std::lock_guard<std::recursive_mutex> lock(module_mutex);
     BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(", network module %1%")%netwoking_module;
 #if defined(_MSC_VER) || defined(_WIN32)
     if (netwoking_module) {
-        FreeLibrary(netwoking_module);
+        if (!FreeLibrary(netwoking_module)) {
+            const std::string detail = last_loader_error();
+            append_diagnostic(unload_error, "Unload Bambu network module: " + detail);
+        }
         netwoking_module = NULL;
     }
     if (source_module) {
-        FreeLibrary(source_module);
+        if (!FreeLibrary(source_module)) {
+            const std::string detail = last_loader_error();
+            append_diagnostic(unload_error, "Unload Bambu source module: " + detail);
+        }
         source_module = NULL;
     }
 #else
     if (netwoking_module) {
-        dlclose(netwoking_module);
+        if (dlclose(netwoking_module) != 0) {
+            const std::string detail = last_loader_error();
+            append_diagnostic(unload_error, "Unload Bambu network module: " + detail);
+        }
         netwoking_module = NULL;
     }
     if (source_module) {
-        dlclose(source_module);
+        if (dlclose(source_module) != 0) {
+            const std::string detail = last_loader_error();
+            append_diagnostic(unload_error, "Unload Bambu source module: " + detail);
+        }
         source_module = NULL;
     }
 #endif
@@ -521,6 +604,7 @@ HMODULE NetworkAgent::get_bambu_source_entry()
 void* NetworkAgent::get_bambu_source_entry()
 #endif
 {
+    const std::lock_guard<std::recursive_mutex> lock(module_mutex);
     if ((source_module) || (!netwoking_module))
         return source_module;
 
@@ -538,6 +622,10 @@ void* NetworkAgent::get_bambu_source_entry()
     ::MultiByteToWideChar(CP_UTF8, NULL, library.c_str(), strlen(library.c_str())+1, lib_wstr, sizeof(lib_wstr) / sizeof(lib_wstr[0]));
     source_module = LoadLibrary(lib_wstr);
     if (!source_module) {
+        const std::string detail = last_loader_error();
+        source_load_error = "Load Bambu source module '" + library + "': " + detail;
+    }
+    if (!source_module) {
         BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(", try load BambuSource directly from current directory");
         std::string library_path = get_libpath_in_current_directory(std::string(BAMBU_SOURCE_LIBRARY));
         if (library_path.empty()) {
@@ -548,6 +636,10 @@ void* NetworkAgent::get_bambu_source_entry()
         memset(lib_wstr, 0, sizeof(lib_wstr));
         ::MultiByteToWideChar(CP_UTF8, NULL, library_path.c_str(), strlen(library_path.c_str()) + 1, lib_wstr, sizeof(lib_wstr) / sizeof(lib_wstr[0]));
         source_module = LoadLibrary(lib_wstr);
+        if (!source_module) {
+            const std::string detail = last_loader_error();
+            append_diagnostic(source_load_error, "Load Bambu source fallback '" + library_path + "': " + detail);
+        }
     }
 #else
 #if defined(__WXMAC__)
@@ -556,6 +648,10 @@ void* NetworkAgent::get_bambu_source_entry()
     library = plugin_folder.string() + "/" + std::string("lib") + std::string(BAMBU_SOURCE_LIBRARY) + ".so";
 #endif
     source_module = dlopen( library.c_str(), RTLD_LAZY);
+    if (!source_module) {
+        const std::string detail = last_loader_error();
+        source_load_error = "Load Bambu source module '" + library + "': " + detail;
+    }
     /*if (!source_module) {
 #if defined(__WXMAC__)
         library = std::string("lib") + BAMBU_SOURCE_LIBRARY + ".dylib";
@@ -566,11 +662,14 @@ void* NetworkAgent::get_bambu_source_entry()
     }*/
 #endif
 
+    if (source_module)
+        source_load_error.clear();
     return source_module;
 }
 
 void* NetworkAgent::get_network_function(const char* name)
 {
+    const std::lock_guard<std::recursive_mutex> lock(module_mutex);
     void* function = nullptr;
 
     if (!netwoking_module)
@@ -590,6 +689,7 @@ void* NetworkAgent::get_network_function(const char* name)
 
 std::string NetworkAgent::get_version()
 {
+    const std::lock_guard<std::recursive_mutex> lock(module_mutex);
     bool consistent = true;
     //check the debug consistent first
     if (check_debug_consistent_ptr) {
@@ -600,14 +700,47 @@ std::string NetworkAgent::get_version()
 #endif
     }
     if (!consistent) {
+        version_error = "Bambu network module rejected the host debug/release configuration";
         BOOST_LOG_TRIVIAL(warning) << __FUNCTION__ << boost::format(", inconsistent library,return 00.00.00.00!");
         return "00.00.00.00";
     }
     if (get_version_ptr) {
-        return get_version_ptr();
+        std::string value = get_version_ptr();
+        version_error = value.empty() ? "Bambu network module returned an empty version" : std::string{};
+        return value;
     }
+    if (netwoking_module)
+        version_error = "Loaded Bambu network module has no bambu_network_get_version symbol";
     BOOST_LOG_TRIVIAL(warning) << __FUNCTION__ << boost::format(", get_version not supported,return 00.00.00.00!");
     return "00.00.00.00";
+}
+
+NetworkModuleSnapshot NetworkAgent::network_module_snapshot()
+{
+    const std::lock_guard<std::recursive_mutex> lock(module_mutex);
+    NetworkModuleSnapshot snapshot;
+    snapshot.loaded = netwoking_module != nullptr;
+    if (snapshot.loaded) {
+        try {
+            const std::string value = get_version();
+            if (version_error.empty())
+                snapshot.version = value;
+        } catch (const std::exception& error) {
+            version_error = "Bambu network version query failed: " + std::string(error.what());
+        } catch (...) {
+            version_error = "Bambu network version query threw a non-standard exception";
+        }
+    }
+    for (const auto* diagnostic : {&network_load_error, &source_load_error, &version_error, &compatibility_error, &unload_error})
+        append_diagnostic(snapshot.error, *diagnostic);
+    return snapshot;
+}
+
+void NetworkAgent::record_network_module_compatibility_error(const std::string& expected, const std::string& actual)
+{
+    const std::lock_guard<std::recursive_mutex> lock(module_mutex);
+    compatibility_error = "Bambu network version is incompatible: expected prefix '" + expected.substr(0, 8) +
+                          "', received '" + actual + "'";
 }
 
 int NetworkAgent::init_log()
